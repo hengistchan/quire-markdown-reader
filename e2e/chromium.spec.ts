@@ -70,6 +70,7 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     await page.goto(`chrome-extension://${id}/viewer.html`);
 
     await expect(page).toHaveTitle('Quire');
+    await expect(page.getByRole('img', { name: 'Quire' })).toHaveAttribute('src', '/icon/96.png');
     await expect(page.getByRole('heading', { level: 1, name: 'Welcome to Quire' })).toBeVisible();
     await expect(page.locator('.context-panel')).toHaveCount(0);
 

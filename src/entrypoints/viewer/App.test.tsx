@@ -44,6 +44,7 @@ describe('Quire viewer experience', () => {
     render(<App />);
 
     expect(await screen.findByLabelText('Document navigation')).toBeTruthy();
+    expect(screen.getByRole('img', { name: 'Quire' }).getAttribute('src')).toBe('/icon/96.png');
     expect(screen.queryByText('Your documents, set for reading.')).toBeNull();
     expect(document.querySelector('.context-panel')).toBeNull();
     await user.click(document.querySelector<HTMLElement>('.open-trigger')!);
