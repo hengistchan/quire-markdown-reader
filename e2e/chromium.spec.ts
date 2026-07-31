@@ -94,8 +94,14 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     const outline = page.locator('.outline-popover');
     const outlineBox = await outline.boundingBox();
     expect(outlineBox!.y + outlineBox!.height).toBeLessThanOrEqual(800);
-    expect(await outline.locator('nav').evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
-    await expect(outline.locator('nav button')).toHaveCount(33);
+    const outlineNavigation = outline.locator('nav');
+    expect(await outlineNavigation.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+    await expect(outlineNavigation.locator('button')).toHaveCount(33);
+    const outlineRowHeights = await outlineNavigation.locator('button').evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().height));
+    expect(Math.min(...outlineRowHeights)).toBeGreaterThanOrEqual(30);
+    await outlineNavigation.hover();
+    await page.mouse.wheel(0, 480);
+    await expect.poll(() => outlineNavigation.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
 
     await page.evaluate(async () => {
       const root = await navigator.storage.getDirectory();
