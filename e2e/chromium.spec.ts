@@ -1,8 +1,9 @@
 import { expect, test, chromium, type BrowserContext, type Page } from '@playwright/test';
 import { createServer, type Server } from 'node:http';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const extensionPath = resolve('.output/chrome-mv3');
 
@@ -66,6 +67,14 @@ test('runs the complete reader flow as an installed Chromium extension', async (
       args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`, '--lang=en-US'],
     });
     const id = await extensionId(context);
+    const localMarkdownPath = join(profile, 'Address Bar Preview.md');
+    await writeFile(localMarkdownPath, '# Address Bar Preview\n\nOpened from a local absolute path.');
+    const localPage = await context.newPage();
+    await localPage.goto(pathToFileURL(localMarkdownPath).href);
+    await localPage.waitForURL(`chrome-extension://${id}/viewer.html`);
+    await expect(localPage.getByRole('heading', { level: 1, name: 'Address Bar Preview' })).toBeVisible();
+    await localPage.close();
+
     const page = await context.newPage();
     await installWorkspacePicker(page);
     await page.goto(`chrome-extension://${id}/viewer.html`);

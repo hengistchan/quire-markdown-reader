@@ -52,6 +52,8 @@ flowchart LR
 ## Start here
 
 Use **Open file** for one document, **Open folder** for a local workspace, or **Open URL** for remote Markdown.
+
+To preview an absolute path from the address bar, enable **Allow access to file URLs** in Quire's extension details, then open a URL such as \`file:///Users/name/docs/README.md\`.
 `,
 } as const;
 
@@ -107,6 +109,8 @@ flowchart LR
 ## 从这里开始
 
 使用 **打开文件** 阅读单篇文档，使用 **打开文件夹** 连接本地工作区，或使用 **打开网址** 读取网络 Markdown。
+
+如果要从地址栏预览绝对路径，请先在 Quire 扩展详情页开启 **允许访问文件网址**，再打开类似 \`file:///Users/name/docs/README.md\` 的地址。
 `,
 };
 

@@ -156,7 +156,7 @@ export function App() {
       setSettings(loadedSettings);
       setRecent(recentItems);
       const imported = stored.importedDocument as ImportedDocument | undefined;
-      if (imported?.markdown) {
+      if (imported && typeof imported.markdown === 'string') {
         openImportedDocument(imported);
         if (typeof browser !== 'undefined') await browser.storage.local.remove('importedDocument');
       }

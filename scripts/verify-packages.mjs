@@ -29,10 +29,12 @@ assert.equal(chrome.version, version);
 assert.equal(chrome.manifest_version, 3);
 assert.deepEqual(chrome.optional_host_permissions, ['http://*/*', 'https://*/*', 'file:///*']);
 assert.ok(!chrome.host_permissions, 'Chromium must not request host access at install time');
+assert.deepEqual(chrome.content_scripts?.[0]?.matches, ['file:///*']);
 
 assert.equal(firefox.version, version);
 assert.equal(firefox.manifest_version, 2);
 assert.deepEqual(firefox.optional_permissions, ['http://*/*', 'https://*/*', 'file:///*']);
+assert.deepEqual(firefox.content_scripts?.[0]?.matches, ['file:///*']);
 assert.equal(firefox.browser_specific_settings.gecko.id, '{60628e87-7d17-444b-8862-499ed925bb7f}');
 assert.deepEqual(firefox.browser_specific_settings.gecko.data_collection_permissions.required, ['none']);
 
@@ -40,6 +42,7 @@ for (const target of ['chrome-mv3', 'firefox-mv2']) {
   for (const size of [16, 32, 48, 96, 128]) await exists(resolve(output, target, `icon/${size}.png`));
   await exists(resolve(output, target, '_locales/en/messages.json'));
   await exists(resolve(output, target, '_locales/zh_CN/messages.json'));
+  await exists(resolve(output, target, 'content-scripts/local-markdown.js'));
 }
 
 await copyFile(chromeArchive, edgeArchive);

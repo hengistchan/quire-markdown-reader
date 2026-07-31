@@ -1,11 +1,14 @@
 import type { ImportedDocument } from '../shared/types';
+import { isOpenLocalMarkdownMessage } from './localMarkdown';
 
 type ExtensionApi = typeof browser;
 
-export async function openViewer(document?: ImportedDocument, api: ExtensionApi = browser): Promise<void> {
+export async function openViewer(document?: ImportedDocument, api: ExtensionApi = browser, tabId?: number): Promise<void> {
   if (document) await api.storage.local.set({ importedDocument: document });
   else await api.storage.local.remove('importedDocument');
-  await api.tabs.create({ url: api.runtime.getURL('/viewer.html') });
+  const url = api.runtime.getURL('/viewer.html');
+  if (tabId === undefined) await api.tabs.create({ url });
+  else await api.tabs.update(tabId, { url });
 }
 
 export async function importActiveTab(tab?: Browser.tabs.Tab, api: ExtensionApi = browser): Promise<void> {
@@ -26,6 +29,11 @@ export async function importActiveTab(tab?: Browser.tabs.Tab, api: ExtensionApi 
 }
 
 export function registerBrowserHandlers(api: ExtensionApi = browser): void {
+  api.runtime.onMessage.addListener((message, sender) => {
+    if (!isOpenLocalMarkdownMessage(message) || sender.tab?.id === undefined) return undefined;
+    return openViewer(message.document, api, sender.tab.id);
+  });
+
   api.runtime.onInstalled.addListener(async () => {
     await api.contextMenus.removeAll();
     api.contextMenus.create({

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { OPEN_LOCAL_MARKDOWN } from './localMarkdown';
 import { importActiveTab, openViewer, registerBrowserHandlers } from './extensionActions';
 
 function event<T extends (...args: never[]) => unknown>() {
@@ -14,21 +15,23 @@ function extensionApi() {
   const onAction = event<(tab: Browser.tabs.Tab) => Promise<void>>();
   const onCommand = event<(command: string) => Promise<void>>();
   const onContext = event<(info: Browser.contextMenus.OnClickData, tab?: Browser.tabs.Tab) => Promise<void>>();
+  const onMessage = event<(message: unknown, sender: Browser.runtime.MessageSender) => Promise<void> | undefined>();
   return {
     api: {
       storage: { local: { set: vi.fn(async () => undefined), remove: vi.fn(async () => undefined) } },
       tabs: {
         create: vi.fn(async () => ({ id: 2 })),
+        update: vi.fn(async () => ({ id: 1 })),
         query: vi.fn(async () => [{ id: 1, title: 'Active' }]),
       },
-      runtime: { getURL: vi.fn((path: string) => `moz-extension://quire${path}`), onInstalled },
+      runtime: { getURL: vi.fn((path: string) => `moz-extension://quire${path}`), onInstalled, onMessage },
       scripting: { executeScript: vi.fn(async () => [{ result: { title: 'Page', markdown: '# Page', sourceUrl: 'https://example.com' } }]) },
       i18n: { getMessage: vi.fn(() => 'Open in Quire') },
       contextMenus: { removeAll: vi.fn(async () => undefined), create: vi.fn(), onClicked: onContext },
       action: { onClicked: onAction },
       commands: { onCommand },
     } as unknown as typeof browser,
-    onInstalled, onAction, onCommand, onContext,
+    onInstalled, onAction, onCommand, onContext, onMessage,
   };
 }
 
@@ -71,6 +74,38 @@ describe('extension entry actions', () => {
     await harness.onContext.fire({ menuItemId: 'ignored' } as Browser.contextMenus.OnClickData);
     await harness.onContext.fire({ menuItemId: 'open-in-quire' } as Browser.contextMenus.OnClickData, { id: 1 } as Browser.tabs.Tab);
     expect(harness.api.scripting.executeScript).toHaveBeenCalledTimes(3);
+  });
+
+  it('replaces a local Markdown tab with the reader', async () => {
+    const harness = extensionApi();
+    registerBrowserHandlers(harness.api);
+    const document = { title: 'README.md', markdown: '# Local', sourceUrl: 'file:///tmp/README.md' };
+
+    await harness.onMessage.fire(
+      { type: OPEN_LOCAL_MARKDOWN, document },
+      { tab: { id: 9 } } as Browser.runtime.MessageSender,
+    );
+
+    expect(harness.api.storage.local.set).toHaveBeenCalledWith({ importedDocument: document });
+    expect(harness.api.tabs.update).toHaveBeenCalledWith(9, { url: 'moz-extension://quire/viewer.html' });
+    expect(harness.api.tabs.create).not.toHaveBeenCalled();
+  });
+
+  it('ignores local-import messages without a Markdown file URL or sender tab', async () => {
+    const harness = extensionApi();
+    registerBrowserHandlers(harness.api);
+
+    await harness.onMessage.fire(
+      { type: OPEN_LOCAL_MARKDOWN, document: { title: 'Page', markdown: 'text', sourceUrl: 'file:///tmp/page.txt' } },
+      { tab: { id: 9 } } as Browser.runtime.MessageSender,
+    );
+    await harness.onMessage.fire(
+      { type: OPEN_LOCAL_MARKDOWN, document: { title: 'README.md', markdown: '# Local', sourceUrl: 'file:///tmp/README.md' } },
+      {} as Browser.runtime.MessageSender,
+    );
+
+    expect(harness.api.storage.local.set).not.toHaveBeenCalled();
+    expect(harness.api.tabs.update).not.toHaveBeenCalled();
   });
 
   it('uses the Firefox MV2 browserAction API when action is unavailable', async () => {
