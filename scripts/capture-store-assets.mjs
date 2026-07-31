@@ -1,143 +1,54 @@
 import { chromium } from '@playwright/test';
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 const extensionPath = resolve('.output/chrome-mv3');
 const assets = resolve('store/assets');
+const sampleLibraryRoot = resolve('fixtures/sample-library');
 
 const screenshotSets = [
   {
     directory: 'global',
     browserLocale: 'en-US',
     appLocale: 'en',
+    fixtureDirectory: 'en',
     workspaceName: 'Quire Sample Library',
     labels: { open: 'Open', openFolder: 'Open folder', toggleWorkspace: 'Toggle file workspace', command: 'Command center', settings: 'Reader settings' },
     readerTitle: 'A calm place for Markdown',
     technicalFile: 'Architecture.md',
     technicalTitle: 'Architecture at a glance',
-    files: [
-      {
-        path: 'README.md',
-        contents: [
-          '# A calm place for Markdown',
-          '',
-          'Quire turns local notes and documentation into a focused reading workspace.',
-          '',
-          '::: note',
-          '**Read-only by design.** Your files stay on this device and the source is never modified.',
-          ':::',
-          '',
-          '## One library, two ways to navigate',
-          '',
-          'Move between a real folder tree and the current document outline without leaving the page.',
-          '',
-          '- [x] Open a single Markdown file',
-          '- [x] Connect a local documentation folder',
-          '- [x] Follow relative links and images',
-          '- [x] Read remote Markdown with permission',
-          '',
-          '## Built for long-form reading',
-          '',
-          'Search the document, tune the typography, and keep your place with reading progress.',
-        ].join('\n'),
-      },
-      { path: 'Guides/Getting Started.md', contents: '# Getting started\n\nChoose a document and start reading.\n\n## Open a file\n\nUse the toolbar to select a Markdown file.\n\n## Connect a folder\n\nKeep an entire documentation library together.' },
-      { path: 'Guides/Keyboard Shortcuts.md', contents: '# Keyboard shortcuts\n\nUse `Alt/Option + Shift + M` to open Quire.' },
-      {
-        path: 'Notes/Architecture.md',
-        contents: [
-          '# Architecture at a glance',
-          '',
-          'Technical Markdown stays readable, from diagrams and formulas to highlighted code.',
-          '',
-          '```mermaid',
-          'flowchart LR',
-          '  A[Markdown] --> B[Sanitize]',
-          '  B --> C[Render]',
-          '  C --> D[Read]',
-          '```',
-          '',
-          '## Precise notation',
-          '',
-          'Inline math remains crisp: $E = mc^2$ and $O(n \\log n)$.',
-          '',
-          '```ts',
-          'const workspace = { mode: "local", editable: false };',
-          '```',
-        ].join('\n'),
-      },
-      { path: 'Notes/Reading List.md', contents: '# Reading list\n\n- Browser architecture\n- Documentation systems\n- Local-first software' },
-    ],
   },
   {
     directory: 'zh-CN',
     browserLocale: 'zh-CN',
     appLocale: 'zh-CN',
+    fixtureDirectory: 'zh-CN',
     workspaceName: 'Quire 示例文档库',
     labels: { open: '打开', openFolder: '打开文件夹', toggleWorkspace: '切换文件工作区', command: '命令中心', settings: '阅读设置' },
     readerTitle: '安静阅读 Markdown',
     technicalFile: '架构说明.md',
     technicalTitle: '架构一目了然',
-    files: [
-      {
-        path: 'README.md',
-        contents: [
-          '# 安静阅读 Markdown',
-          '',
-          'Quire 将本地笔记和技术文档整理成专注、舒适的阅读工作区。',
-          '',
-          '::: note',
-          '**只读设计。** 文件保留在这台设备上，Quire 永远不会修改源文件。',
-          ':::',
-          '',
-          '## 一套文档，两种导航方式',
-          '',
-          '在真实文件树和当前文档大纲之间切换，不必离开阅读页面。',
-          '',
-          '- [x] 打开单个 Markdown 文件',
-          '- [x] 连接本地文档文件夹',
-          '- [x] 跟随相对链接和图片',
-          '- [x] 授权后读取网络 Markdown',
-          '',
-          '## 为长文阅读而生',
-          '',
-          '搜索文档、调整排版，并通过阅读进度保留当前位置。',
-        ].join('\n'),
-      },
-      { path: '指南/开始使用.md', contents: '# 开始使用\n\n选择一份文档，马上开始阅读。\n\n## 打开文件\n\n从工具栏选择 Markdown 文件。\n\n## 连接文件夹\n\n把整套文档放在一个工作区中阅读。' },
-      { path: '指南/键盘快捷键.md', contents: '# 键盘快捷键\n\n使用 `Alt/Option + Shift + M` 打开 Quire。' },
-      {
-        path: '笔记/架构说明.md',
-        contents: [
-          '# 架构一目了然',
-          '',
-          '从图表、公式到高亮代码，技术 Markdown 也能保持清晰易读。',
-          '',
-          '```mermaid',
-          'flowchart LR',
-          '  A[Markdown] --> B[安全清洗]',
-          '  B --> C[渲染]',
-          '  C --> D[阅读]',
-          '```',
-          '',
-          '## 精确表达',
-          '',
-          '行内公式依然清晰：$E = mc^2$ 与 $O(n \\log n)$。',
-          '',
-          '```ts',
-          'const workspace = { mode: "local", editable: false };',
-          '```',
-        ].join('\n'),
-      },
-      { path: '笔记/阅读清单.md', contents: '# 阅读清单\n\n- 浏览器架构\n- 文档系统\n- 本地优先软件' },
-    ],
   },
 ];
+
+async function readFixtureFiles(directory, prefix = '') {
+  const files = [];
+  const entries = await readdir(directory, { withFileTypes: true });
+  entries.sort((left, right) => left.name.localeCompare(right.name));
+  for (const entry of entries) {
+    const path = prefix ? `${prefix}/${entry.name}` : entry.name;
+    const absolutePath = join(directory, entry.name);
+    if (entry.isDirectory()) files.push(...await readFixtureFiles(absolutePath, path));
+    else if (/\.(md|markdown|mdx)$/i.test(entry.name)) files.push({ path, contents: await readFile(absolutePath, 'utf8') });
+  }
+  return files;
+}
 
 async function captureLocalizedSet(config) {
   const output = resolve(assets, 'screenshots', config.directory);
   const profile = await mkdtemp(join(tmpdir(), `quire-store-${config.directory}-`));
+  const files = await readFixtureFiles(join(sampleLibraryRoot, config.fixtureDirectory));
   await mkdir(output, { recursive: true });
   const context = await chromium.launchPersistentContext(profile, {
     channel: 'chromium',
@@ -196,7 +107,7 @@ async function captureLocalizedSet(config) {
           return workspace;
         },
       });
-    }, { workspaceName: config.workspaceName, files: config.files });
+    }, { workspaceName: config.workspaceName, files });
 
     await page.goto(`chrome-extension://${extensionId}/viewer.html`);
     await page.getByRole('button', { name: config.labels.open, exact: true }).click();
