@@ -2,12 +2,14 @@ export type ThemePreference = 'system' | 'light' | 'dark';
 export type SidebarMode = 'files' | 'outline';
 
 export interface ReaderSettings {
+  locale: 'system' | 'en' | 'zh-CN';
   theme: ThemePreference;
   fontFamily: 'sans' | 'serif';
   fontSize: number;
   lineHeight: number;
   contentWidth: number;
   showReadingProgress: boolean;
+  autoRefresh: boolean;
   enableKatex: boolean;
   enableMermaid: boolean;
   enableHtml: boolean;
@@ -22,6 +24,33 @@ export interface WorkspaceFile {
   handle: FileSystemFileHandle;
 }
 
+export interface WorkspaceDirectory {
+  id: string;
+  name: string;
+  path: string;
+  depth: number;
+  kind: 'directory';
+  children: WorkspaceTreeNode[];
+}
+
+export interface WorkspaceFileNode {
+  id: string;
+  name: string;
+  path: string;
+  depth: number;
+  kind: 'file';
+  file: WorkspaceFile;
+}
+
+export type WorkspaceTreeNode = WorkspaceDirectory | WorkspaceFileNode;
+
+export interface WorkspaceSnapshot {
+  name: string;
+  files: WorkspaceFile[];
+  tree: WorkspaceTreeNode[];
+  handle: FileSystemDirectoryHandle;
+}
+
 export interface HeadingItem {
   id: string;
   text: string;
@@ -32,4 +61,10 @@ export interface ImportedDocument {
   title: string;
   markdown: string;
   sourceUrl?: string;
+}
+
+export interface RemoteDocumentState {
+  url: string;
+  etag?: string;
+  lastModified?: string;
 }

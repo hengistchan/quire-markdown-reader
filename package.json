@@ -1,6 +1,6 @@
 {
-  "name": "folio-md-reader",
-  "version": "0.1.0",
+  "name": "quire-markdown-reader",
+  "version": "0.0.1",
   "description": "An open-source, read-only Markdown reader and local document workspace for browsers.",
   "license": "MIT",
   "private": true,
@@ -24,9 +24,18 @@
     "zip": "npm run zip:chrome && npm run zip:firefox",
     "zip:chrome": "wxt zip -b chrome",
     "zip:firefox": "wxt zip -b firefox",
+    "package": "npm run build && npm run zip && node scripts/verify-packages.mjs",
+    "package:verify": "node scripts/verify-packages.mjs",
+    "source:verify": "node scripts/verify-source-build.mjs",
+    "store:assets": "node scripts/capture-store-assets.mjs",
     "compile": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "npm run build && npm run test:e2e:chromium && npm run test:e2e:firefox:context",
+    "test:e2e:chromium": "playwright test e2e/chromium.spec.ts",
+    "test:e2e:firefox": "node e2e/firefox-installed.mjs",
+    "test:e2e:firefox:context": "FIREFOX_SKIP_SHORTCUT=1 node e2e/firefox-installed.mjs",
+    "test:e2e:firefox:native": "FIREFOX_HEADED=1 FIREFOX_NATIVE_INPUT=1 FIREFOX_SKIP_CONTEXT=1 node e2e/firefox-installed.mjs"
   },
   "dependencies": {
     "@mdit/plugin-abbr": "^1.0.2",
@@ -47,12 +56,18 @@
     "react-dom": "^19.1.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/chrome": "^0.1.2",
     "@types/markdown-it": "^14.1.2",
+    "@types/node": "^26.1.2",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.2",
+    "fake-indexeddb": "^6.2.5",
     "jsdom": "^26.1.0",
+    "selenium-webdriver": "^4.46.0",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4",
     "wxt": "^0.21.2"

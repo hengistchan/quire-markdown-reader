@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title">
+  <title id="title">Quire app icon</title>
+  <rect width="1024" height="1024" rx="232" fill="#5266D7"/>
+  <path d="M254 226c-44 15-74 57-74 104v434c0 47 30 89 74 104" fill="none" stroke="#AAB6FF" stroke-width="50" stroke-linecap="round" opacity=".65"/>
+  <path d="M770 226c44 15 74 57 74 104v434c0 47-30 89-74 104" fill="none" stroke="#3044B0" stroke-width="50" stroke-linecap="round" opacity=".7"/>
+  <rect x="250" y="150" width="524" height="724" rx="96" fill="#FCFCFD"/>
+  <path d="M512 314c-118 0-198 84-198 206 0 124 80 208 198 208 43 0 82-11 113-31l62 67 55-51-61-64c20-35 31-79 31-129 0-122-81-206-200-206Zm0 79c68 0 111 49 111 127 0 25-5 47-14 65l-55-58-55 51 67 70c-16 6-34 9-54 9-67 0-109-51-109-137 0-79 42-127 109-127Z" fill="#303D91"/>
+</svg>

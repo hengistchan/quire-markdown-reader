@@ -1,0 +1,6 @@
+{
+  "extName": { "message": "Quire — Markdown 阅读器" },
+  "extDescription": { "message": "安静、私密的本地与网络 Markdown 文档阅读工作区。" },
+  "actionTitle": { "message": "使用 Quire 打开" },
+  "contextMenuTitle": { "message": "使用 Quire 打开" }
+}

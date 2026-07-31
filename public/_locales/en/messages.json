@@ -1,0 +1,6 @@
+{
+  "extName": { "message": "Quire — Markdown Reader" },
+  "extDescription": { "message": "A calm, private reading workspace for local and web Markdown documents." },
+  "actionTitle": { "message": "Open in Quire" },
+  "contextMenuTitle": { "message": "Open in Quire" }
+}
