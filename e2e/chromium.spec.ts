@@ -70,9 +70,12 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     const localMarkdownPath = join(profile, 'Address Bar Preview.md');
     await writeFile(localMarkdownPath, '# Address Bar Preview\n\nOpened from a local absolute path.');
     const localPage = await context.newPage();
-    await localPage.goto(pathToFileURL(localMarkdownPath).href);
-    await localPage.waitForURL(`chrome-extension://${id}/viewer.html`);
-    await expect(localPage.getByRole('heading', { level: 1, name: 'Address Bar Preview' })).toBeVisible();
+    const localMarkdownUrl = pathToFileURL(localMarkdownPath).href;
+    await localPage.goto(localMarkdownUrl);
+    await expect(localPage).toHaveURL(localMarkdownUrl);
+    const embeddedReader = localPage.frameLocator('iframe[data-quire-reader]');
+    await expect(embeddedReader.getByRole('heading', { level: 1, name: 'Address Bar Preview' })).toBeVisible();
+    await expect(localPage).toHaveURL(localMarkdownUrl);
     await localPage.close();
 
     const page = await context.newPage();

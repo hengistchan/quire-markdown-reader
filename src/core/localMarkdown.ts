@@ -7,6 +7,10 @@ export interface OpenLocalMarkdownMessage {
   document: ImportedDocument;
 }
 
+export interface OpenLocalMarkdownResponse {
+  viewerUrl: string;
+}
+
 export function isLocalMarkdownUrl(value: string): boolean {
   try {
     const url = new URL(value);
@@ -45,4 +49,16 @@ export function isOpenLocalMarkdownMessage(value: unknown): value is OpenLocalMa
     && typeof document.markdown === 'string'
     && typeof document.sourceUrl === 'string'
     && isLocalMarkdownUrl(document.sourceUrl);
+}
+
+export function isOpenLocalMarkdownResponse(value: unknown): value is OpenLocalMarkdownResponse {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<OpenLocalMarkdownResponse>;
+  if (typeof candidate.viewerUrl !== 'string') return false;
+  try {
+    const url = new URL(candidate.viewerUrl);
+    return ['chrome-extension:', 'moz-extension:'].includes(url.protocol) && url.pathname === '/viewer.html';
+  } catch {
+    return false;
+  }
 }

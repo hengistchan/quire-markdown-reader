@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  createLocalMarkdownImport, isLocalMarkdownUrl, isOpenLocalMarkdownMessage,
+  createLocalMarkdownImport, isLocalMarkdownUrl, isOpenLocalMarkdownMessage, isOpenLocalMarkdownResponse,
   localMarkdownTitle, OPEN_LOCAL_MARKDOWN,
 } from './localMarkdown';
 
@@ -41,5 +41,12 @@ describe('local Markdown address handling', () => {
       type: OPEN_LOCAL_MARKDOWN,
       document: { title: 'Page', markdown: 'text', sourceUrl: 'https://example.com' },
     })).toBe(false);
+  });
+
+  it('accepts only reader-page responses from the background', () => {
+    expect(isOpenLocalMarkdownResponse({ viewerUrl: 'chrome-extension://quire/viewer.html' })).toBe(true);
+    expect(isOpenLocalMarkdownResponse({ viewerUrl: 'moz-extension://quire/viewer.html' })).toBe(true);
+    expect(isOpenLocalMarkdownResponse({ viewerUrl: 'https://example.com/viewer.html' })).toBe(false);
+    expect(isOpenLocalMarkdownResponse({ viewerUrl: 'chrome-extension://quire/settings.html' })).toBe(false);
   });
 });

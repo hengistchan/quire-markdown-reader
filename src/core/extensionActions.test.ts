@@ -76,18 +76,19 @@ describe('extension entry actions', () => {
     expect(harness.api.scripting.executeScript).toHaveBeenCalledTimes(3);
   });
 
-  it('replaces a local Markdown tab with the reader', async () => {
+  it('stages a local Markdown document without navigating away from its path', async () => {
     const harness = extensionApi();
     registerBrowserHandlers(harness.api);
     const document = { title: 'README.md', markdown: '# Local', sourceUrl: 'file:///tmp/README.md' };
 
-    await harness.onMessage.fire(
+    const response = await harness.onMessage.fire(
       { type: OPEN_LOCAL_MARKDOWN, document },
       { tab: { id: 9 } } as Browser.runtime.MessageSender,
     );
 
     expect(harness.api.storage.local.set).toHaveBeenCalledWith({ importedDocument: document });
-    expect(harness.api.tabs.update).toHaveBeenCalledWith(9, { url: 'moz-extension://quire/viewer.html' });
+    expect(response).toEqual({ viewerUrl: 'moz-extension://quire/viewer.html' });
+    expect(harness.api.tabs.update).not.toHaveBeenCalled();
     expect(harness.api.tabs.create).not.toHaveBeenCalled();
   });
 

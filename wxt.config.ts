@@ -15,6 +15,9 @@ export default defineConfig({
     ...(browser === 'firefox'
       ? { optional_permissions: ['http://*/*', 'https://*/*', 'file:///*'] }
       : { optional_host_permissions: ['http://*/*', 'https://*/*', 'file:///*'] }),
+    ...(browser === 'firefox'
+      ? { web_accessible_resources: ['viewer.html'] }
+      : { web_accessible_resources: [{ resources: ['viewer.html'], matches: ['file:///*'] }] }),
     action: {
       default_title: '__MSG_actionTitle__',
       default_icon: {
