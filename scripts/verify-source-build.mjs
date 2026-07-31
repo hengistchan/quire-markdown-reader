@@ -32,7 +32,8 @@ async function fingerprints(root, directory = root) {
 }
 
 try {
-  run('unzip', ['-q', archive, '-d', scratch]);
+  if (process.platform === 'darwin') run('ditto', ['-x', '-k', archive, scratch]);
+  else run('unzip', ['-q', archive, '-d', scratch]);
   run('npm', ['ci'], scratch);
   run('npm', ['run', 'build:firefox'], scratch);
   const rebuilt = await fingerprints(resolve(scratch, '.output/firefox-mv2'));
