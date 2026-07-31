@@ -87,14 +87,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 .workspace { display: grid; grid-template-columns: 1fr; min-height: calc(100vh - 56px); margin: 56px 0 0 52px; }
 .workspace.with-context { grid-template-columns: 280px minmax(0, 1fr); }
-.context-panel { position: sticky; top: 56px; display: grid; grid-template-rows: auto auto auto minmax(0, 1fr) auto; height: calc(100vh - 56px); border-right: 1px solid var(--line); background: var(--panel); }
+.context-panel { position: sticky; top: 56px; display: flex; flex-direction: column; height: calc(100vh - 56px); border-right: 1px solid var(--line); background: var(--panel); }
 .context-heading { display: grid; gap: 7px; padding: 20px 16px 12px; }
 .context-heading span { color: var(--faint); font-size: 9px; }
 .context-heading strong { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
 .file-filter { display: grid; grid-template-columns: 18px 1fr; align-items: center; gap: 6px; margin: 0 14px 12px; padding: 0 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
 .file-filter svg { width: 13px; color: var(--faint); }
 .file-filter input { width: 100%; height: 34px; border: 0; outline: 0; color: var(--ink); background: transparent; font-size: 10px; }
-.context-files { min-height: 0; padding: 2px 9px 12px; overflow-y: auto; }
+.context-files { flex: 1 1 auto; min-height: 0; padding: 2px 9px 12px; overflow-y: auto; }
 .tree-group { display: grid; }
 .folder-row, .file-row { display: grid; align-items: center; gap: 6px; width: 100%; min-height: 34px; border: 0; border-radius: 7px; color: var(--muted); background: transparent; cursor: pointer; text-align: left; }
 .folder-row { grid-template-columns: 17px 17px minmax(0, 1fr); }
@@ -106,7 +106,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .file-row.active { color: var(--ink); background: var(--accent-soft); font-weight: 700; }
 .file-row.active > svg:first-child, .row-check { color: var(--accent-ink); }
 .file-row.filtered { padding: 0 9px; }
-.context-foot { display: flex; align-items: center; gap: 8px; padding: 15px 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 9px; }
+.context-foot { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; padding: 15px 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 9px; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 14%, transparent); }
 .restore-card { display: grid; grid-template-columns: 18px 1fr; gap: 6px 8px; margin: 0 13px 12px; padding: 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); }
 .restore-card > svg { width: 15px; color: var(--accent-ink); }
