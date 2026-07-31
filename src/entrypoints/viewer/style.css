@@ -96,7 +96,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .file-filter input { width: 100%; height: 34px; border: 0; outline: 0; color: var(--ink); background: transparent; font-size: 10px; }
 .context-files { min-height: 0; padding: 2px 9px 12px; overflow-y: auto; }
 .tree-group { display: grid; }
-.folder-row, .file-row { display: grid; grid-template-columns: 17px minmax(0, 1fr) 14px; align-items: center; gap: 6px; width: 100%; min-height: 34px; border: 0; border-radius: 7px; color: var(--muted); background: transparent; cursor: pointer; text-align: left; }
+.folder-row, .file-row { display: grid; align-items: center; gap: 6px; width: 100%; min-height: 34px; border: 0; border-radius: 7px; color: var(--muted); background: transparent; cursor: pointer; text-align: left; }
+.folder-row { grid-template-columns: 17px 17px minmax(0, 1fr); }
+.file-row { grid-template-columns: 17px minmax(0, 1fr) 14px; }
 .folder-row:hover, .file-row:hover { color: var(--ink); background: var(--panel-strong); }
 .folder-row svg, .file-row svg { width: 13px; }
 .folder-row span, .file-row span { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }

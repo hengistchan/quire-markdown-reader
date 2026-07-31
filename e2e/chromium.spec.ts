@@ -78,6 +78,9 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     await expect(page.locator('.document-identity strong')).toHaveText('README');
     await expect(page.getByRole('button', { name: 'docs' })).toBeVisible();
     await expect(page.getByRole('button', { name: /guide\.md/ })).toBeVisible();
+    const folderName = page.getByRole('button', { name: 'docs' }).locator('span');
+    await expect(folderName).toHaveText('docs');
+    expect((await folderName.boundingBox())?.width).toBeGreaterThan(24);
     await expect(page.locator('.markdown-body img')).toHaveAttribute('src', /^blob:/);
 
     await page.getByRole('link', { name: 'Open guide' }).click();
