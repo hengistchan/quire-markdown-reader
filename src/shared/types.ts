@@ -9,6 +9,7 @@ export interface ReaderSettings {
   lineHeight: number;
   contentWidth: number;
   showReadingProgress: boolean;
+  showOutline: boolean;
   autoRefresh: boolean;
   enableKatex: boolean;
   enableMermaid: boolean;

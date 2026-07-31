@@ -8,6 +8,7 @@ export const defaultSettings: ReaderSettings = {
   lineHeight: 1.76,
   contentWidth: 760,
   showReadingProgress: true,
+  showOutline: true,
   autoRefresh: true,
   enableKatex: true,
   enableMermaid: true,

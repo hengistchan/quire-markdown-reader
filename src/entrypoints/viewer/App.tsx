@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertCircle, Check, ChevronDown, ChevronRight, File, FilePlus2, Files, Folder,
-  FolderOpen, Globe2, ListTree, Moon, PanelLeftClose, PanelLeftOpen, RotateCw, Search,
-  Settings2, ShieldCheck, Sun, X,
+  AlertCircle, Check, ChevronDown, ChevronRight, Command, File, FilePlus2, Folder,
+  FolderOpen, Globe2, ListTree, Moon, MoreHorizontal, RotateCw, Search, Settings2,
+  ShieldCheck, Sun, X,
 } from 'lucide-react';
 import {
   collectWorkspace, getWorkspaceFileHandle, readWorkspaceFileSnapshot,
@@ -15,7 +15,7 @@ import { createTranslator, resolveLocale } from '../../shared/i18n';
 import { loadRecentItems, rememberRecentItem, type RecentItem } from '../../shared/recent';
 import { defaultSettings, loadSettings, saveSettings } from '../../shared/settings';
 import type {
-  HeadingItem, ImportedDocument, ReaderSettings, RemoteDocumentState, SidebarMode, WorkspaceFile,
+  HeadingItem, ImportedDocument, ReaderSettings, RemoteDocumentState, WorkspaceFile,
   WorkspaceSnapshot, WorkspaceTreeNode,
 } from '../../shared/types';
 
@@ -61,16 +61,19 @@ export function App() {
   const [activeFile, setActiveFile] = useState<WorkspaceFile>();
   const [activeModified, setActiveModified] = useState<number>();
   const [restorableHandle, setRestorableHandle] = useState<FileSystemDirectoryHandle>();
-  const [sidebarMode, setSidebarMode] = useState<SidebarMode>('outline');
-  const [sidebarOpen, setSidebarOpen] = useState(() => innerWidth > 760);
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  const [outlineOpen, setOutlineOpen] = useState(true);
+  const [openMenuOpen, setOpenMenuOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [urlOpen, setUrlOpen] = useState(false);
   const [urlValue, setUrlValue] = useState('');
-  const [query, setQuery] = useState('');
+  const [commandQuery, setCommandQuery] = useState('');
+  const [fileFilter, setFileFilter] = useState('');
+  const [activeHeadingId, setActiveHeadingId] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [error, setError] = useState<string>();
-  const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [recent, setRecent] = useState<RecentItem[]>([]);
   const [collapsedDirectories, setCollapsedDirectories] = useState<Set<string>>(new Set());
   const fileInput = useRef<HTMLInputElement>(null);
@@ -94,11 +97,6 @@ export function App() {
     });
   }, []);
 
-  const finishOnboarding = useCallback(() => {
-    setOnboardingOpen(false);
-    if (typeof browser !== 'undefined') void browser.storage.local.set({ onboardingComplete: true });
-  }, []);
-
   const recordRecent = useCallback(async (item: Omit<RecentItem, 'openedAt'>) => {
     setRecent(await rememberRecentItem(item));
   }, []);
@@ -111,7 +109,7 @@ export function App() {
     setWorkspace(undefined);
     setActiveFile(undefined);
     setActiveModified(undefined);
-    setSidebarMode('outline');
+    setWorkspaceOpen(false);
     setError(undefined);
     scrollTo({ top: 0 });
   }, []);
@@ -133,8 +131,7 @@ export function App() {
   const activateWorkspace = useCallback(async (handle: FileSystemDirectoryHandle, preferredPath?: string) => {
     const snapshot = await collectWorkspace(handle);
     setWorkspace(snapshot);
-    setSidebarMode('files');
-    setSidebarOpen(true);
+    setWorkspaceOpen(true);
     const selected = snapshot.files.find((file) => file.path === preferredPath)
       ?? snapshot.files.find((file) => /^readme\.(md|markdown|mdx)$/i.test(file.path))
       ?? snapshot.files[0];
@@ -153,7 +150,7 @@ export function App() {
     void (async () => {
       const [loadedSettings, stored, recentItems] = await Promise.all([
         loadSettings(),
-        typeof browser === 'undefined' ? Promise.resolve({} as Record<string, unknown>) : browser.storage.local.get(['importedDocument', 'onboardingComplete']),
+        typeof browser === 'undefined' ? Promise.resolve({} as Record<string, unknown>) : browser.storage.local.get(['importedDocument']),
         loadRecentItems(),
       ]);
       setSettings(loadedSettings);
@@ -162,8 +159,6 @@ export function App() {
       if (imported?.markdown) {
         openImportedDocument(imported);
         if (typeof browser !== 'undefined') await browser.storage.local.remove('importedDocument');
-      } else if (!stored.onboardingComplete) {
-        setOnboardingOpen(true);
       }
       if ('showDirectoryPicker' in window) {
         try {
@@ -171,7 +166,7 @@ export function App() {
           if (!handle) return;
           const permission = await handle.queryPermission({ mode: 'read' });
           if (permission === 'granted' && !imported) await activateWorkspace(handle);
-          else setRestorableHandle(handle);
+          else { setRestorableHandle(handle); setWorkspaceOpen(true); }
         } catch {
           // An old or browser-incompatible handle should not block the reader.
         }
@@ -284,18 +279,53 @@ export function App() {
   }, [notice]);
 
   useEffect(() => {
+    const updateActiveHeading = () => {
+      let next = headings[0]?.id;
+      for (const heading of headings) {
+        const element = document.getElementById(heading.id);
+        if (element && element.getBoundingClientRect().top <= 170) next = heading.id;
+      }
+      setActiveHeadingId(next);
+    };
+    updateActiveHeading();
+    addEventListener('scroll', updateActiveHeading, { passive: true });
+    return () => removeEventListener('scroll', updateActiveHeading);
+  }, [headings]);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') { event.preventDefault(); setSearchOpen(true); }
-      if (event.key === 'Escape') { setSearchOpen(false); setSettingsOpen(false); setUrlOpen(false); }
+      if ((event.metaKey || event.ctrlKey) && ['k', 'f'].includes(event.key.toLowerCase())) {
+        event.preventDefault();
+        setCommandOpen(true);
+      }
+      if (event.key === 'Escape') {
+        setCommandOpen(false);
+        setSettingsOpen(false);
+        setUrlOpen(false);
+        setOpenMenuOpen(false);
+        setMoreMenuOpen(false);
+      }
     };
     addEventListener('keydown', onKeyDown);
     return () => removeEventListener('keydown', onKeyDown);
   }, []);
 
+  useEffect(() => {
+    if (!openMenuOpen && !moreMenuOpen) return;
+    const closeMenus = (event: PointerEvent) => {
+      if ((event.target as Element).closest('.menu-anchor')) return;
+      setOpenMenuOpen(false);
+      setMoreMenuOpen(false);
+    };
+    addEventListener('pointerdown', closeMenus);
+    return () => removeEventListener('pointerdown', closeMenus);
+  }, [moreMenuOpen, openMenuOpen]);
+
   const handleFile = async (file: File) => {
     if (!file.name.match(/\.(md|markdown|mdx)$/i)) { setError(t('fileTypeError')); return; }
     openImportedDocument({ title: file.name, markdown: await file.text() }, 'file');
-    finishOnboarding();
+    setOpenMenuOpen(false);
+    setCommandOpen(false);
   };
 
   const handleFileHandle = async (handle: FileSystemFileHandle) => {
@@ -310,10 +340,11 @@ export function App() {
     setWorkspace(undefined);
     setActiveFile(file);
     setActiveModified(snapshot.lastModified);
-    setSidebarMode('outline');
+    setWorkspaceOpen(false);
     setError(undefined);
     scrollTo({ top: 0 });
-    finishOnboarding();
+    setOpenMenuOpen(false);
+    setCommandOpen(false);
   };
 
   const handleOpenFile = async () => {
@@ -330,7 +361,8 @@ export function App() {
   };
 
   const handleDirectory = async () => {
-    finishOnboarding();
+    setOpenMenuOpen(false);
+    setCommandOpen(false);
     if (!('showDirectoryPicker' in window)) { setError(t('folderUnsupported')); return; }
     try {
       const handle = await window.showDirectoryPicker({ mode: 'read' });
@@ -363,7 +395,8 @@ export function App() {
       openImportedDocument(result.document, 'remote');
       setRemoteState(result.state);
       setUrlOpen(false);
-      finishOnboarding();
+      setOpenMenuOpen(false);
+      setCommandOpen(false);
       await recordRecent({ id: `remote:${result.state.url}`, title: result.document.title, kind: 'remote', url: result.state.url });
     } catch (caught) {
       if (caught instanceof RemoteMarkdownError) {
@@ -372,7 +405,7 @@ export function App() {
         else setError(`${t('remoteServerError')} ${caught.status}.`);
       } else setError(t('remoteReadError'));
     }
-  }, [finishOnboarding, openImportedDocument, recordRecent, t]);
+  }, [openImportedDocument, recordRecent, t]);
 
   const handleArticleClick = (event: React.MouseEvent<HTMLElement>) => {
     const anchor = (event.target as Element).closest<HTMLAnchorElement>('a[href]');
@@ -399,58 +432,91 @@ export function App() {
     return next;
   });
 
-  const matches = query.trim() ? source.split('\n').filter((line) => line.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 8) : [];
+  const commandMatches = commandQuery.trim()
+    ? source.split('\n').filter((line) => line.toLowerCase().includes(commandQuery.trim().toLowerCase())).slice(0, 6)
+    : [];
+  const filteredFiles = fileFilter.trim() && workspace
+    ? workspace.files.filter((file) => file.path.toLowerCase().includes(fileFilter.trim().toLowerCase()))
+    : [];
+  const readMinutes = Math.max(1, Math.ceil(source.replace(/[`#>*_\-[\]]/g, ' ').trim().split(/\s+/).length / 220));
+  const contextOpen = workspaceOpen && Boolean(workspace || restorableHandle);
+
+  const openRecent = async (item: RecentItem) => {
+    if (item.kind === 'remote' && item.url) await openRemote(item.url);
+    else if (workspace && item.title === workspace.name) setWorkspaceOpen(true);
+    else if (restorableHandle) await restoreWorkspace();
+    setCommandOpen(false);
+  };
+
+  const jumpToHeading = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setActiveHeadingId(id);
+  };
 
   return (
     <div className="app-shell" style={{ '--reader-width': `${settings.contentWidth}px`, '--reader-size': `${settings.fontSize}px`, '--reader-leading': settings.lineHeight } as React.CSSProperties}>
       {settings.showReadingProgress && <div className="reading-progress" style={{ transform: `scaleX(${progress / 100})` }} />}
+      <aside className="navigation-rail" aria-label={t('documentNavigation')}>
+        <div className="rail-brand" aria-label="Quire">M</div>
+        <div className="rail-actions">
+          <button className={contextOpen ? 'active' : ''} onClick={() => workspace ? setWorkspaceOpen((open) => !open) : void handleDirectory()} aria-label={t('toggleWorkspace')} title={t('toggleWorkspace')}><FolderOpen /></button>
+          <button className={outlineOpen ? 'active' : ''} onClick={() => setOutlineOpen((open) => !open)} aria-label={t('toggleOutline')} title={t('toggleOutline')}><ListTree /></button>
+          <button className={commandOpen ? 'active' : ''} onClick={() => setCommandOpen(true)} aria-label={t('commandCenter')} title={`${t('commandCenter')} · ⌘K`}><Search /></button>
+        </div>
+        <div className="rail-bottom">
+          <button className={settingsOpen ? 'active' : ''} onClick={() => setSettingsOpen(true)} aria-label={t('settings')} title={t('settings')}><Settings2 /></button>
+          <kbd>⌘K</kbd>
+        </div>
+      </aside>
+
       <header className="topbar">
-        <div className="topbar-start">
-          <button className="icon-button" onClick={() => setSidebarOpen((open) => !open)} aria-label={sidebarOpen ? t('hideSidebar') : t('showSidebar')}>{sidebarOpen ? <PanelLeftClose /> : <PanelLeftOpen />}</button>
-          <div className="brand-mark" aria-label="Quire"><span>M</span></div>
-          <div className="document-identity"><strong>{title}</strong><span>{sourceUrl ? new URL(sourceUrl).hostname : workspaceName}</span></div>
+        <div className="document-identity">
+          <span>{workspaceName}{activeFile?.path ? ` / ${activeFile.path.split('/').slice(0, -1).join('/')}` : ''}</span>
+          <strong>{title}</strong>
         </div>
         <div className="topbar-actions">
-          <button className="action-button" onClick={() => void handleOpenFile()}><FilePlus2 /> <span>{t('openFile')}</span></button>
-          <button className="action-button" onClick={() => void handleDirectory()}><FolderOpen /> <span>{t('openFolder')}</span></button>
-          <button className="action-button" onClick={() => setUrlOpen(true)}><Globe2 /> <span>{t('openUrl')}</span></button>
-          <button className="icon-button" onClick={() => setSearchOpen(true)} aria-label={t('search')}><Search /></button>
-          <button className="icon-button" onClick={() => setSettingsOpen(true)} aria-label={t('settings')}><Settings2 /></button>
+          <div className="menu-anchor">
+            <button className="open-trigger" onClick={() => { setOpenMenuOpen((open) => !open); setMoreMenuOpen(false); }} aria-expanded={openMenuOpen}><span>{t('open')}</span><ChevronDown /></button>
+            {openMenuOpen && <OpenMenu t={t} onFile={() => void handleOpenFile()} onFolder={() => void handleDirectory()} onUrl={() => { setOpenMenuOpen(false); setUrlOpen(true); }} />}
+          </div>
+          <button className="topbar-icon" onClick={() => setCommandOpen(true)} aria-label={t('commandCenter')}><Search /></button>
+          <div className="menu-anchor">
+            <button className="topbar-icon" onClick={() => { setMoreMenuOpen((open) => !open); setOpenMenuOpen(false); }} aria-label={t('moreActions')} aria-expanded={moreMenuOpen}><MoreHorizontal /></button>
+            {moreMenuOpen && <MoreMenu t={t} onCommand={() => { setMoreMenuOpen(false); setCommandOpen(true); }} onOutline={() => { setMoreMenuOpen(false); setOutlineOpen((open) => !open); }} onSettings={() => { setMoreMenuOpen(false); setSettingsOpen(true); }} />}
+          </div>
           <input ref={fileInput} hidden type="file" accept=".md,.markdown,.mdx,text/markdown" onChange={(event) => event.target.files?.[0] && void handleFile(event.target.files[0])} />
         </div>
       </header>
 
-      <div className={`workspace ${sidebarOpen ? '' : 'sidebar-collapsed'}`}>
-        <aside className="sidebar" aria-label={t('documentNavigation')}>
-          <div className="sidebar-tabs" role="tablist">
-            <button className={sidebarMode === 'files' ? 'active' : ''} onClick={() => setSidebarMode('files')} role="tab" aria-selected={sidebarMode === 'files'}><Files /> {t('files')}</button>
-            <button className={sidebarMode === 'outline' ? 'active' : ''} onClick={() => setSidebarMode('outline')} role="tab" aria-selected={sidebarMode === 'outline'}><ListTree /> {t('outline')}</button>
-          </div>
-          <div className="sidebar-heading"><span>{sidebarMode === 'files' ? t('workspace') : t('onThisPage')}</span><strong>{sidebarMode === 'files' ? workspaceName : `${headings.length} ${t('sections')}`}</strong></div>
+      <div className={`workspace ${contextOpen ? 'with-context' : ''}`}>
+        {contextOpen && <aside className="context-panel" aria-label={t('workspace')}>
+          <div className="context-heading"><span>{t('workspace')}</span><strong>{workspace?.name ?? t('restoreTitle')}</strong></div>
+          {workspace && <label className="file-filter"><Search /><input value={fileFilter} onChange={(event) => setFileFilter(event.target.value)} placeholder={t('filterFiles')} /></label>}
           {restorableHandle && <div className="restore-card"><RotateCw /><strong>{t('restoreTitle')}</strong><p>{t('restoreBody')}</p><button onClick={() => void restoreWorkspace()}>{t('restore')}</button><button className="quiet" onClick={() => setRestorableHandle(undefined)}>{t('dismiss')}</button></div>}
-          <nav className="sidebar-list">
-            {sidebarMode === 'files' ? workspace?.tree.length ? (
+          <nav className="context-files">
+            {fileFilter.trim() ? filteredFiles.map((file) => (
+              <button key={file.id} className={`file-row filtered ${activeFile?.id === file.id ? 'active' : ''}`} onClick={() => void openWorkspaceFile(file)}><File /><span>{file.path}</span></button>
+            )) : workspace?.tree.length ? (
               <WorkspaceTree nodes={workspace.tree} activeId={activeFile?.id} collapsed={collapsedDirectories} onToggle={toggleDirectory} onOpen={(file) => void openWorkspaceFile(file)} />
-            ) : <div className="sidebar-empty"><FolderOpen /><p>{t('noFolder')}</p><button onClick={() => void handleDirectory()}>{t('chooseFolder')}</button></div> : headings.map((heading) => (
-              <button key={heading.id} className="outline-row" style={{ paddingInlineStart: `${14 + (heading.level - 1) * 12}px` }} onClick={() => document.getElementById(heading.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}><span>{heading.text}</span><ChevronRight /></button>
-            ))}
+            ) : null}
           </nav>
-          <div className="sidebar-foot"><span className="status-dot" /> {settings.autoRefresh && (activeFile || remoteState) ? t('watching') : t('localOnly')}</div>
-        </aside>
+          <div className="context-foot"><span className="status-dot" /> {settings.autoRefresh && (activeFile || remoteState) ? t('watching') : t('localOnly')}</div>
+        </aside>}
 
         <main className="reader-stage">
           <div className="paper-grain" aria-hidden="true" />
           {error && <div className="error-banner" role="alert"><AlertCircle /><span>{error}</span><button onClick={() => setError(undefined)} aria-label={t('dismissNotice')}><X /></button></div>}
+          {sourceKind !== 'welcome' && <div className="document-meta">{t('readingNote')} · {readMinutes} {t('minuteRead')}</div>}
           <article ref={articleRef} className={`markdown-body font-${settings.fontFamily}`} onClick={handleArticleClick} dangerouslySetInnerHTML={htmlMarkup} />
           {settings.customCss && <style>{`@scope (.markdown-body) { ${settings.customCss} }`}</style>}
           <footer className="document-footer"><span>{t('endDocument')}</span><i /></footer>
+          {settings.showOutline && outlineOpen && !settingsOpen && headings.length > 0 && <OutlinePopover headings={headings} activeId={activeHeadingId} progress={progress} t={t} onJump={jumpToHeading} />}
         </main>
       </div>
 
-      {searchOpen && <SearchDialog query={query} matches={matches} t={t} onQuery={setQuery} onClose={() => setSearchOpen(false)} />}
+      {commandOpen && <CommandPalette query={commandQuery} matches={commandMatches} recent={recent} t={t} onQuery={setCommandQuery} onClose={() => { setCommandOpen(false); setCommandQuery(''); }} onFile={() => void handleOpenFile()} onFolder={() => void handleDirectory()} onUrl={() => { setCommandOpen(false); setUrlOpen(true); }} onTypedUrl={(value) => void openRemote(value)} onWorkspace={() => setWorkspaceOpen((open) => !open)} onOutline={() => setOutlineOpen((open) => !open)} onQuietMode={() => { setWorkspaceOpen(false); setOutlineOpen(false); }} onLightTheme={() => updateSettings({ theme: 'light' })} onDarkTheme={() => updateSettings({ theme: 'dark' })} onSettings={() => { setCommandOpen(false); setSettingsOpen(true); }} onRecent={(item) => void openRecent(item)} />}
       {urlOpen && <UrlDialog value={urlValue} t={t} onValue={setUrlValue} onClose={() => setUrlOpen(false)} onOpen={() => void openRemote(urlValue)} />}
-      {settingsOpen && <SettingsDrawer settings={settings} t={t} onChange={updateSettings} onClose={() => setSettingsOpen(false)} />}
-      {onboardingOpen && <Onboarding recent={recent} t={t} onFile={() => void handleOpenFile()} onFolder={() => void handleDirectory()} onUrl={() => setUrlOpen(true)} onRemote={(url) => void openRemote(url)} onClose={finishOnboarding} />}
+      {settingsOpen && <SettingsDrawer settings={settings} t={t} onChange={(patch) => { updateSettings(patch); if (patch.showOutline !== undefined) setOutlineOpen(patch.showOutline); }} onReset={() => updateSettings(defaultSettings)} onClose={() => setSettingsOpen(false)} />}
       {notice && <div className="toast" role="status">{notice}</div>}
     </div>
   );
@@ -462,20 +528,52 @@ function WorkspaceTree({ nodes, activeId, collapsed, onToggle, onOpen }: { nodes
 
 type Translator = ReturnType<typeof createTranslator>;
 
-function SearchDialog({ query, matches, t, onQuery, onClose }: { query: string; matches: string[]; t: Translator; onQuery: (value: string) => void; onClose: () => void }) {
-  return <div className="modal-backdrop" onMouseDown={onClose}><section className="search-dialog" role="dialog" aria-modal="true" aria-label={t('search')} onMouseDown={(event) => event.stopPropagation()}><div className="search-input"><Search /><input autoFocus value={query} onChange={(event) => onQuery(event.target.value)} placeholder={t('searchPlaceholder')} /><kbd>esc</kbd></div><div className="search-results">{!query.trim() && <p className="search-hint">{t('searchHint')}</p>}{query.trim() && !matches.length && <p className="search-hint">{t('noMatches')}</p>}{matches.map((line, index) => <button key={`${line}-${index}`} onClick={onClose}><span>{line.replace(/^#+\s*/, '')}</span></button>)}</div></section></div>;
+function OpenMenu({ t, onFile, onFolder, onUrl }: { t: Translator; onFile: () => void; onFolder: () => void; onUrl: () => void }) {
+  return <div className="popover-menu open-menu"><label>{t('openContent')}</label><button onClick={onFile}><FilePlus2 /><span><strong>{t('openFile')}</strong><small>.md · .markdown · .mdx</small></span><kbd>⌘O</kbd></button><button onClick={onFolder}><FolderOpen /><span><strong>{t('openFolder')}</strong><small>{t('workspace')}</small></span><kbd>⇧⌘O</kbd></button><button onClick={onUrl}><Globe2 /><span><strong>{t('openUrl')}</strong><small>HTTP / HTTPS</small></span><kbd>⌘L</kbd></button></div>;
+}
+
+function MoreMenu({ t, onCommand, onOutline, onSettings }: { t: Translator; onCommand: () => void; onOutline: () => void; onSettings: () => void }) {
+  return <div className="popover-menu more-menu"><button onClick={onCommand}><Command /><span>{t('commandCenter')}</span><kbd>⌘K</kbd></button><button onClick={onOutline}><ListTree /><span>{t('toggleOutline')}</span></button><button onClick={onSettings}><Settings2 /><span>{t('settings')}</span></button></div>;
+}
+
+function OutlinePopover({ headings, activeId, progress, t, onJump }: { headings: HeadingItem[]; activeId?: string; progress: number; t: Translator; onJump: (id: string) => void }) {
+  return <aside className="outline-popover" aria-label={t('outline')}><label>{t('onThisPage')}</label><nav>{headings.map((heading) => <button key={heading.id} className={activeId === heading.id ? 'active' : ''} style={{ paddingInlineStart: `${10 + Math.max(0, heading.level - 1) * 8}px` }} onClick={() => onJump(heading.id)}>{heading.text}</button>)}</nav><div className="outline-progress"><span>{t('readingProgress')} {Math.round(progress)}%</span><i><b style={{ width: `${progress}%` }} /></i></div></aside>;
+}
+
+function CommandPalette({ query, matches, recent, t, onQuery, onClose, onFile, onFolder, onUrl, onTypedUrl, onWorkspace, onOutline, onQuietMode, onLightTheme, onDarkTheme, onSettings, onRecent }: { query: string; matches: string[]; recent: RecentItem[]; t: Translator; onQuery: (value: string) => void; onClose: () => void; onFile: () => void; onFolder: () => void; onUrl: () => void; onTypedUrl: (value: string) => void; onWorkspace: () => void; onOutline: () => void; onQuietMode: () => void; onLightTheme: () => void; onDarkTheme: () => void; onSettings: () => void; onRecent: (item: RecentItem) => void }) {
+  const needle = query.trim().toLowerCase();
+  const actions = [
+    { key: 'file', label: t('openFile'), detail: '.md · .markdown · .mdx', icon: <FilePlus2 />, shortcut: '⌘O', run: onFile },
+    { key: 'folder', label: t('openFolder'), detail: t('workspace'), icon: <FolderOpen />, shortcut: '⇧⌘O', run: onFolder },
+    { key: 'url', label: t('openUrl'), detail: 'HTTP / HTTPS', icon: <Globe2 />, shortcut: '⌘L', run: onUrl },
+    { key: 'workspace', label: t('toggleWorkspace'), detail: t('files'), icon: <Folder />, shortcut: '', run: onWorkspace },
+    { key: 'outline', label: t('toggleOutline'), detail: t('onThisPage'), icon: <ListTree />, shortcut: '', run: onOutline },
+    { key: 'quiet', label: t('quietMode'), detail: t('readingRoom'), icon: <Moon />, shortcut: '', run: onQuietMode },
+    { key: 'light-theme', label: t('useLightTheme'), detail: t('appearance'), icon: <Sun />, shortcut: '', run: onLightTheme },
+    { key: 'dark-theme', label: t('useDarkTheme'), detail: t('appearance'), icon: <Moon />, shortcut: '', run: onDarkTheme },
+    { key: 'settings', label: t('settings'), detail: t('settingsLive'), icon: <Settings2 />, shortcut: '', run: onSettings },
+  ].filter((action) => !needle || `${action.label} ${action.detail}`.toLowerCase().includes(needle));
+  const visibleRecent = recent.filter((item) => !needle || item.title.toLowerCase().includes(needle)).slice(0, 5);
+  const hasResults = actions.length || visibleRecent.length || matches.length || isRemoteUrl(query.trim());
+  const navigateRows = (event: React.KeyboardEvent<HTMLElement>) => {
+    if (!['ArrowDown', 'ArrowUp', 'Enter'].includes(event.key)) return;
+    const rows = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('.command-row')];
+    const active = rows.indexOf(document.activeElement as HTMLButtonElement);
+    if (event.key === 'Enter' && active < 0) { event.preventDefault(); rows[0]?.click(); return; }
+    if (event.key === 'Enter') return;
+    event.preventDefault();
+    const next = event.key === 'ArrowDown' ? (active + 1) % rows.length : (active <= 0 ? rows.length - 1 : active - 1);
+    rows[next]?.focus();
+  };
+  return <div className="command-backdrop" onMouseDown={onClose}><section className="command-palette" role="dialog" aria-modal="true" aria-label={t('commandCenter')} onKeyDown={navigateRows} onMouseDown={(event) => event.stopPropagation()}><div className="command-input"><Search /><input autoFocus value={query} onChange={(event) => onQuery(event.target.value)} placeholder={t('commandPlaceholder')} /><kbd>esc</kbd></div><div className="command-results">{isRemoteUrl(query.trim()) && <div className="command-group"><label>URL</label><button className="command-row active" onClick={() => onTypedUrl(query.trim())}><Globe2 /><span><strong>{t('openUrl')}</strong><small>{query.trim()}</small></span><kbd>↵</kbd></button></div>}{visibleRecent.length > 0 && <div className="command-group"><label>{t('recentlyOpened')}</label>{visibleRecent.map((item, index) => <button key={item.id} className={`command-row ${!needle && index === 0 ? 'active' : ''}`} onClick={() => onRecent(item)}><File /><span><strong>{item.title}</strong><small>{item.kind === 'remote' ? t('fromWeb') : t('workspace')}</small></span></button>)}</div>}{actions.length > 0 && <div className="command-group"><label>{t('commands')}</label>{actions.map((action) => <button key={action.key} className="command-row" onClick={() => { action.run(); onClose(); }}>{action.icon}<span><strong>{action.label}</strong><small>{action.detail}</small></span>{action.shortcut && <kbd>{action.shortcut}</kbd>}</button>)}</div>}{matches.length > 0 && <div className="command-group"><label>{t('currentDocument')}</label>{matches.map((line, index) => <button key={`${line}-${index}`} className="command-row document-match" onClick={onClose}><Search /><span><strong>{line.replace(/^#+\s*/, '')}</strong></span></button>)}</div>}{!hasResults && <p className="command-empty">{t('noCommandResults')}</p>}</div><footer><span>↑↓ {t('search')}</span><span>↵ {t('open')}</span><span>⌘K {t('close')}</span></footer></section></div>;
 }
 
 function UrlDialog({ value, t, onValue, onClose, onOpen }: { value: string; t: Translator; onValue: (value: string) => void; onClose: () => void; onOpen: () => void }) {
   return <div className="modal-backdrop" onMouseDown={onClose}><section className="url-dialog" role="dialog" aria-modal="true" aria-labelledby="url-title" onMouseDown={(event) => event.stopPropagation()}><div className="url-dialog-icon"><Globe2 /></div><h2 id="url-title">{t('urlTitle')}</h2><p>{t('urlDescription')}</p><input autoFocus type="url" value={value} onChange={(event) => onValue(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && onOpen()} placeholder={t('urlPlaceholder')} /><div className="dialog-actions"><button className="quiet-button" onClick={onClose}>{t('cancel')}</button><button className="primary-button" onClick={onOpen}>{t('open')}</button></div></section></div>;
 }
 
-function Onboarding({ recent, t, onFile, onFolder, onUrl, onRemote, onClose }: { recent: RecentItem[]; t: Translator; onFile: () => void; onFolder: () => void; onUrl: () => void; onRemote: (url: string) => void; onClose: () => void }) {
-  return <div className="onboarding-backdrop"><section className="onboarding" role="dialog" aria-modal="true" aria-labelledby="onboarding-title"><button className="onboarding-close" onClick={onClose} aria-label={t('close')}><X /></button><div className="onboarding-brand"><div className="onboarding-mark">M</div><span>QUIRE / MARKDOWN READER</span></div><h1 id="onboarding-title">{t('welcomeTitle')}</h1><p className="onboarding-lead">{t('welcomeBody')}</p><div className="onboarding-actions"><button onClick={onFile}><FilePlus2 /><span><strong>{t('chooseFileAction')}</strong><small>.md · .markdown · .mdx</small></span><ChevronRight /></button><button onClick={onFolder}><FolderOpen /><span><strong>{t('connectFolderAction')}</strong><small>{t('privateByDesign')}</small></span><ChevronRight /></button><button onClick={onUrl}><Globe2 /><span><strong>{t('pasteUrlAction')}</strong><small>HTTP / HTTPS</small></span><ChevronRight /></button></div>{recent.length > 0 && <div className="recent-list"><label>{t('recent')}</label>{recent.map((item) => <button key={item.id} disabled={!item.url} onClick={() => item.url && onRemote(item.url)}><span>{item.title}</span><small>{item.kind === 'remote' ? t('fromWeb') : t('workspace')}</small></button>)}</div>}<div className="privacy-note"><ShieldCheck /><span><strong>{t('privateByDesign')}</strong>{t('privateBody')}</span></div></section></div>;
-}
-
-function SettingsDrawer({ settings, t, onChange, onClose }: { settings: ReaderSettings; t: Translator; onChange: (patch: Partial<ReaderSettings>) => void; onClose: () => void }) {
-  return <div className="drawer-backdrop" onMouseDown={onClose}><aside className="settings-drawer" onMouseDown={(event) => event.stopPropagation()} aria-label={t('settings')}><div className="drawer-title"><div><span>{t('readingRoom')}</span><h2>{t('makeItYours')}</h2></div><button className="icon-button" onClick={onClose} aria-label={t('closeSettings')}><X /></button></div><section><label className="section-label">{t('appearance')}</label><div className="segmented">{(['system', 'light', 'dark'] as const).map((theme) => <button key={theme} className={settings.theme === theme ? 'active' : ''} onClick={() => onChange({ theme })}>{theme === 'light' ? <Sun /> : theme === 'dark' ? <Moon /> : <span className="system-icon" />} {t(theme)}</button>)}</div><div className="setting-row"><div><strong>{t('language')}</strong><span>English / 简体中文</span></div><select aria-label={t('language')} value={settings.locale} onChange={(event) => onChange({ locale: event.target.value as ReaderSettings['locale'] })}><option value="system">{t('system')}</option><option value="en">English</option><option value="zh-CN">简体中文</option></select></div><div className="setting-row"><div><strong>{t('readingFont')}</strong><span>{t('fontDescription')}</span></div><select aria-label={t('readingFont')} value={settings.fontFamily} onChange={(event) => onChange({ fontFamily: event.target.value as ReaderSettings['fontFamily'] })}><option value="sans">{t('sans')}</option><option value="serif">{t('serif')}</option></select></div><RangeSetting label={t('textSize')} value={settings.fontSize} min={15} max={24} suffix="px" onChange={(fontSize) => onChange({ fontSize })} /><RangeSetting label={t('lineHeight')} value={settings.lineHeight} min={1.45} max={2} step={0.01} onChange={(lineHeight) => onChange({ lineHeight })} /><RangeSetting label={t('pageWidth')} value={settings.contentWidth} min={560} max={980} step={10} suffix="px" onChange={(contentWidth) => onChange({ contentWidth })} /></section><section><label className="section-label">{t('markdown')}</label><Toggle label={t('mathematics')} description={t('mathDescription')} checked={settings.enableKatex} onChange={(enableKatex) => onChange({ enableKatex })} /><Toggle label={t('diagrams')} description={t('diagramDescription')} checked={settings.enableMermaid} onChange={(enableMermaid) => onChange({ enableMermaid })} /><Toggle label={t('readingProgress')} description={t('progressDescription')} checked={settings.showReadingProgress} onChange={(showReadingProgress) => onChange({ showReadingProgress })} /><Toggle label={t('autoRefresh')} description={t('refreshDescription')} checked={settings.autoRefresh} onChange={(autoRefresh) => onChange({ autoRefresh })} /><Toggle label={t('rawHtml')} description={t('htmlDescription')} checked={settings.enableHtml} onChange={(enableHtml) => onChange({ enableHtml })} /></section><section><label className="section-label" htmlFor="custom-css">{t('customCss')}</label><textarea id="custom-css" value={settings.customCss} onChange={(event) => onChange({ customCss: event.target.value })} placeholder={'.markdown-body h2 {\n  color: rebeccapurple;\n}'} /><p className="setting-note">{t('cssNote')}</p></section></aside></div>;
+function SettingsDrawer({ settings, t, onChange, onReset, onClose }: { settings: ReaderSettings; t: Translator; onChange: (patch: Partial<ReaderSettings>) => void; onReset: () => void; onClose: () => void }) {
+  return <div className="drawer-backdrop" onMouseDown={onClose}><aside className="settings-drawer" onMouseDown={(event) => event.stopPropagation()} aria-label={t('settings')}><div className="drawer-title"><div><h2>{t('settings')}</h2><p>{t('settingsLive')}</p></div><button className="icon-button" onClick={onClose} aria-label={t('closeSettings')}><X /></button></div><section><label className="section-label">{t('appearance')}</label><strong className="control-label">{t('system')}</strong><div className="segmented">{(['light', 'dark', 'system'] as const).map((theme) => <button key={theme} className={settings.theme === theme ? 'active' : ''} onClick={() => onChange({ theme })}>{theme === 'light' ? <Sun /> : theme === 'dark' ? <Moon /> : <span className="system-icon" />} {t(theme)}</button>)}</div><div className="font-choice"><button className={settings.fontFamily === 'serif' ? 'active' : ''} onClick={() => onChange({ fontFamily: 'serif' })}><strong>{t('serif')}</strong><span>Aa</span></button><button className={settings.fontFamily === 'sans' ? 'active' : ''} onClick={() => onChange({ fontFamily: 'sans' })}><strong>{t('sans')}</strong><span>Aa</span></button></div><RangeSetting label={t('textSize')} value={settings.fontSize} min={15} max={24} suffix=" px" onChange={(fontSize) => onChange({ fontSize })} /><RangeSetting label={t('pageWidth')} value={settings.contentWidth} min={560} max={980} step={10} suffix=" px" onChange={(contentWidth) => onChange({ contentWidth })} /><RangeSetting label={t('lineHeight')} value={settings.lineHeight} min={1.45} max={2} step={0.01} onChange={(lineHeight) => onChange({ lineHeight })} /><div className="setting-row"><div><strong>{t('language')}</strong><span>English / 简体中文</span></div><select aria-label={t('language')} value={settings.locale} onChange={(event) => onChange({ locale: event.target.value as ReaderSettings['locale'] })}><option value="system">{t('system')}</option><option value="en">English</option><option value="zh-CN">简体中文</option></select></div></section><section><label className="section-label">{t('readingAids')}</label><Toggle label={t('readingProgress')} description={t('progressDescription')} checked={settings.showReadingProgress} onChange={(showReadingProgress) => onChange({ showReadingProgress })} /><Toggle label={t('autoRefresh')} description={t('refreshDescription')} checked={settings.autoRefresh} onChange={(autoRefresh) => onChange({ autoRefresh })} /><Toggle label={t('floatingOutline')} description={t('outlineDescription')} checked={settings.showOutline} onChange={(showOutline) => onChange({ showOutline })} /></section><details className="settings-group"><summary><span><strong>{t('markdownExtensions')}</strong><small>KaTeX · Mermaid · HTML</small></span><ChevronRight /></summary><div><Toggle label={t('mathematics')} description={t('mathDescription')} checked={settings.enableKatex} onChange={(enableKatex) => onChange({ enableKatex })} /><Toggle label={t('diagrams')} description={t('diagramDescription')} checked={settings.enableMermaid} onChange={(enableMermaid) => onChange({ enableMermaid })} /><Toggle label={t('rawHtml')} description={t('htmlDescription')} checked={settings.enableHtml} onChange={(enableHtml) => onChange({ enableHtml })} /></div></details><details className="settings-group"><summary><span><strong>{t('advanced')}</strong><small>{t('customCss')}</small></span><ChevronRight /></summary><div><label className="section-label" htmlFor="custom-css">{t('customCss')}</label><textarea id="custom-css" value={settings.customCss} onChange={(event) => onChange({ customCss: event.target.value })} placeholder={'.markdown-body h2 {\n  color: rebeccapurple;\n}'} /><p className="setting-note">{t('cssNote')}</p></div></details><div className="settings-footer"><button onClick={onReset}>{t('resetSettings')}</button><span><ShieldCheck />{t('savedLocally')}</span></div></aside></div>;
 }
 
 function RangeSetting({ label, value, min, max, step = 1, suffix = '', onChange }: { label: string; value: number; min: number; max: number; step?: number; suffix?: string; onChange: (value: number) => void }) {
