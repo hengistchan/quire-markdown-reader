@@ -26,5 +26,5 @@ This document is the release boundary for the first public version. Every row re
 - [x] Run installed-extension E2E tests in Chromium and Firefox.
 - [x] Validate manifests, archives, permissions, and Firefox source reproducibility.
 - [x] Provide privacy, store listing, screenshots, changelog, issue templates, and release automation.
-- [ ] Create and push the public GitHub repository.
-- [ ] Create the annotated `v0.0.1` tag only after every preceding gate passes.
+- [x] Create and push the public GitHub repository.
+- [x] Create the annotated `v0.0.1` tag only after every preceding gate passes.
