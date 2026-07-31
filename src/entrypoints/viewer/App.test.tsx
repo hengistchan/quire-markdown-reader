@@ -67,6 +67,8 @@ describe('Quire viewer experience', () => {
 
     expect(await screen.findByText('按你的方式阅读')).toBeTruthy();
     expect(screen.getByRole('button', { name: '打开文件' })).toBeTruthy();
+    await waitFor(() => expect(document.querySelector('.markdown-body')?.textContent).toContain('Quire 将 Markdown 变成专注的阅读空间'));
+    expect(screen.getByLabelText('文档导航')).toBeTruthy();
     await waitFor(() => expect(local.set).toHaveBeenCalledWith(expect.objectContaining({
       'reader-settings': expect.objectContaining({ locale: 'zh-CN' }),
     })));

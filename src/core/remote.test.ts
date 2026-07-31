@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fetchRemoteMarkdown } from './remote';
+import { fetchRemoteMarkdown, RemoteMarkdownError } from './remote';
 
 describe('fetchRemoteMarkdown', () => {
   it('loads Markdown and records validators for refresh', async () => {
@@ -35,11 +35,13 @@ describe('fetchRemoteMarkdown', () => {
   });
 
   it('reports invalid URLs, server failures, and oversized files', async () => {
-    await expect(fetchRemoteMarkdown('file:///tmp/readme.md')).rejects.toThrow('valid HTTP or HTTPS');
+    await expect(fetchRemoteMarkdown('file:///tmp/readme.md')).rejects.toMatchObject({
+      name: 'RemoteMarkdownError', code: 'invalid-url',
+    } satisfies Partial<RemoteMarkdownError>);
     await expect(fetchRemoteMarkdown('https://example.com/missing.md', undefined, async () => new Response('', { status: 404 })))
-      .rejects.toThrow('404');
+      .rejects.toMatchObject({ name: 'RemoteMarkdownError', code: 'http-error', status: 404 } satisfies Partial<RemoteMarkdownError>);
     await expect(fetchRemoteMarkdown('https://example.com/huge.md', undefined, async () => new Response('', {
       headers: { 'content-length': String(5 * 1024 * 1024 + 1) },
-    }))).rejects.toThrow('larger than 5 MB');
+    }))).rejects.toMatchObject({ name: 'RemoteMarkdownError', code: 'too-large' } satisfies Partial<RemoteMarkdownError>);
   });
 });

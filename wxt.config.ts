@@ -32,7 +32,7 @@ export default defineConfig({
     commands: {
       'open-reader': {
         suggested_key: { default: 'Alt+Shift+M', mac: 'Alt+Shift+M' },
-        description: 'Open the Markdown reader',
+        description: '__MSG_commandDescription__',
       },
     },
     ...(browser === 'firefox' ? {

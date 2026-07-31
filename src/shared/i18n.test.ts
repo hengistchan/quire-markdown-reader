@@ -12,5 +12,7 @@ describe('reader localization', () => {
     expect(createTranslator('en')('openFolder')).toBe('Open folder');
     expect(createTranslator('zh-CN')('openFolder')).toBe('打开文件夹');
     expect(createTranslator('zh-CN')('privateByDesign')).toBeTruthy();
+    expect(createTranslator('zh-CN')('welcomeDocument')).toContain('# 欢迎使用 Quire');
+    expect(createTranslator('zh-CN')('remoteTooLarge')).toContain('5 MB');
   });
 });

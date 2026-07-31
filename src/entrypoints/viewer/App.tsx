@@ -8,8 +8,8 @@ import {
   collectWorkspace, getWorkspaceFileHandle, readWorkspaceFileSnapshot,
 } from '../../core/files';
 import { renderMarkdown } from '../../core/markdown';
-import { fetchRemoteMarkdown } from '../../core/remote';
-import { hostPermissionPattern, isMarkdownLink, isRelativeUrl, resolveWorkspacePath } from '../../core/paths';
+import { fetchRemoteMarkdown, RemoteMarkdownError } from '../../core/remote';
+import { hostPermissionPattern, isMarkdownLink, isRelativeUrl, isRemoteUrl, resolveWorkspacePath } from '../../core/paths';
 import { loadWorkspaceHandle, saveWorkspaceHandle } from '../../core/workspacePersistence';
 import { createTranslator, resolveLocale } from '../../shared/i18n';
 import { loadRecentItems, rememberRecentItem, type RecentItem } from '../../shared/recent';
@@ -19,57 +19,17 @@ import type {
   WorkspaceSnapshot, WorkspaceTreeNode,
 } from '../../shared/types';
 
-const welcomeMarkdown = `# Welcome to Quire
-
-Quire turns Markdown into a focused reading space. Open a file, connect a folder, or read a document from the web.
-
-::: note
-**Built for reading.** Your documents stay on your device, and Quire never modifies the source.
-:::
-
-## A quieter workspace
-
-Switch between a real folder tree and the current document outline. Everything else gets out of the way.
-
-- [x] GitHub-flavoured Markdown
-- [x] Footnotes, definitions, and callouts
-- [x] Syntax highlighting
-- [x] KaTeX and Mermaid diagrams
-- [x] Relative images and document links
-
-## Rich technical notes
-
-Inline maths such as $E = mc^2$ stays crisp, while code keeps its language-aware highlighting:
-
-\`\`\`ts
-type ReadingState = {
-  document: string;
-  position: number;
-};
-\`\`\`
-
-\`\`\`mermaid
-flowchart LR
-  A[Markdown] --> B[Sanitize]
-  B --> C[Read]
-\`\`\`
-
-## Start here
-
-Use **Open file** for one document, **Open folder** for a local workspace, or **Open URL** for remote Markdown.
-`;
-
 type SourceKind = 'welcome' | 'file' | 'workspace' | 'remote' | 'imported';
 
 function getSystemTheme(): 'light' | 'dark' {
   return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
-function extractHeadings(html: string): HeadingItem[] {
+function extractHeadings(html: string, fallback: string): HeadingItem[] {
   const parsed = new DOMParser().parseFromString(html, 'text/html');
   return [...parsed.querySelectorAll<HTMLElement>('h1, h2, h3, h4')].map((heading) => ({
     id: heading.id,
-    text: heading.textContent?.replace('#', '').trim() || 'Untitled section',
+    text: heading.textContent?.replace('#', '').trim() || fallback,
     level: Number(heading.tagName.slice(1)),
   }));
 }
@@ -91,8 +51,9 @@ function useReadingProgress(): number {
 
 export function App() {
   const [settings, setSettings] = useState<ReaderSettings>(defaultSettings);
-  const [title, setTitle] = useState('Welcome to Quire');
-  const [source, setSource] = useState(welcomeMarkdown);
+  const initialTranslator = useMemo(() => createTranslator(resolveLocale(defaultSettings.locale)), []);
+  const [title, setTitle] = useState(() => initialTranslator('welcomeDocumentTitle'));
+  const [source, setSource] = useState(() => initialTranslator('welcomeDocument'));
   const [sourceKind, setSourceKind] = useState<SourceKind>('welcome');
   const [sourceUrl, setSourceUrl] = useState<string>();
   const [remoteState, setRemoteState] = useState<RemoteDocumentState>();
@@ -121,7 +82,7 @@ export function App() {
   const t = useMemo(() => createTranslator(locale), [locale]);
   const html = useMemo(() => renderMarkdown(source, settings), [source, settings]);
   const htmlMarkup = useMemo(() => ({ __html: html }), [html]);
-  const headings = useMemo(() => extractHeadings(html), [html]);
+  const headings = useMemo(() => extractHeadings(html, t('untitledSection')), [html, t]);
   const resolvedTheme = settings.theme === 'system' ? getSystemTheme() : settings.theme;
   const workspaceName = workspace?.name ?? (sourceUrl ? t('fromWeb') : sourceKind === 'welcome' ? t('gettingStarted') : t('imported'));
 
@@ -224,6 +185,12 @@ export function App() {
   }, [locale, resolvedTheme]);
 
   useEffect(() => {
+    if (sourceKind !== 'welcome') return;
+    setTitle(t('welcomeDocumentTitle'));
+    setSource(t('welcomeDocument'));
+  }, [sourceKind, t]);
+
+  useEffect(() => {
     if (!settings.enableMermaid || !articleRef.current) return;
     let cancelled = false;
     void import('mermaid').then(({ default: mermaid }) => {
@@ -265,7 +232,7 @@ export function App() {
             console.warn('Quire could not load a workspace image.', path, error);
             image.dataset.resourceError = 'true';
             image.dataset.resourceState = 'error';
-            image.alt = `${image.alt || raw} — resource unavailable`;
+            image.alt = `${image.alt || raw} — ${t('resourceUnavailable')}`;
           }
         } else if (sourceUrl) {
           image.src = new URL(raw, sourceUrl).href;
@@ -274,7 +241,7 @@ export function App() {
     };
     void resolveImages();
     return () => { cancelled = true; for (const url of objectUrls) URL.revokeObjectURL(url); };
-  }, [activeFile, html, sourceUrl, workspace]);
+  }, [activeFile, html, sourceUrl, t, workspace]);
 
   useEffect(() => {
     if (!settings.autoRefresh || !activeFile || (sourceKind !== 'workspace' && sourceKind !== 'file')) return;
@@ -384,6 +351,7 @@ export function App() {
   };
 
   const openRemote = useCallback(async (value: string, requestPermission = true) => {
+    if (!isRemoteUrl(value)) { setError(t('invalidUrl')); return; }
     try {
       const permission = hostPermissionPattern(value);
       if (requestPermission && typeof browser !== 'undefined') {
@@ -398,7 +366,11 @@ export function App() {
       finishOnboarding();
       await recordRecent({ id: `remote:${result.state.url}`, title: result.document.title, kind: 'remote', url: result.state.url });
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : t('remoteReadError'));
+      if (caught instanceof RemoteMarkdownError) {
+        if (caught.code === 'invalid-url') setError(t('invalidUrl'));
+        else if (caught.code === 'too-large') setError(t('remoteTooLarge'));
+        else setError(`${t('remoteServerError')} ${caught.status}.`);
+      } else setError(t('remoteReadError'));
     }
   }, [finishOnboarding, openImportedDocument, recordRecent, t]);
 
@@ -449,7 +421,7 @@ export function App() {
       </header>
 
       <div className={`workspace ${sidebarOpen ? '' : 'sidebar-collapsed'}`}>
-        <aside className="sidebar" aria-label="Document navigation">
+        <aside className="sidebar" aria-label={t('documentNavigation')}>
           <div className="sidebar-tabs" role="tablist">
             <button className={sidebarMode === 'files' ? 'active' : ''} onClick={() => setSidebarMode('files')} role="tab" aria-selected={sidebarMode === 'files'}><Files /> {t('files')}</button>
             <button className={sidebarMode === 'outline' ? 'active' : ''} onClick={() => setSidebarMode('outline')} role="tab" aria-selected={sidebarMode === 'outline'}><ListTree /> {t('outline')}</button>
@@ -468,7 +440,7 @@ export function App() {
 
         <main className="reader-stage">
           <div className="paper-grain" aria-hidden="true" />
-          {error && <div className="error-banner" role="alert"><AlertCircle /><span>{error}</span><button onClick={() => setError(undefined)} aria-label="Dismiss"><X /></button></div>}
+          {error && <div className="error-banner" role="alert"><AlertCircle /><span>{error}</span><button onClick={() => setError(undefined)} aria-label={t('dismissNotice')}><X /></button></div>}
           <article ref={articleRef} className={`markdown-body font-${settings.fontFamily}`} onClick={handleArticleClick} dangerouslySetInnerHTML={htmlMarkup} />
           {settings.customCss && <style>{`@scope (.markdown-body) { ${settings.customCss} }`}</style>}
           <footer className="document-footer"><span>{t('endDocument')}</span><i /></footer>
@@ -499,7 +471,7 @@ function UrlDialog({ value, t, onValue, onClose, onOpen }: { value: string; t: T
 }
 
 function Onboarding({ recent, t, onFile, onFolder, onUrl, onRemote, onClose }: { recent: RecentItem[]; t: Translator; onFile: () => void; onFolder: () => void; onUrl: () => void; onRemote: (url: string) => void; onClose: () => void }) {
-  return <div className="onboarding-backdrop"><section className="onboarding" role="dialog" aria-modal="true" aria-labelledby="onboarding-title"><button className="onboarding-close" onClick={onClose} aria-label="Close"><X /></button><div className="onboarding-brand"><div className="onboarding-mark">M</div><span>QUIRE / MARKDOWN READER</span></div><h1 id="onboarding-title">{t('welcomeTitle')}</h1><p className="onboarding-lead">{t('welcomeBody')}</p><div className="onboarding-actions"><button onClick={onFile}><FilePlus2 /><span><strong>{t('chooseFileAction')}</strong><small>.md · .markdown · .mdx</small></span><ChevronRight /></button><button onClick={onFolder}><FolderOpen /><span><strong>{t('connectFolderAction')}</strong><small>{t('privateByDesign')}</small></span><ChevronRight /></button><button onClick={onUrl}><Globe2 /><span><strong>{t('pasteUrlAction')}</strong><small>HTTP / HTTPS</small></span><ChevronRight /></button></div>{recent.length > 0 && <div className="recent-list"><label>{t('recent')}</label>{recent.map((item) => <button key={item.id} disabled={!item.url} onClick={() => item.url && onRemote(item.url)}><span>{item.title}</span><small>{item.kind === 'remote' ? t('fromWeb') : t('workspace')}</small></button>)}</div>}<div className="privacy-note"><ShieldCheck /><span><strong>{t('privateByDesign')}</strong>{t('privateBody')}</span></div></section></div>;
+  return <div className="onboarding-backdrop"><section className="onboarding" role="dialog" aria-modal="true" aria-labelledby="onboarding-title"><button className="onboarding-close" onClick={onClose} aria-label={t('close')}><X /></button><div className="onboarding-brand"><div className="onboarding-mark">M</div><span>QUIRE / MARKDOWN READER</span></div><h1 id="onboarding-title">{t('welcomeTitle')}</h1><p className="onboarding-lead">{t('welcomeBody')}</p><div className="onboarding-actions"><button onClick={onFile}><FilePlus2 /><span><strong>{t('chooseFileAction')}</strong><small>.md · .markdown · .mdx</small></span><ChevronRight /></button><button onClick={onFolder}><FolderOpen /><span><strong>{t('connectFolderAction')}</strong><small>{t('privateByDesign')}</small></span><ChevronRight /></button><button onClick={onUrl}><Globe2 /><span><strong>{t('pasteUrlAction')}</strong><small>HTTP / HTTPS</small></span><ChevronRight /></button></div>{recent.length > 0 && <div className="recent-list"><label>{t('recent')}</label>{recent.map((item) => <button key={item.id} disabled={!item.url} onClick={() => item.url && onRemote(item.url)}><span>{item.title}</span><small>{item.kind === 'remote' ? t('fromWeb') : t('workspace')}</small></button>)}</div>}<div className="privacy-note"><ShieldCheck /><span><strong>{t('privateByDesign')}</strong>{t('privateBody')}</span></div></section></div>;
 }
 
 function SettingsDrawer({ settings, t, onChange, onClose }: { settings: ReaderSettings; t: Translator; onChange: (patch: Partial<ReaderSettings>) => void; onClose: () => void }) {

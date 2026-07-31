@@ -2,5 +2,6 @@
   "extName": { "message": "Quire — Markdown Reader" },
   "extDescription": { "message": "Read local folders, individual files, and web Markdown in Chrome—without uploads or changes to the source." },
   "actionTitle": { "message": "Open in Quire" },
-  "contextMenuTitle": { "message": "Open in Quire" }
+  "contextMenuTitle": { "message": "Open in Quire" },
+  "commandDescription": { "message": "Open the Markdown reader" }
 }

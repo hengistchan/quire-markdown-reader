@@ -3,6 +3,18 @@ import { isRemoteUrl } from './paths';
 
 const MAX_REMOTE_BYTES = 5 * 1024 * 1024;
 
+export type RemoteMarkdownErrorCode = 'invalid-url' | 'http-error' | 'too-large';
+
+export class RemoteMarkdownError extends Error {
+  constructor(
+    public readonly code: RemoteMarkdownErrorCode,
+    public readonly status?: number,
+  ) {
+    super(code);
+    this.name = 'RemoteMarkdownError';
+  }
+}
+
 export interface RemoteMarkdownResult {
   document?: ImportedDocument;
   state: RemoteDocumentState;
@@ -14,17 +26,17 @@ export async function fetchRemoteMarkdown(
   previous?: RemoteDocumentState,
   fetcher: typeof fetch = fetch,
 ): Promise<RemoteMarkdownResult> {
-  if (!isRemoteUrl(value)) throw new Error('Enter a valid HTTP or HTTPS URL.');
+  if (!isRemoteUrl(value)) throw new RemoteMarkdownError('invalid-url');
   const headers = new Headers();
   if (previous?.url === value && previous.etag) headers.set('If-None-Match', previous.etag);
   if (previous?.url === value && previous.lastModified) headers.set('If-Modified-Since', previous.lastModified);
   const response = await fetcher(value, { headers, cache: 'no-cache' });
   if (response.status === 304 && previous) return { state: previous, unchanged: true };
-  if (!response.ok) throw new Error(`The server returned ${response.status}.`);
+  if (!response.ok) throw new RemoteMarkdownError('http-error', response.status);
   const length = Number(response.headers.get('content-length') ?? 0);
-  if (length > MAX_REMOTE_BYTES) throw new Error('The Markdown file is larger than 5 MB.');
+  if (length > MAX_REMOTE_BYTES) throw new RemoteMarkdownError('too-large');
   const markdown = await response.text();
-  if (new Blob([markdown]).size > MAX_REMOTE_BYTES) throw new Error('The Markdown file is larger than 5 MB.');
+  if (new Blob([markdown]).size > MAX_REMOTE_BYTES) throw new RemoteMarkdownError('too-large');
   const resolvedUrl = response.url || value;
   const title = new URL(resolvedUrl).pathname.split('/').pop() || new URL(resolvedUrl).hostname;
   return {
