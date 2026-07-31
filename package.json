@@ -1,0 +1,60 @@
+{
+  "name": "folio-md-reader",
+  "version": "0.1.0",
+  "description": "An open-source, read-only Markdown reader and local document workspace for browsers.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "keywords": [
+    "browser-extension",
+    "markdown",
+    "reader",
+    "wxt"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "npm run dev:chrome",
+    "dev:chrome": "wxt -b chrome",
+    "dev:firefox": "wxt -b firefox",
+    "build": "npm run build:chrome && npm run build:firefox",
+    "build:chrome": "wxt build -b chrome",
+    "build:firefox": "wxt build -b firefox",
+    "zip": "npm run zip:chrome && npm run zip:firefox",
+    "zip:chrome": "wxt zip -b chrome",
+    "zip:firefox": "wxt zip -b firefox",
+    "compile": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@mdit/plugin-abbr": "^1.0.2",
+    "@mdit/plugin-container": "^1.0.2",
+    "@mdit/plugin-footnote": "^1.0.2",
+    "@mdit/plugin-tasklist": "^1.0.2",
+    "@wxt-dev/module-react": "^1.2.2",
+    "dompurify": "^3.2.6",
+    "highlight.js": "^11.11.1",
+    "katex": "^0.16.22",
+    "lucide-react": "^0.468.0",
+    "markdown-it": "^14.2.0",
+    "markdown-it-anchor": "^9.2.0",
+    "markdown-it-deflist": "^4.0.0",
+    "markdown-it-texmath": "^1.0.0",
+    "mermaid": "^11.16.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.2",
+    "@types/markdown-it": "^14.1.2",
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "@vitejs/plugin-react": "^5.0.2",
+    "jsdom": "^26.1.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4",
+    "wxt": "^0.21.2"
+  }
+}
