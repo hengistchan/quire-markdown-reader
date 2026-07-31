@@ -1,9 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title">
-  <title id="title">Quire Markdown reader icon</title>
+  <title id="title">Quire Markdown reader icon with M monogram</title>
   <rect width="1024" height="1024" rx="232" fill="#5266D7"/>
   <path d="M254 226c-44 15-74 57-74 104v434c0 47 30 89 74 104" fill="none" stroke="#AAB6FF" stroke-width="50" stroke-linecap="round" opacity=".65"/>
   <path d="M770 226c44 15 74 57 74 104v434c0 47-30 89-74 104" fill="none" stroke="#3044B0" stroke-width="50" stroke-linecap="round" opacity=".7"/>
   <rect x="250" y="150" width="524" height="724" rx="96" fill="#FCFCFD"/>
-  <path d="M290 690V350h58l72 122 72-122h58v340h-70V491l-60 104-60-104v199Z" fill="#303D91"/>
-  <path d="M565 350h55c90 0 145 65 145 170s-55 170-145 170h-55V350Zm72 78v184c35-6 54-39 54-92s-19-86-54-92Z" fill="#303D91" fill-rule="evenodd"/>
+  <path d="M322 694V330h82l108 156 108-156h82v364h-82V470L512 620 404 470v224Z" fill="#303D91"/>
 </svg>
