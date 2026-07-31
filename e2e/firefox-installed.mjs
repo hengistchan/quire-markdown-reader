@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { resolve } from 'node:path';
 import { Builder, By, Key, until } from 'selenium-webdriver';
 import firefox from 'selenium-webdriver/firefox.js';
 
 const addonId = '{60628e87-7d17-444b-8862-499ed925bb7f}';
-const archive = resolve('.output/quire-markdown-reader-0.0.1-firefox.zip');
+const { version } = JSON.parse(await readFile(resolve('package.json'), 'utf8'));
+const archive = resolve(`.output/quire-markdown-reader-${version}-firefox.zip`);
 const fixture = process.env.FIREFOX_FIXTURE_PATH || resolve('e2e/fixtures/guide.md');
 const options = new firefox.Options()
   .setPreference('intl.locale.requested', 'en-US')

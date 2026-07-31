@@ -3,7 +3,7 @@ import { copyFile, readFile, stat } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 
-const version = '0.0.1';
+const { version } = JSON.parse(await readFile(resolve('package.json'), 'utf8'));
 const output = resolve('.output');
 const chromeArchive = resolve(output, `quire-markdown-reader-${version}-chrome.zip`);
 const edgeArchive = resolve(output, `quire-markdown-reader-${version}-edge.zip`);
@@ -54,4 +54,4 @@ for (const required of ['package.json', 'package-lock.json', 'src/entrypoints/vi
   assert.ok(sourceEntries.includes(required), `Firefox source archive is missing ${required}`);
 }
 
-console.log('Verified Chrome, Edge, Firefox, and Firefox source archives for Quire 0.0.1.');
+console.log(`Verified Chrome, Edge, Firefox, and Firefox source archives for Quire ${version}.`);

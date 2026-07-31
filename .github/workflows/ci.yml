@@ -26,6 +26,7 @@ jobs:
       - run: npm run zip
       - run: npm run package:verify
       - run: npm run source:verify
+      - run: npm run store:verify
       - run: npm run test:e2e:chromium
       - name: Test Firefox action and context menu
         run: npm run test:e2e:firefox:context

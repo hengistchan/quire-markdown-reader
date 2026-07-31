@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const archive = resolve('.output/quire-markdown-reader-0.0.1-sources.zip');
+const { version } = JSON.parse(await readFile(resolve('package.json'), 'utf8'));
+const archive = resolve(`.output/quire-markdown-reader-${version}-sources.zip`);
 const expected = resolve('.output/firefox-mv2');
 const scratch = await mkdtemp(join(tmpdir(), 'quire-source-build-'));
 

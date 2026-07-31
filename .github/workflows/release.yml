@@ -19,12 +19,14 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: sudo apt-get update && sudo apt-get install -y xdotool
+      - run: npm run release:verify
       - run: npm run compile
       - run: npm test
       - run: npm run build
       - run: npm run zip
       - run: npm run package:verify
       - run: npm run source:verify
+      - run: npm run store:verify
       - run: npm run test:e2e:chromium
       - name: Test Firefox action and context menu
         run: npm run test:e2e:firefox:context

@@ -1,6 +1,6 @@
 {
   "name": "quire-markdown-reader",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "An open-source, read-only Markdown reader and local document workspace for browsers.",
   "license": "MIT",
   "private": true,
@@ -28,6 +28,7 @@
     "package": "npm run build && npm run zip && node scripts/verify-packages.mjs",
     "package:verify": "node scripts/verify-packages.mjs",
     "source:verify": "node scripts/verify-source-build.mjs",
+    "release:verify": "node scripts/verify-release-version.mjs",
     "store:assets": "node scripts/capture-store-assets.mjs",
     "store:verify": "node scripts/verify-store-assets.mjs",
     "brand:icons": "node scripts/generate-icons.mjs",
