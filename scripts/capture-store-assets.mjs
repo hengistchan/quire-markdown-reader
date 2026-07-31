@@ -12,7 +12,7 @@ const screenshotSets = [
     browserLocale: 'en-US',
     appLocale: 'en',
     workspaceName: 'Quire Sample Library',
-    labels: { openFolder: 'Open folder', files: 'Files', outline: 'Outline', settings: 'Reader settings', dark: 'Dark' },
+    labels: { open: 'Open', openFolder: 'Open folder', toggleWorkspace: 'Toggle file workspace', command: 'Command center', settings: 'Reader settings' },
     readerTitle: 'A calm place for Markdown',
     technicalFile: 'Architecture.md',
     technicalTitle: 'Architecture at a glance',
@@ -75,7 +75,7 @@ const screenshotSets = [
     browserLocale: 'zh-CN',
     appLocale: 'zh-CN',
     workspaceName: 'Quire 示例文档库',
-    labels: { openFolder: '打开文件夹', files: '文件', outline: '大纲', settings: '阅读设置', dark: '深色' },
+    labels: { open: '打开', openFolder: '打开文件夹', toggleWorkspace: '切换文件工作区', command: '命令中心', settings: '阅读设置' },
     readerTitle: '安静阅读 Markdown',
     technicalFile: '架构说明.md',
     technicalTitle: '架构一目了然',
@@ -144,7 +144,7 @@ async function captureLocalizedSet(config) {
     headless: true,
     locale: config.browserLocale,
     viewport: { width: 1280, height: 800 },
-    colorScheme: 'light',
+    colorScheme: 'dark',
     args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`, `--lang=${config.browserLocale}`],
   });
 
@@ -157,12 +157,13 @@ async function captureLocalizedSet(config) {
       await chrome.storage.local.set({
         'reader-settings': {
           locale: appLocale,
-          theme: 'light',
+          theme: 'dark',
           fontFamily: 'sans',
           fontSize: 18,
           lineHeight: 1.76,
           contentWidth: 760,
           showReadingProgress: true,
+          showOutline: true,
           autoRefresh: true,
           enableKatex: true,
           enableMermaid: true,
@@ -198,28 +199,31 @@ async function captureLocalizedSet(config) {
     }, { workspaceName: config.workspaceName, files: config.files });
 
     await page.goto(`chrome-extension://${extensionId}/viewer.html`);
-    await page.locator('.onboarding').waitFor();
+    await page.getByRole('button', { name: config.labels.open, exact: true }).click();
+    await page.getByRole('button', { name: config.labels.openFolder }).click();
+    await page.getByRole('heading', { level: 1, name: config.readerTitle }).waitFor();
+    await page.getByRole('button', { name: config.labels.toggleWorkspace }).click();
     await page.evaluate(() => document.fonts.ready);
     await page.screenshot({ path: resolve(output, '01-open-markdown.png'), animations: 'disabled' });
 
-    await page.locator('.onboarding-close').click();
-    await page.getByRole('button', { name: config.labels.openFolder }).click();
-    await page.getByRole('heading', { level: 1, name: config.readerTitle }).waitFor();
-    await page.getByRole('tab', { name: config.labels.outline }).click();
+    await page.getByRole('button', { name: config.labels.toggleWorkspace }).click();
+    await page.getByRole('button', { name: config.labels.open, exact: true }).click();
     await page.screenshot({ path: resolve(output, '02-focused-reader.png'), animations: 'disabled' });
 
-    await page.getByRole('tab', { name: config.labels.files }).click();
+    await page.getByRole('button', { name: config.labels.open, exact: true }).click();
+    await page.getByRole('button', { name: config.labels.command }).first().click();
     await page.screenshot({ path: resolve(output, '03-local-workspace.png'), animations: 'disabled' });
 
+    await page.keyboard.press('Escape');
     await page.getByRole('button', { name: config.technicalFile }).click();
     await page.getByRole('heading', { level: 1, name: config.technicalTitle }).waitFor();
-    await page.getByRole('tab', { name: config.labels.outline }).click();
+    await page.getByRole('button', { name: config.labels.toggleWorkspace }).click();
     await page.locator('.mermaid svg').waitFor();
     await page.screenshot({ path: resolve(output, '04-technical-markdown.png'), animations: 'disabled' });
 
     await page.getByRole('button', { name: config.labels.settings }).click();
-    await page.getByRole('button', { name: config.labels.dark, exact: true }).click();
     await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+    await page.waitForFunction(() => document.querySelector('.settings-drawer')?.getBoundingClientRect().left < 920);
     await page.screenshot({ path: resolve(output, '05-reading-settings.png'), animations: 'disabled' });
   } finally {
     await context.close();

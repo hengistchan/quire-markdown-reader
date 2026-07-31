@@ -10,6 +10,11 @@ This document is the release boundary for the 0.0.2 update. Checked rows have re
 - [x] Validate every screenshot as 1280×800, 24-bit RGB PNG without alpha.
 - [x] Provide localized store listing copy and accurate permission/privacy disclosures.
 - [x] Keep install-time permissions and optional host-access behavior unchanged.
+- [x] Make quiet reading the default, with a 52 px navigation rail and no persistent file tree.
+- [x] Expand a searchable workspace panel only when a folder context is active.
+- [x] Consolidate file, folder, and URL actions into one Open menu.
+- [x] Provide a `Command/Ctrl+K` command center for recent documents, navigation, themes, and settings.
+- [x] Apply typography and reading-aid changes live in a right-side settings drawer.
 
 ## Reader localization
 
@@ -27,7 +32,7 @@ This document is the release boundary for the 0.0.2 update. Checked rows have re
 
 ## Verification evidence
 
-- [x] TypeScript compilation and all 51 unit/component tests pass.
+- [x] TypeScript compilation and all 52 unit/component tests pass.
 - [x] Chrome and Firefox production builds and 0.0.2 archives pass manifest/package validation.
 - [x] The installed Chromium extension passes the complete reader E2E flow.
 - [x] The Firefox source archive reconstructs all 133 packaged files byte-for-byte.

@@ -9,6 +9,7 @@ All notable changes to Quire are documented here. This project follows [Semantic
 - Five global English and five Simplified Chinese Chrome Web Store screenshots, with automated size, color, and alpha-channel validation
 - Localized Chrome Web Store listing copy and permission-by-permission privacy disclosures
 - Release-tag validation that prevents publishing a tag which does not match the package version
+- A keyboard-first command center for recent documents, opening sources, navigation, themes, and reader settings
 
 ### Changed
 
@@ -16,6 +17,9 @@ All notable changes to Quire are documented here. This project follows [Semantic
 - Localized the built-in welcome document, remote-reading errors, accessibility labels, and keyboard-command description
 - Made package, source-reproduction, and installed-Firefox checks derive artifact names from `package.json`
 - Added store-asset verification to continuous integration and release workflows
+- Rebuilt the viewer around a quiet 52 px navigation rail, an on-demand workspace tree, and a lightweight floating outline
+- Consolidated file, folder, and remote URL actions into one Open menu and moved reading controls into a live-preview settings drawer
+- Regenerated both localized screenshot sets to reflect the reader-first interaction model
 
 ## [0.0.1] - 2026-07-31
 
