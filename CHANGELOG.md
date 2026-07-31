@@ -10,6 +10,7 @@ All notable changes to Quire are documented here. This project follows [Semantic
 - Localized Chrome Web Store listing copy and permission-by-permission privacy disclosures
 - Release-tag validation that prevents publishing a tag which does not match the package version
 - A keyboard-first command center for recent documents, opening sources, navigation, themes, and reader settings
+- Address-bar preview for absolute local `.md`, `.markdown`, and `.mdx` paths after the user enables browser file-URL access
 
 ### Changed
 

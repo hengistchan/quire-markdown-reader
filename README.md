@@ -5,6 +5,7 @@ Quire is an open-source, read-only Markdown reader and local document workspace 
 ## Features
 
 - Open `.md`, `.markdown`, and `.mdx` files with automatic refresh where file handles are supported
+- Preview a local Markdown absolute path entered as a `file://` URL in the address bar
 - Connect a local folder, browse its nested tree, and restore it after a browser restart
 - Resolve workspace-relative images and navigate relative Markdown links inside the reader
 - Open a remote Markdown URL after granting access to that website only
@@ -18,11 +19,13 @@ Local folder access uses the File System Access API. Browsers without that API k
 
 ## Browser support
 
-| Browser | Package | Single file | Local folder | Remote URL |
-| --- | --- | --- | --- | --- |
-| Chrome / Chromium | Manifest V3 | Yes | Yes | Yes, per-site permission |
-| Edge | Chrome MV3 | Yes | Yes | Yes, per-site permission |
-| Firefox | Manifest V2 | Yes | Browser-dependent | Yes, per-site permission |
+| Browser | Package | Single file | Address-bar path | Local folder | Remote URL |
+| --- | --- | --- | --- | --- | --- |
+| Chrome / Chromium | Manifest V3 | Yes | Yes, after enabling file-URL access | Yes | Yes, per-site permission |
+| Edge | Chrome MV3 | Yes | Yes, after enabling file-URL access | Yes | Yes, per-site permission |
+| Firefox | Manifest V2 | Yes | Browser-dependent | Browser-dependent | Yes, per-site permission |
+
+For address-bar preview in Chrome or Edge, open Quire's extension details, enable **Allow access to file URLs**, then enter an absolute URL such as `file:///Users/name/docs/README.md`. Quire checks local pages for `.md`, `.markdown`, or `.mdx` only; other local file types are ignored.
 
 ## Install from source
 
@@ -60,7 +63,7 @@ The installed-extension E2E suite covers Chromium and Firefox. See the [v0.0.2 a
 
 ## Permissions and privacy
 
-Quire stores reader settings, recent-document metadata, and a browser-managed local folder handle on the device. It has no account, analytics, advertising, or developer-operated backend. Website access is optional and requested for one origin when the user opens a remote document. Active-page content is read only after the user invokes an explicit import action.
+Quire stores reader settings, recent-document metadata, and a browser-managed local folder handle on the device. It has no account, analytics, advertising, or developer-operated backend. Website access is optional and requested for one origin when the user opens a remote document. Active-page content is read only after the user invokes an explicit import action. Local-file URL access is disabled by Chrome until the user enables it in Quire's extension details.
 
 See [PRIVACY.md](PRIVACY.md) for the complete data and permission disclosure and [SECURITY.md](SECURITY.md) for vulnerability reporting.
 
