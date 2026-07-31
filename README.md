@@ -49,10 +49,14 @@ npm run dev:firefox
 npm run compile
 npm test
 npm run build
+npm run zip
+npm run package:verify
+npm run source:verify
+npm run store:verify
 npm run test:e2e
 ```
 
-The installed-extension E2E suite covers Chromium and Firefox. See [docs/acceptance-v0.0.1.md](docs/acceptance-v0.0.1.md) for the release boundary.
+The installed-extension E2E suite covers Chromium and Firefox. See the [v0.0.2 acceptance matrix](docs/acceptance-v0.0.2.md) for the current release boundary; the [v0.0.1 matrix](docs/acceptance-v0.0.1.md) remains as historical evidence.
 
 ## Permissions and privacy
 
