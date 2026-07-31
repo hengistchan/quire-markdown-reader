@@ -5,7 +5,7 @@ Quire is an open-source, read-only Markdown reader and local document workspace 
 ## Features
 
 - Open `.md`, `.markdown`, and `.mdx` files with automatic refresh where file handles are supported
-- Preview a local Markdown absolute path entered as a `file://` URL in the address bar
+- Preview a local Markdown absolute path entered as a `file://` URL without changing the address bar
 - Connect a local folder, browse its nested tree, and restore it after a browser restart
 - Resolve workspace-relative images and navigate relative Markdown links inside the reader
 - Open a remote Markdown URL after granting access to that website only
@@ -25,7 +25,7 @@ Local folder access uses the File System Access API. Browsers without that API k
 | Edge | Chrome MV3 | Yes | Yes, after enabling file-URL access | Yes | Yes, per-site permission |
 | Firefox | Manifest V2 | Yes | Browser-dependent | Browser-dependent | Yes, per-site permission |
 
-For address-bar preview in Chrome or Edge, open Quire's extension details, enable **Allow access to file URLs**, then enter an absolute URL such as `file:///Users/name/docs/README.md`. Quire checks local pages for `.md`, `.markdown`, or `.mdx` only; other local file types are ignored.
+For address-bar preview in Chrome or Edge, open Quire's extension details, enable **Allow access to file URLs**, then enter an absolute URL such as `file:///Users/name/docs/README.md`. Quire renders the document while keeping that local path in the address bar. It checks local pages for `.md`, `.markdown`, or `.mdx` only; other local file types are ignored.
 
 ## Install from source
 

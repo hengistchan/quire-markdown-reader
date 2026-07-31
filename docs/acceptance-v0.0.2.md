@@ -10,7 +10,7 @@ This document is the release boundary for the 0.0.2 update. Checked rows have re
 - [x] Validate every screenshot as 1280×800, 24-bit RGB PNG without alpha.
 - [x] Provide localized store listing copy and accurate permission/privacy disclosures.
 - [x] Keep remote HTTP/HTTPS access optional and add a file-only content script for user-enabled local address preview.
-- [x] Preview `.md`, `.markdown`, and `.mdx` absolute paths entered as `file://` URLs without reading other local file types.
+- [x] Preview `.md`, `.markdown`, and `.mdx` absolute paths entered as `file://` URLs while preserving the original address and ignoring other local file types.
 - [x] Make quiet reading the default, with a 52 px navigation rail and no persistent file tree.
 - [x] Expand a searchable workspace panel only when a folder context is active.
 - [x] Consolidate file, folder, and URL actions into one Open menu.
