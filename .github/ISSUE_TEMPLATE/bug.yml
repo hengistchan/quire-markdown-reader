@@ -1,0 +1,47 @@
+name: Bug report
+description: Report a reproducible problem in Quire
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not include private document content. Use a minimal synthetic Markdown sample.
+  - type: input
+    id: version
+    attributes:
+      label: Quire version
+      placeholder: 0.0.1
+    validations:
+      required: true
+  - type: dropdown
+    id: browser
+    attributes:
+      label: Browser
+      options: [Chrome, Edge, Firefox, Other]
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      placeholder: Tell us exactly what you opened and what you clicked.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual result
+    validations:
+      required: true
+  - type: textarea
+    id: sample
+    attributes:
+      label: Minimal safe Markdown sample
+      render: markdown
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed private document content, credentials, and personal data.
+          required: true

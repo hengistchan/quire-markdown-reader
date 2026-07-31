@@ -1,6 +1,6 @@
 # Source code review
 
-Folio uses no generated source files and requires no private packages or environment variables to build.
+Quire uses no generated source files and requires no private packages or environment variables to build.
 
 ## Requirements
 

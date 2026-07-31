@@ -1,0 +1,32 @@
+name: Feature request
+description: Propose an improvement to the read-only Markdown experience
+title: "feat: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Reading problem
+      description: What is difficult today, and who experiences it?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+    validations:
+      required: true
+  - type: textarea
+    id: permissions
+    attributes:
+      label: Permission or privacy impact
+      description: Say “none” if the proposal requires no new access.
+    validations:
+      required: true
+  - type: checkboxes
+    id: boundary
+    attributes:
+      label: Product boundary
+      options:
+        - label: This request preserves Quire's read-only purpose, or explains why that boundary should be reconsidered.
+          required: true

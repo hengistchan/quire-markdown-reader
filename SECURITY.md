@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Folio is currently pre-1.0. Security fixes are applied to the latest source revision and the newest published release.
+Quire is currently pre-1.0. Security fixes are applied to the latest source revision and the newest published release.
 
 ## Reporting a vulnerability
 

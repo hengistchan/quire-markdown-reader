@@ -1,4 +1,4 @@
-# Contributing to Folio
+# Contributing to Quire
 
 Thank you for helping make Markdown reading better across browsers.
 
@@ -6,7 +6,7 @@ Thank you for helping make Markdown reading better across browsers.
 
 1. Search existing issues and pull requests to avoid duplicating work.
 2. For a substantial feature or a new permission, open a design issue first.
-3. Keep Folio read-only unless the maintainers have accepted a proposal that changes that boundary.
+3. Keep Quire read-only unless the maintainers have accepted a proposal that changes that boundary.
 
 ## Local setup
 
@@ -27,6 +27,7 @@ Run these before opening a pull request:
 npm run compile
 npm test
 npm run build
+npm run test:e2e
 ```
 
 The final command builds both Chrome/Chromium and Firefox variants. If your change affects layout or interaction, test the viewer at desktop and narrow viewport widths as well.

@@ -1,57 +1,69 @@
-# Folio — Open-source Markdown Reader
+# Quire — Open-source Markdown Reader
 
-Folio is an open-source, read-only Markdown reader and local document workspace for modern browsers. It renders Markdown in a focused reading layout and never modifies source files.
-
-Chrome, Edge, and Firefox are first-class build targets. Capabilities that depend on the File System Access API, such as opening an entire local folder, degrade to single-file opening in browsers that do not provide that API.
+Quire is an open-source, read-only Markdown reader and local document workspace for Chrome, Edge, and Firefox. It turns local or web Markdown into a focused reading space and never modifies source files.
 
 ## Features
 
-- Open a single `.md`, `.markdown`, or `.mdx` file
-- Open a local folder and browse its Markdown files
-- Navigate the current document from a generated outline
-- GFM task lists, footnotes, definition lists, abbreviations, and callouts
-- KaTeX, Mermaid, and language-aware code highlighting
-- Light, dark, and system themes with typography controls
-- Document search, reading progress, custom document CSS, and saved settings
-- Open the current browser page from the extension action or `Cmd/Ctrl + Shift + M`
+- Open `.md`, `.markdown`, and `.mdx` files with automatic refresh where file handles are supported
+- Connect a local folder, browse its nested tree, and restore it after a browser restart
+- Resolve workspace-relative images and navigate relative Markdown links inside the reader
+- Open a remote Markdown URL after granting access to that website only
+- Import the active page from the toolbar action, page context menu, or `Alt/Option + Shift + M`
+- Render task lists, footnotes, definitions, abbreviations, callouts, KaTeX, Mermaid, and highlighted code
+- Search and navigate by document outline
+- Choose light, dark, or system appearance; typography, reading width, and custom document CSS
+- Use the interface in English or Simplified Chinese
+
+Local folder access uses the File System Access API. Browsers without that API keep the single-file workflow available.
 
 ## Browser support
 
-| Browser | Build target | Single file | Local folder |
-| --- | --- | --- | --- |
-| Chrome / Chromium | Manifest V3 | Yes | Yes |
-| Edge | Chrome MV3 package | Yes | Yes |
-| Firefox | Firefox package | Yes | When supported by the browser |
+| Browser | Package | Single file | Local folder | Remote URL |
+| --- | --- | --- | --- | --- |
+| Chrome / Chromium | Manifest V3 | Yes | Yes | Yes, per-site permission |
+| Edge | Chrome MV3 | Yes | Yes | Yes, per-site permission |
+| Firefox | Manifest V2 | Yes | Browser-dependent | Yes, per-site permission |
 
-## Development
+## Install from source
+
+Requirements: Node.js 22 or newer and npm.
 
 ```bash
-npm install
+npm ci
+npm run build
+```
+
+Load `.output/chrome-mv3/` as an unpacked extension in a Chromium browser. For Firefox, load `.output/firefox-mv2/manifest.json` as a temporary add-on. Store-ready archives are created by `npm run zip`.
+
+For development:
+
+```bash
 npm run dev:chrome
 # or
 npm run dev:firefox
 ```
 
-## Build and verify
+## Verify
 
 ```bash
 npm run compile
 npm test
 npm run build
+npm run test:e2e
 ```
 
-The unpacked builds are generated under `.output/`. Create store-ready archives with `npm run zip`.
+The installed-extension E2E suite covers Chromium and Firefox. See [docs/acceptance-v0.0.1.md](docs/acceptance-v0.0.1.md) for the release boundary.
 
-Before the first Firefox store submission, the maintainers must choose a permanent add-on ID and add it to `browser_specific_settings.gecko.id`. It is intentionally not guessed in source because changing it later breaks the extension's identity and update path.
+## Permissions and privacy
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) before proposing a change. By participating, you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+Quire stores reader settings, recent-document metadata, and a browser-managed local folder handle on the device. It has no account, analytics, advertising, or developer-operated backend. Website access is optional and requested for one origin when the user opens a remote document. Active-page content is read only after the user invokes an explicit import action.
 
-## Security defaults
+See [PRIVACY.md](PRIVACY.md) for the complete data and permission disclosure and [SECURITY.md](SECURITY.md) for vulnerability reporting.
 
-Raw HTML is off by default and sanitized with DOMPurify when enabled. Mermaid runs in strict mode. All rendering libraries are bundled with the extension; no executable code is loaded from a CDN.
+## Contributing
 
-Please report vulnerabilities according to [SECURITY.md](SECURITY.md), not through a public issue.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) and follow the [Code of Conduct](CODE_OF_CONDUCT.md). Firefox reviewers can reproduce the package using [SOURCE_CODE_REVIEW.md](SOURCE_CODE_REVIEW.md).
 
 ## License
 
-Folio is available under the [MIT License](LICENSE).
+Quire is available under the [MIT License](LICENSE).
