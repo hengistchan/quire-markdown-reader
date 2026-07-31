@@ -51,7 +51,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .topbar-start, .topbar-actions { display: flex; align-items: center; gap: 8px; }
 .brand-mark { display: grid; place-items: center; width: 34px; height: 34px; margin-left: 2px; border-radius: 10px 10px 10px 3px; color: white; background: var(--accent); box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 30%, transparent); }
 .brand-mark svg { width: 19px; }
-.brand-mark span { font-family: Charter, "Iowan Old Style", Georgia, serif; font-size: 19px; font-weight: 750; }
+.brand-mark span { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11px; font-weight: 850; letter-spacing: -.06em; }
 .document-identity { display: grid; margin-left: 7px; line-height: 1.15; }
 .document-identity strong { max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; letter-spacing: .01em; }
 .document-identity span { margin-top: 4px; color: var(--muted); font-size: 11px; }
@@ -178,7 +178,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .onboarding-close:hover { background: var(--sidebar); }
 .onboarding-close svg { width: 16px; }
 .onboarding-brand { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .16em; }
-.onboarding-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px 9px 9px 3px; color: white; background: var(--accent); font-family: Charter, Georgia, serif; font-size: 17px; letter-spacing: 0; }
+.onboarding-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px 9px 9px 3px; color: white; background: var(--accent); font-family: ui-sans-serif, system-ui, sans-serif; font-size: 10px; font-weight: 850; letter-spacing: -.06em; }
 .onboarding h1 { max-width: 12ch; margin: 26px 0 14px; font-family: Charter, "Iowan Old Style", Georgia, serif; font-size: clamp(38px, 7vw, 58px); font-weight: 600; line-height: 1.03; letter-spacing: -.045em; }
 .onboarding-lead { max-width: 58ch; margin: 0 0 30px; color: var(--muted); font-size: 13px; line-height: 1.65; }
 .onboarding-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
