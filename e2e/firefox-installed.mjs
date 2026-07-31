@@ -53,7 +53,7 @@ try {
 
   await driver.findElement(By.css('button[aria-label="Reader settings"]')).click();
   const language = await driver.findElement(By.css('select[aria-label="Language"]'));
-  await language.findElement(By.css('option[value="zh-CN"]')).click();
+  await driver.executeScript(`arguments[0].value = 'zh-CN'; arguments[0].dispatchEvent(new Event('change', { bubbles: true }))`, language);
   await driver.wait(until.elementLocated(By.xpath("//*[contains(text(), '按你的方式阅读')]")), 10_000);
 
   const openExample = async () => {
