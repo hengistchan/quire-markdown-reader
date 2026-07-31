@@ -70,10 +70,10 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     await page.goto(`chrome-extension://${id}/viewer.html`);
 
     await expect(page).toHaveTitle('Quire');
-    await expect(page.getByRole('dialog', { name: 'Your documents, set for reading.' })).toBeVisible();
-    await expect(page.getByText('Private by design').last()).toBeVisible();
-    await page.getByRole('button', { name: 'Close' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Welcome to Quire' })).toBeVisible();
+    await expect(page.locator('.context-panel')).toHaveCount(0);
 
+    await page.getByRole('button', { name: 'Open', exact: true }).click();
     await page.getByRole('button', { name: 'Open folder' }).click();
     await expect(page.locator('.document-identity strong')).toHaveText('README');
     await expect(page.getByRole('button', { name: 'docs' })).toBeVisible();
@@ -100,9 +100,10 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     await installWorkspacePicker(reopened);
     await reopened.goto(`chrome-extension://${id}/viewer.html`);
     await expect(reopened.locator('.document-identity strong')).toHaveText('README');
-    await expect(reopened.getByText('Workspace Home')).toBeVisible();
+    await expect(reopened.getByRole('heading', { level: 1, name: /Workspace Home/ })).toBeVisible();
 
     await reopened.evaluate(() => (window as unknown as { __quireDenyDirectoryPicker: () => void }).__quireDenyDirectoryPicker());
+    await reopened.getByRole('button', { name: 'Open', exact: true }).click();
     await reopened.getByRole('button', { name: 'Open folder' }).click();
     await expect(reopened.getByRole('alert')).toContainText('Access was not granted');
 
@@ -119,6 +120,7 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     const address = server.address();
     if (!address || typeof address === 'string') throw new Error('Could not start E2E server.');
 
+    await reopened.getByRole('button', { name: 'Open', exact: true }).click();
     await reopened.getByRole('button', { name: 'Open URL' }).click();
     const remoteUrl = `http://127.0.0.1:${address.port}/remote.md`;
     await reopened.getByPlaceholder('https://example.com/guide.md').fill(remoteUrl);
@@ -127,7 +129,7 @@ test('runs the complete reader flow as an installed Chromium extension', async (
 
     await reopened.getByRole('button', { name: 'Reader settings' }).click();
     await reopened.getByRole('combobox', { name: 'Language' }).selectOption('zh-CN');
-    await expect(reopened.getByText('按你的方式阅读')).toBeVisible();
+    await expect(reopened.getByText('修改后立即应用到当前文档。')).toBeVisible();
     await reopened.setViewportSize({ width: 600, height: 800 });
     await expect(reopened.locator('.reader-stage')).toBeVisible();
   } finally {

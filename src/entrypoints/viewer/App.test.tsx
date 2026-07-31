@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultSettings } from '../../shared/settings';
@@ -38,21 +38,23 @@ describe('Quire viewer experience', () => {
     vi.unstubAllGlobals();
   });
 
-  it('shows first-run choices and explains a denied remote permission', async () => {
+  it('starts in quiet reading mode and explains a denied remote permission', async () => {
     const { api } = installBrowser();
     const user = userEvent.setup();
     render(<App />);
 
-    const onboarding = await screen.findByRole('dialog', { name: 'Your documents, set for reading.' });
-    expect(within(onboarding).getAllByText('Private by design')).toHaveLength(2);
-    await user.click(within(onboarding).getByRole('button', { name: /Open a web URL/ }));
+    expect(await screen.findByLabelText('Document navigation')).toBeTruthy();
+    expect(screen.queryByText('Your documents, set for reading.')).toBeNull();
+    expect(document.querySelector('.context-panel')).toBeNull();
+    await user.click(document.querySelector<HTMLElement>('.open-trigger')!);
+    await user.click(within(document.querySelector<HTMLElement>('.open-menu')!).getByText('Open URL').closest('button')!);
 
-    const urlDialog = screen.getByRole('dialog', { name: 'Open Markdown from the web' });
+    const urlDialog = document.querySelector<HTMLElement>('.url-dialog')!;
     await user.type(within(urlDialog).getByPlaceholderText('https://example.com/guide.md'), 'https://docs.example.com/readme.md');
-    await user.click(within(urlDialog).getByRole('button', { name: 'Open' }));
+    await user.click(within(urlDialog).getByText('Open'));
 
     await waitFor(() => expect(api.permissions.request).toHaveBeenCalledWith({ origins: ['https://docs.example.com/*'] }));
-    expect((await screen.findByRole('alert')).textContent).toContain('Access was not granted');
+    await waitFor(() => expect(document.querySelector('[role="alert"]')?.textContent).toContain('Access was not granted'));
   });
 
   it('switches the complete reader UI to Simplified Chinese and persists it', async () => {
@@ -60,17 +62,37 @@ describe('Quire viewer experience', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    const onboarding = await screen.findByRole('dialog', { name: 'Your documents, set for reading.' });
-    await user.click(within(onboarding).getByRole('button', { name: 'Close' }));
-    await user.click(screen.getByRole('button', { name: 'Reader settings' }));
+    await user.click(await screen.findByRole('button', { name: 'Reader settings' }));
     await user.selectOptions(screen.getByRole('combobox', { name: 'Language' }), 'zh-CN');
 
-    expect(await screen.findByText('按你的方式阅读')).toBeTruthy();
-    expect(screen.getByRole('button', { name: '打开文件' })).toBeTruthy();
+    expect(await screen.findByText('修改后立即应用到当前文档。')).toBeTruthy();
+    expect(screen.getByRole('button', { name: '打开' })).toBeTruthy();
     await waitFor(() => expect(document.querySelector('.markdown-body')?.textContent).toContain('Quire 将 Markdown 变成专注的阅读空间'));
     expect(screen.getByLabelText('文档导航')).toBeTruthy();
     await waitFor(() => expect(local.set).toHaveBeenCalledWith(expect.objectContaining({
       'reader-settings': expect.objectContaining({ locale: 'zh-CN' }),
     })));
+  });
+
+  it('opens a keyboard-friendly command center with progressive reader actions', async () => {
+    installBrowser();
+    const user = userEvent.setup();
+    render(<App />);
+
+    await screen.findByLabelText('Document navigation');
+    fireEvent.keyDown(window, { key: 'k', metaKey: true });
+    const palette = screen.getByRole('dialog', { name: 'Command center' });
+    expect(within(palette).getByRole('button', { name: /Open file/ })).toBeTruthy();
+    expect(within(palette).getByRole('button', { name: /Open folder/ })).toBeTruthy();
+    expect(within(palette).getByRole('button', { name: /Open URL/ })).toBeTruthy();
+    expect(within(palette).getByRole('button', { name: /Enter quiet reading mode/ })).toBeTruthy();
+    expect(within(palette).getByRole('button', { name: /Use dark theme/ })).toBeTruthy();
+    expect(within(palette).getByRole('button', { name: /Reader settings/ })).toBeTruthy();
+
+    const input = within(palette).getByPlaceholderText('Type a command, filename, or URL…');
+    await user.type(input, 'dark');
+    expect(within(palette).getByRole('button', { name: /Use dark theme/ })).toBeTruthy();
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(within(palette).getByRole('button', { name: /Use dark theme/ }));
   });
 });

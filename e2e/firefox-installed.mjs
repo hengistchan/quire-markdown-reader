@@ -45,8 +45,6 @@ try {
   await driver.wait(until.elementTextContains(body, 'Welcome to Quire'), 15_000);
   assert.match(await body.getText(), /documents stay on your device/);
 
-  const onboardingClose = await driver.findElements(By.css('button[aria-label="Close"]'));
-  if (onboardingClose.length) await onboardingClose[0].click();
   const input = await driver.findElement(By.css('input[type="file"]'));
   await driver.executeScript('arguments[0].hidden = false', input);
   await input.sendKeys(fixture);
@@ -56,7 +54,7 @@ try {
   await driver.findElement(By.css('button[aria-label="Reader settings"]')).click();
   const language = await driver.findElement(By.css('select[aria-label="Language"]'));
   await driver.executeScript(`arguments[0].value = 'zh-CN'; arguments[0].dispatchEvent(new Event('change', { bubbles: true }))`, language);
-  await driver.wait(until.elementLocated(By.xpath("//*[contains(text(), '按你的方式阅读')]")), 10_000);
+  await driver.wait(until.elementLocated(By.xpath("//*[contains(text(), '修改后立即应用到当前文档')]")), 10_000);
 
   const openExample = async () => {
     await driver.setContext(firefox.Context.CONTENT);
