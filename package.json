@@ -29,6 +29,7 @@
     "package:verify": "node scripts/verify-packages.mjs",
     "source:verify": "node scripts/verify-source-build.mjs",
     "store:assets": "node scripts/capture-store-assets.mjs",
+    "store:verify": "node scripts/verify-store-assets.mjs",
     "brand:icons": "node scripts/generate-icons.mjs",
     "compile": "tsc --noEmit",
     "test": "vitest run",

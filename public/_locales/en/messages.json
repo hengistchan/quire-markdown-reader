@@ -1,6 +1,6 @@
 {
   "extName": { "message": "Quire — Markdown Reader" },
-  "extDescription": { "message": "A calm, private reading workspace for local and web Markdown documents." },
+  "extDescription": { "message": "Read local folders, individual files, and web Markdown in Chrome—without uploads or changes to the source." },
   "actionTitle": { "message": "Open in Quire" },
   "contextMenuTitle": { "message": "Open in Quire" }
 }

@@ -2,7 +2,7 @@
 
 ## Short description
 
-A calm, private reading workspace for local and web Markdown documents.
+Read local folders, individual files, and web Markdown in Chrome—without an account, uploads, or changes to the source.
 
 ## Single purpose
 
@@ -10,15 +10,27 @@ Quire renders user-selected local files, folders, active-page text, and remote M
 
 ## Full description
 
-Read Markdown without turning it into another editor.
+Turn Markdown source into a document made for reading.
 
-Quire opens individual Markdown files or a local folder with a nested document tree. Images and Markdown links resolve inside the connected workspace, and supported files refresh when they change. You can also open a web Markdown URL after granting access to that website only.
+Quire has one clear purpose: open local or web Markdown in Chrome as a focused, read-only document workspace. It is made for project READMEs, developer documentation, knowledge bases, course notes, and long technical articles. You do not need to launch an editor just to see formatted content or upload private files to an online service.
 
-The reader includes document search, outline navigation, reading progress, light and dark themes, typography controls, syntax highlighting, task lists, footnotes, callouts, KaTeX, Mermaid, sanitized HTML, and custom document CSS. Use Quire in English or Simplified Chinese.
+Key features:
 
-Use the toolbar button, `Alt/Option + Shift + M`, or the page context menu to bring the current page's visible text into the reader.
+- Open individual .md, .markdown, and .mdx files
+- Connect a local folder and browse a real nested document tree
+- Switch quickly between the folder tree and current document outline
+- Resolve relative images and Markdown links inside the workspace
+- Search the current document and follow reading progress
+- Adjust light or dark theme, font, text size, line height, and page width
+- Render highlighted code, task lists, footnotes, callouts, KaTeX formulas, and Mermaid diagrams
+- Open a web Markdown URL with access limited to the website you choose
+- Import the visible text of the current page from the toolbar, context menu, or `Alt/Option + Shift + M`
 
-Privacy is part of the product boundary: Quire has no account, analytics, ads, tracking, or developer backend. Local documents stay on the device, and Quire never edits source files.
+Why install Quire?
+
+Quire separates reading Markdown from editing it. The interface stays quiet, source files remain read-only, and local documents stay on your device. If you regularly read READMEs, technical specifications, research notes, or a local knowledge base, you get clearer navigation and fewer distractions without changing how your files are organized.
+
+Quire is open source. It has no account, analytics, ads, tracking, or developer backend. Local documents are not uploaded, and source files are never modified.
 
 ## Permission disclosure
 
