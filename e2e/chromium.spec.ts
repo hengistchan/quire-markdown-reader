@@ -37,7 +37,8 @@ async function installWorkspacePicker(page: Page): Promise<void> {
         const docs = await workspace.getDirectoryHandle('docs', { create: true });
         const assets = await workspace.getDirectoryHandle('assets', { create: true });
         await write(await workspace.getFileHandle('README.md', { create: true }), '# Workspace Home\n\n![Quire mark](assets/mark.svg)\n\n[Open guide](docs/guide.md)');
-        await write(await docs.getFileHandle('guide.md', { create: true }), '# Nested Guide\n\nBefore refresh.');
+        const longOutline = Array.from({ length: 32 }, (_, index) => `## Section ${index + 1}\n\nOutline content ${index + 1}.`).join('\n\n');
+        await write(await docs.getFileHandle('guide.md', { create: true }), `# Nested Guide\n\nBefore refresh.\n\n${longOutline}`);
         await write(await assets.getFileHandle('mark.svg', { create: true }), '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" rx="8" fill="#5266d7"/></svg>');
         return workspace;
       },
@@ -90,6 +91,11 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     await page.getByRole('link', { name: 'Open guide' }).click();
     await expect(page.locator('.document-identity strong')).toHaveText('guide');
     await expect(page.getByText('Before refresh.')).toBeVisible();
+    const outline = page.locator('.outline-popover');
+    const outlineBox = await outline.boundingBox();
+    expect(outlineBox!.y + outlineBox!.height).toBeLessThanOrEqual(800);
+    expect(await outline.locator('nav').evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+    await expect(outline.locator('nav button')).toHaveCount(33);
 
     await page.evaluate(async () => {
       const root = await navigator.storage.getDirectory();

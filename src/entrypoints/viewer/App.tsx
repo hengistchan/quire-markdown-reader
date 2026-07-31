@@ -537,7 +537,11 @@ function MoreMenu({ t, onCommand, onOutline, onSettings }: { t: Translator; onCo
 }
 
 function OutlinePopover({ headings, activeId, progress, t, onJump }: { headings: HeadingItem[]; activeId?: string; progress: number; t: Translator; onJump: (id: string) => void }) {
-  return <aside className="outline-popover" aria-label={t('outline')}><label>{t('onThisPage')}</label><nav>{headings.map((heading) => <button key={heading.id} className={activeId === heading.id ? 'active' : ''} style={{ paddingInlineStart: `${10 + Math.max(0, heading.level - 1) * 8}px` }} onClick={() => onJump(heading.id)}>{heading.text}</button>)}</nav><div className="outline-progress"><span>{t('readingProgress')} {Math.round(progress)}%</span><i><b style={{ width: `${progress}%` }} /></i></div></aside>;
+  const navRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    navRef.current?.querySelector<HTMLButtonElement>('.active')?.scrollIntoView?.({ block: 'nearest' });
+  }, [activeId]);
+  return <aside className="outline-popover" aria-label={t('outline')}><label>{t('onThisPage')}</label><nav ref={navRef}>{headings.map((heading) => <button key={heading.id} className={activeId === heading.id ? 'active' : ''} style={{ paddingInlineStart: `${10 + Math.max(0, heading.level - 1) * 8}px` }} onClick={() => onJump(heading.id)}>{heading.text}</button>)}</nav><div className="outline-progress"><span>{t('readingProgress')} {Math.round(progress)}%</span><i><b style={{ width: `${progress}%` }} /></i></div></aside>;
 }
 
 function CommandPalette({ query, matches, recent, t, onQuery, onClose, onFile, onFolder, onUrl, onTypedUrl, onWorkspace, onOutline, onQuietMode, onLightTheme, onDarkTheme, onSettings, onRecent }: { query: string; matches: string[]; recent: RecentItem[]; t: Translator; onQuery: (value: string) => void; onClose: () => void; onFile: () => void; onFolder: () => void; onUrl: () => void; onTypedUrl: (value: string) => void; onWorkspace: () => void; onOutline: () => void; onQuietMode: () => void; onLightTheme: () => void; onDarkTheme: () => void; onSettings: () => void; onRecent: (item: RecentItem) => void }) {

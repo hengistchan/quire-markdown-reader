@@ -156,13 +156,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .document-footer { display: flex; align-items: center; gap: 14px; width: min(100%, var(--reader-width)); margin: 72px auto 0; color: var(--faint); font-size: 8px; font-weight: 750; letter-spacing: .15em; text-transform: uppercase; }
 .document-footer i { flex: 1; height: 1px; background: var(--line); }
 
-.outline-popover { position: fixed; z-index: 35; top: 132px; right: 24px; width: 212px; padding: 14px 12px 12px; border: 1px solid var(--line); border-radius: 11px; background: color-mix(in srgb, var(--panel) 96%, transparent); box-shadow: 0 12px 32px rgba(0,0,0,.12); }
-.outline-popover > label { display: block; padding: 0 5px 10px; color: var(--faint); font-size: 9px; font-weight: 750; }
-.outline-popover nav { display: grid; gap: 3px; }
+.outline-popover { position: fixed; z-index: 35; top: 132px; right: 24px; display: flex; flex-direction: column; width: 212px; max-height: calc(100vh - 156px); padding: 14px 12px 12px; border: 1px solid var(--line); border-radius: 11px; background: color-mix(in srgb, var(--panel) 96%, transparent); box-shadow: 0 12px 32px rgba(0,0,0,.12); }
+.outline-popover > label { display: block; flex: 0 0 auto; padding: 0 5px 10px; color: var(--faint); font-size: 9px; font-weight: 750; }
+.outline-popover nav { display: grid; min-height: 0; padding-right: 3px; overflow-y: auto; overscroll-behavior: contain; scrollbar-color: var(--line) transparent; scrollbar-width: thin; gap: 3px; }
 .outline-popover nav button { width: 100%; padding-block: 8px; overflow: hidden; border: 0; border-radius: 6px; color: var(--muted); background: transparent; cursor: pointer; font-size: 9px; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 .outline-popover nav button:hover, .outline-popover nav button.active { color: var(--ink); background: var(--accent-soft); }
 .outline-popover nav button.active { font-weight: 700; }
-.outline-progress { display: grid; gap: 8px; margin-top: 12px; padding: 11px 5px 2px; border-top: 1px solid var(--line); }
+.outline-progress { display: grid; flex: 0 0 auto; gap: 8px; margin-top: 12px; padding: 11px 5px 2px; border-top: 1px solid var(--line); }
 .outline-progress span { color: var(--faint); font-size: 8px; }
 .outline-progress i { height: 4px; overflow: hidden; border-radius: 4px; background: var(--panel-strong); }
 .outline-progress b { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
