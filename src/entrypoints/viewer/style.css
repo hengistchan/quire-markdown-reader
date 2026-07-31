@@ -161,7 +161,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .outline-popover nav { display: grid; gap: 3px; }
 .outline-popover nav button { width: 100%; padding-block: 8px; overflow: hidden; border: 0; border-radius: 6px; color: var(--muted); background: transparent; cursor: pointer; font-size: 9px; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 .outline-popover nav button:hover, .outline-popover nav button.active { color: var(--ink); background: var(--accent-soft); }
-.outline-popover nav button.active { box-shadow: inset 3px 0 var(--accent); font-weight: 700; }
+.outline-popover nav button.active { font-weight: 700; }
 .outline-progress { display: grid; gap: 8px; margin-top: 12px; padding: 11px 5px 2px; border-top: 1px solid var(--line); }
 .outline-progress span { color: var(--faint); font-size: 8px; }
 .outline-progress i { height: 4px; overflow: hidden; border-radius: 4px; background: var(--panel-strong); }
