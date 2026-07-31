@@ -15,6 +15,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "postinstall": "wxt prepare",
     "dev": "npm run dev:chrome",
     "dev:chrome": "wxt -b chrome",
     "dev:firefox": "wxt -b firefox",
