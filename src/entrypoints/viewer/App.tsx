@@ -506,7 +506,7 @@ export function App() {
         <main className="reader-stage">
           <div className="paper-grain" aria-hidden="true" />
           {error && <div className="error-banner" role="alert"><AlertCircle /><span>{error}</span><button onClick={() => setError(undefined)} aria-label={t('dismissNotice')}><X /></button></div>}
-          {sourceKind !== 'welcome' && <div className="document-meta">{t('readingNote')} · {readMinutes} {t('minuteRead')}</div>}
+          {sourceKind !== 'welcome' && <div className="document-meta">{readMinutes} {t('minuteRead')}</div>}
           <article ref={articleRef} className={`markdown-body font-${settings.fontFamily}`} onClick={handleArticleClick} dangerouslySetInnerHTML={htmlMarkup} />
           {settings.customCss && <style>{`@scope (.markdown-body) { ${settings.customCss} }`}</style>}
           <footer className="document-footer"><span>{t('endDocument')}</span><i /></footer>

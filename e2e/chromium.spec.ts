@@ -149,6 +149,8 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     await reopened.getByRole('button', { name: 'Reader settings' }).click();
     await reopened.getByRole('combobox', { name: 'Language' }).selectOption('zh-CN');
     await expect(reopened.getByText('修改后立即应用到当前文档。')).toBeVisible();
+    await expect(reopened.locator('.document-meta')).toHaveText(/^\d+ 分钟阅读$/);
+    await expect(reopened.locator('.document-meta')).not.toContainText('工程笔记');
     await reopened.setViewportSize({ width: 600, height: 800 });
     await expect(reopened.locator('.reader-stage')).toBeVisible();
   } finally {
