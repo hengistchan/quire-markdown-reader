@@ -2,7 +2,7 @@
 
 All notable changes to Quire are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
-## [0.0.2] - 2026-07-31
+## [0.0.2] - 2026-08-01
 
 ### Added
 
@@ -11,6 +11,7 @@ All notable changes to Quire are documented here. This project follows [Semantic
 - Release-tag validation that prevents publishing a tag which does not match the package version
 - A keyboard-first command center for recent documents, opening sources, navigation, themes, and reader settings
 - Address-bar preview for absolute local `.md`, `.markdown`, and `.mdx` paths, preserving the original file URL after the user enables browser file access
+- A one-click wide reading mode in the document toolbar
 
 ### Changed
 
@@ -21,6 +22,14 @@ All notable changes to Quire are documented here. This project follows [Semantic
 - Rebuilt the viewer around a quiet 52 px navigation rail, an on-demand workspace tree, and a lightweight floating outline
 - Consolidated file, folder, and remote URL actions into one Open menu and moved reading controls into a live-preview settings drawer
 - Regenerated both localized screenshot sets to reflect the reader-first interaction model
+
+### Fixed
+
+- Preserved complete folder names in the workspace tree and anchored the automatic-refresh indicator to the bottom of its panel
+- Kept long document outlines scrollable without compressing or overflowing their heading rows
+- Removed the static document-category label and the active-outline shadow from the reading surface
+- Classified address-bar `file://` Markdown as local content, kept it out of the folder workspace, and preserved its original path
+- Added visible loading feedback while remote Markdown documents are being fetched
 
 ## [0.0.1] - 2026-07-31
 
