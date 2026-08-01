@@ -4,6 +4,15 @@ All notable changes to Quire are documented here. This project follows [Semantic
 
 ## [Unreleased]
 
+## [0.0.3] - 2026-08-02
+
+### Added
+
+- Reading-position restoration with a choice to continue or restart, plus per-document heading and scroll metadata
+- Back, forward, browser-history, and breadcrumb navigation for Markdown documents opened inside a workspace
+- Direct Markdown drag-and-drop and clipboard-paste entry points, together with a dedicated print stylesheet
+- Persistent identities for multiple local folders and individual files, including same-named workspaces and recent-item reopening
+
 ### Changed
 
 - Replaced the global imported-document storage key with isolated, single-use document handoffs that expire after ten minutes
@@ -11,11 +20,17 @@ All notable changes to Quire are documented here. This project follows [Semantic
 - Bounded remote Markdown downloads with streamed byte limits, a 20-second timeout, active cancellation, retry actions, offline pausing, and exponential refresh backoff
 - Added cancellable workspace scans with dependency/build-directory ignores, depth and item limits, plus an explicit workspace refresh action
 - Unified source-specific document state behind a discriminated `DocumentSession`, shared source adapters, and one mutually exclusive overlay state
+- Versioned and validated reader settings and recent-document data, with migration and recovery for older or damaged local records
+- Deferred local images and Mermaid diagrams until they approach the viewport, cached rendered diagrams, and split the Viewer into cacheable dependency chunks
+- Extracted the workspace tree, menus, command center, outline, URL dialog, and settings drawer into dedicated Viewer components
+- Added a prominent, listing-level disclosure of all on-device and user-directed data handling for the Chrome Web Store policy effective August 1, 2026
 
 ### Fixed
 
 - Opened only external web and email links in a new tab, while preserving heading fragments when navigating between Markdown documents
 - Kept the browser's native `Cmd/Ctrl+F` find action and made command-center document and workspace-file results navigable
+- Prevented the same workspace file from appearing twice in command-center search results
+- Kept generated browser-test screenshots and traces out of the Firefox source-review archive
 
 ## [0.0.2] - 2026-08-01
 
@@ -59,6 +74,7 @@ All notable changes to Quire are documented here. This project follows [Semantic
 - First-run guidance, actionable error and permission states, English and Simplified Chinese interfaces
 - Reproducible browser packages, automated tests, community documents, store materials, and release automation
 
-[Unreleased]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.2...HEAD
+[Unreleased]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.3...HEAD
+[0.0.3]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/hengistchan/quire-markdown-reader/releases/tag/v0.0.1
