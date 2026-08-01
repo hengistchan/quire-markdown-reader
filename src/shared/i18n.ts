@@ -14,6 +14,7 @@ const en = {
   openContent: 'Open content', commandCenter: 'Command center', commandPlaceholder: 'Type a command, filename, or URL…', commands: 'Commands', recentlyOpened: 'Recently opened', workspaceFiles: 'Workspace files', line: 'Line', moreActions: 'More actions', filterFiles: 'Filter files…', toggleWorkspace: 'Toggle file workspace', toggleOutline: 'Toggle document outline', enableWideView: 'Use wider reading width', disableWideView: 'Use standard reading width', quietMode: 'Enter quiet reading mode', useLightTheme: 'Use light theme', useDarkTheme: 'Use dark theme', minuteRead: 'min read', readingAids: 'Reading aids', floatingOutline: 'Floating outline', outlineDescription: 'Keep the document outline within reach', markdownExtensions: 'Markdown extensions', advanced: 'Advanced', settingsLive: 'Changes apply to the current document immediately.', resetSettings: 'Restore defaults', savedLocally: 'Saved on this device', noCommandResults: 'No matching commands or documents.', currentDocument: 'Current document', closeCommand: 'Close command center',
   recent: 'Recent', fromWeb: 'From the web', localFile: 'Local file', imported: 'Imported document', plainTextSnapshot: 'Page text snapshot', gettingStarted: 'Getting started', untitled: 'Untitled',
   resumeReading: 'Continue where you left off?', continueReading: 'Continue reading', startFromTop: 'Start from top', dropToOpen: 'Drop Markdown or a folder to open', pastedDocument: 'Pasted Markdown',
+  previousDocument: 'Previous document', nextDocument: 'Next document',
   welcomeDocumentTitle: 'Welcome to Quire',
   welcomeDocument: `# Welcome to Quire
 
@@ -72,6 +73,7 @@ const zh: Record<keyof typeof en, string> = {
   openContent: '打开内容', commandCenter: '命令中心', commandPlaceholder: '输入命令、文件名或 URL…', commands: '操作', recentlyOpened: '最近打开', workspaceFiles: '工作区文件', line: '第', moreActions: '更多操作', filterFiles: '筛选文件…', toggleWorkspace: '切换文件工作区', toggleOutline: '切换文档大纲', enableWideView: '开启较宽展示', disableWideView: '恢复标准宽度', quietMode: '进入安静阅读模式', useLightTheme: '切换浅色主题', useDarkTheme: '切换深色主题', minuteRead: '分钟阅读', readingAids: '阅读辅助', floatingOutline: '右侧悬浮大纲', outlineDescription: '在阅读时随时查看当前文档结构', markdownExtensions: 'Markdown 扩展', advanced: '高级', settingsLive: '修改后立即应用到当前文档。', resetSettings: '恢复默认设置', savedLocally: '设置保存在此设备', noCommandResults: '没有匹配的命令或文档。', currentDocument: '当前文档', closeCommand: '关闭命令中心',
   recent: '最近打开', fromWeb: '来自网络', localFile: '本地文件', imported: '导入的文档', plainTextSnapshot: '网页文本快照', gettingStarted: '开始使用', untitled: '未命名',
   resumeReading: '继续上次阅读位置？', continueReading: '继续阅读', startFromTop: '从头开始', dropToOpen: '拖入 Markdown 或文件夹以打开', pastedDocument: '粘贴的 Markdown',
+  previousDocument: '上一篇文档', nextDocument: '下一篇文档',
   welcomeDocumentTitle: '欢迎使用 Quire',
   welcomeDocument: `# 欢迎使用 Quire
 

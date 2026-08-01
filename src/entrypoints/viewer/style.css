@@ -60,6 +60,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .rail-bottom kbd { justify-self: center; padding: 3px 6px; border-radius: 9px; color: var(--faint); background: var(--panel-strong); font-size: 8px; }
 
 .topbar { position: fixed; z-index: 50; inset: 0 0 auto 52px; height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 18px 0 20px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--paper) 95%, transparent); backdrop-filter: blur(14px); }
+.identity-cluster { display: flex; align-items: center; min-width: 0; }
+.history-actions { display: flex; gap: 2px; margin-right: 10px; }
+.history-actions button { display: grid; place-items: center; width: 26px; height: 28px; padding: 0; border: 0; border-radius: 6px; color: var(--muted); background: transparent; cursor: pointer; }
+.history-actions button:hover:not(:disabled) { color: var(--ink); background: var(--panel-strong); }
+.history-actions button:disabled { opacity: .28; cursor: default; }
+.history-actions svg { width: 14px; }
 .document-identity { display: grid; min-width: 0; line-height: 1.12; }
 .document-identity span { max-width: 440px; overflow: hidden; color: var(--faint); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .document-identity strong { max-width: 440px; margin-top: 4px; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
@@ -302,6 +308,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 }
 
 @media (max-width: 470px) {
+  .history-actions { margin-right: 4px; }
+  .history-actions button { width: 24px; }
   .document-identity span { display: none; }
   .document-identity strong { max-width: 130px; margin: 0; }
   .open-trigger { min-width: 58px; }

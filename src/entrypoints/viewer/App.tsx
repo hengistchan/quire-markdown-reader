@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
-  AlertCircle, Check, ChevronDown, ChevronRight, Command, File, FilePlus2, Folder,
+  AlertCircle, ArrowLeft, ArrowRight, Check, ChevronDown, ChevronRight, Command, File, FilePlus2, Folder,
   FolderOpen, Globe2, ListTree, LoaderCircle, Moon, MoreHorizontal, RotateCw, Search, Settings2,
   ShieldCheck, StretchHorizontal, Sun, X,
 } from 'lucide-react';
@@ -13,6 +13,9 @@ import { RemoteMarkdownError } from '../../core/remote';
 import { hostPermissionPattern, isMarkdownLink, isRelativeUrl, isRemoteUrl, linkFragment, resolveWorkspacePath } from '../../core/paths';
 import { searchMarkdown } from '../../core/search';
 import { createShortcutLabels, type ShortcutLabels } from '../../core/shortcuts';
+import {
+  initialWorkspaceNavigation, workspaceNavigationReducer, type WorkspaceNavigationEntry,
+} from '../../core/navigationHistory';
 import { createFileDocumentSource, createRemoteDocumentSource } from '../../application/documentSources';
 import {
   createFileSession, createImportedSession, createRemoteSession, createWelcomeSession,
@@ -139,6 +142,7 @@ export function App() {
     undefined,
     () => createWelcomeSession(initialTranslator('welcomeDocumentTitle'), initialTranslator('welcomeDocument')),
   );
+  const [navigationHistory, dispatchNavigation] = useReducer(workspaceNavigationReducer, initialWorkspaceNavigation);
   const [restorableWorkspace, setRestorableWorkspace] = useState<PersistedWorkspaceHandle>();
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [outlineOpen, setOutlineOpen] = useState(true);
@@ -163,6 +167,8 @@ export function App() {
   const remoteRequestController = useRef<AbortController | undefined>(undefined);
   const workspaceScanController = useRef<AbortController | undefined>(undefined);
   const pendingDocumentFragment = useRef<string | undefined>(undefined);
+  const pendingHashUpdate = useRef(true);
+  const currentNavigationKey = useRef<string | undefined>(undefined);
   const activeHeadingRef = useRef<string | undefined>(undefined);
   const lastScrollPositionRef = useRef(0);
   const settingsSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -237,8 +243,9 @@ export function App() {
     setRecent(await rememberRecentItem(item));
   }, []);
 
-  const queueDocumentNavigation = useCallback((fragment?: string) => {
+  const queueDocumentNavigation = useCallback((fragment?: string, updateHash = true) => {
     pendingDocumentFragment.current = fragment;
+    pendingHashUpdate.current = updateHash;
     setDocumentNavigationVersion((version) => version + 1);
   }, []);
 
@@ -250,7 +257,7 @@ export function App() {
     scrollTo({ top: 0 });
   }, [queueDocumentNavigation]);
 
-  const openWorkspaceFile = useCallback(async (file: WorkspaceFile, currentWorkspace?: WorkspaceSnapshot, fragment?: string) => {
+  const openWorkspaceFile = useCallback(async (file: WorkspaceFile, currentWorkspace?: WorkspaceSnapshot, fragment?: string, navigationMode: 'push' | 'traverse' = 'push') => {
     const snapshot = await createFileDocumentSource(file, 'workspace').load();
     const targetWorkspace = currentWorkspace ?? (session.kind === 'workspace' ? session.workspace : undefined);
     if (!targetWorkspace) throw new Error('A workspace is required to open a workspace file.');
@@ -267,13 +274,25 @@ export function App() {
         workspaceId: targetWorkspace.id,
         filePath: file.path,
       });
+      if (navigationMode === 'push') {
+        const entry: WorkspaceNavigationEntry = { workspaceId: targetWorkspace.id, filePath: file.path, fragment };
+        const entryKey = `${entry.workspaceId}:${entry.filePath}#${entry.fragment ?? ''}`;
+        if (currentNavigationKey.current !== entryKey) {
+          currentNavigationKey.current = entryKey;
+          dispatchNavigation({ type: 'push', entry });
+          const nextUrl = fragment
+            ? `${location.pathname}${location.search}#${encodeURIComponent(fragment)}`
+            : `${location.pathname}${location.search}`;
+          history.pushState({ quireWorkspaceNavigation: entry }, '', nextUrl);
+        }
+      }
     }
     setError(undefined);
-    queueDocumentNavigation(fragment);
+    queueDocumentNavigation(fragment, navigationMode !== 'push');
     scrollTo({ top: 0, behavior: 'smooth' });
   }, [queueDocumentNavigation, recordRecent, session]);
 
-  const activateWorkspace = useCallback(async (handle: FileSystemDirectoryHandle, preferredPath?: string, existingId?: string): Promise<boolean> => {
+  const activateWorkspace = useCallback(async (handle: FileSystemDirectoryHandle, preferredPath?: string, existingId?: string, navigationMode: 'push' | 'traverse' = 'push'): Promise<boolean> => {
     workspaceScanController.current?.abort();
     const controller = new AbortController();
     workspaceScanController.current = controller;
@@ -289,7 +308,7 @@ export function App() {
         setError(t('noMarkdown'));
         return false;
       }
-      await openWorkspaceFile(selected, snapshot);
+      await openWorkspaceFile(selected, snapshot, undefined, navigationMode);
       return true;
     } catch (caught) {
       if (caught instanceof WorkspaceScanError) {
@@ -425,7 +444,7 @@ export function App() {
         const target = document.getElementById(fragment);
         target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         if (target) setActiveHeadingId(fragment);
-        history.pushState(null, '', `${location.pathname}${location.search}#${encodeURIComponent(fragment)}`);
+        if (pendingHashUpdate.current) history.pushState(null, '', `${location.pathname}${location.search}#${encodeURIComponent(fragment)}`);
       } else if (location.hash) {
         history.replaceState(null, '', `${location.pathname}${location.search}`);
       }
@@ -757,6 +776,33 @@ export function App() {
     setActiveOverlay(null);
   };
 
+  const navigateToWorkspaceEntry = useCallback(async (entry: WorkspaceNavigationEntry) => {
+    currentNavigationKey.current = `${entry.workspaceId}:${entry.filePath}#${entry.fragment ?? ''}`;
+    if (workspace?.id === entry.workspaceId) {
+      const file = workspace.files.find((candidate) => candidate.path === entry.filePath);
+      if (file) await openWorkspaceFile(file, workspace, entry.fragment, 'traverse');
+      return;
+    }
+    const stored = await loadWorkspaceRecord(entry.workspaceId);
+    if (!stored || await requestReadPermission(stored.handle) !== 'granted') {
+      setError(t('permissionDenied'));
+      return;
+    }
+    const opened = await activateWorkspace(stored.handle, entry.filePath, stored.id, 'traverse');
+    if (opened && entry.fragment) queueDocumentNavigation(entry.fragment, false);
+  }, [activateWorkspace, openWorkspaceFile, queueDocumentNavigation, t, workspace]);
+
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      const entry = (event.state as { quireWorkspaceNavigation?: WorkspaceNavigationEntry } | null)?.quireWorkspaceNavigation;
+      if (!entry || typeof entry.workspaceId !== 'string' || typeof entry.filePath !== 'string') return;
+      dispatchNavigation({ type: 'select', entry });
+      void navigateToWorkspaceEntry(entry);
+    };
+    addEventListener('popstate', handlePopState);
+    return () => removeEventListener('popstate', handlePopState);
+  }, [navigateToWorkspaceEntry]);
+
   const continueReading = () => {
     const target = resumeTarget;
     setResumeTarget(undefined);
@@ -832,9 +878,15 @@ export function App() {
       </aside>
 
       <header className="topbar">
-        <div className="document-identity">
-          <span>{workspaceName}{activeFile?.path ? ` / ${activeFile.path.split('/').slice(0, -1).join('/')}` : ''}</span>
-          <strong>{title}</strong>
+        <div className="identity-cluster">
+          <div className="history-actions">
+            <button disabled={navigationHistory.index <= 0} onClick={() => history.back()} aria-label={t('previousDocument')} title={t('previousDocument')}><ArrowLeft /></button>
+            <button disabled={navigationHistory.index < 0 || navigationHistory.index >= navigationHistory.entries.length - 1} onClick={() => history.forward()} aria-label={t('nextDocument')} title={t('nextDocument')}><ArrowRight /></button>
+          </div>
+          <div className="document-identity">
+            <span>{workspaceName}{activeFile?.path ? ` / ${activeFile.path.split('/').slice(0, -1).join('/')}` : ''}</span>
+            <strong>{title}</strong>
+          </div>
         </div>
         <div className="topbar-actions">
           <div className="menu-anchor">

@@ -288,6 +288,13 @@ describe('Quire viewer experience', () => {
     fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
     await user.click(within(screen.getByRole('dialog', { name: 'Command center' })).getByRole('button', { name: /second.md/ }));
     await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Second workspace'));
+    expect(screen.getByRole('button', { name: 'Previous document' }).hasAttribute('disabled')).toBe(false);
+
+    fireEvent.popState(window, { state: {
+      quireWorkspaceNavigation: { workspaceId: 'first', filePath: 'first.md' },
+    } });
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('First workspace'));
+    expect(screen.getByRole('button', { name: 'Next document' }).hasAttribute('disabled')).toBe(false);
   });
 
   it('opens pasted and dropped Markdown without another dialog', async () => {
