@@ -37,10 +37,12 @@ async function installWorkspacePicker(page: Page): Promise<void> {
         const workspace = await root.getDirectoryHandle('Quire E2E', { create: true });
         const docs = await workspace.getDirectoryHandle('docs', { create: true });
         const assets = await workspace.getDirectoryHandle('assets', { create: true });
+        const dependencies = await workspace.getDirectoryHandle('node_modules', { create: true });
         await write(await workspace.getFileHandle('README.md', { create: true }), '# Workspace Home\n\n![Quire mark](assets/mark.svg)\n\n[Open guide](docs/guide.md#section-16)');
         const longOutline = Array.from({ length: 32 }, (_, index) => `## Section ${index + 1}\n\nOutline content ${index + 1}.`).join('\n\n');
         await write(await docs.getFileHandle('guide.md', { create: true }), `# Nested Guide\n\nBefore refresh.\n\n${longOutline}`);
         await write(await assets.getFileHandle('mark.svg', { create: true }), '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" rx="8" fill="#5266d7"/></svg>');
+        await write(await dependencies.getFileHandle('ignored.md', { create: true }), '# Must not be scanned');
         return workspace;
       },
     });
@@ -98,6 +100,7 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     await expect(page.locator('.document-identity strong')).toHaveText('README');
     await expect(page.getByRole('button', { name: 'docs' })).toBeVisible();
     await expect(page.getByRole('button', { name: /guide\.md/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /ignored\.md/ })).toHaveCount(0);
     const folderName = page.getByRole('button', { name: 'docs' }).locator('span');
     await expect(folderName).toHaveText('docs');
     expect((await folderName.boundingBox())?.width).toBeGreaterThan(24);
@@ -105,6 +108,18 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     const statusBox = await page.locator('.context-foot').boundingBox();
     expect(Math.abs((panelBox!.y + panelBox!.height) - (statusBox!.y + statusBox!.height))).toBeLessThan(2);
     await expect(page.locator('.markdown-body img')).toHaveAttribute('src', /^blob:/);
+    await page.evaluate(async () => {
+      const root = await navigator.storage.getDirectory();
+      const workspace = await root.getDirectoryHandle('Quire E2E');
+      const docs = await workspace.getDirectoryHandle('docs');
+      const added = await docs.getFileHandle('new-note.md', { create: true });
+      const writable = await added.createWritable();
+      await writable.write('# New note');
+      await writable.close();
+    });
+    await page.getByRole('button', { name: 'Refresh workspace' }).click();
+    await expect(page.getByRole('button', { name: /new-note\.md/ })).toBeVisible();
+    await expect(page.getByRole('status')).toHaveText('Workspace refreshed');
 
     const localPage = await context.newPage();
     await localPage.goto(localMarkdownUrl);

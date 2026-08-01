@@ -5,7 +5,7 @@ import {
   ShieldCheck, StretchHorizontal, Sun, X,
 } from 'lucide-react';
 import {
-  collectWorkspace, getWorkspaceFileHandle, readWorkspaceFileSnapshot,
+  collectWorkspace, getWorkspaceFileHandle, readWorkspaceFileSnapshot, WorkspaceScanError,
 } from '../../core/files';
 import { isLocalMarkdownUrl } from '../../core/localMarkdown';
 import { renderMarkdown } from '../../core/markdown';
@@ -124,6 +124,7 @@ export function App() {
   const [notice, setNotice] = useState<string>();
   const [error, setError] = useState<string>();
   const [remoteLoading, setRemoteLoading] = useState(false);
+  const [workspaceScanning, setWorkspaceScanning] = useState(false);
   const [remoteRetryUrl, setRemoteRetryUrl] = useState<string>();
   const [recent, setRecent] = useState<RecentItem[]>([]);
   const [collapsedDirectories, setCollapsedDirectories] = useState<Set<string>>(new Set());
@@ -132,6 +133,7 @@ export function App() {
   const articleRef = useRef<HTMLElement>(null);
   const remoteLoadingRef = useRef(false);
   const remoteRequestController = useRef<AbortController | undefined>(undefined);
+  const workspaceScanController = useRef<AbortController | undefined>(undefined);
   const pendingDocumentFragment = useRef<string | undefined>(undefined);
   const initialized = useRef(false);
   const progress = useReadingProgress();
@@ -194,21 +196,41 @@ export function App() {
     scrollTo({ top: 0, behavior: 'smooth' });
   }, [queueDocumentNavigation]);
 
-  const activateWorkspace = useCallback(async (handle: FileSystemDirectoryHandle, preferredPath?: string) => {
-    const snapshot = await collectWorkspace(handle);
-    setWorkspace(snapshot);
-    setWorkspaceOpen(true);
-    const selected = snapshot.files.find((file) => file.path === preferredPath)
-      ?? snapshot.files.find((file) => /^readme\.(md|markdown|mdx)$/i.test(file.path))
-      ?? snapshot.files[0];
-    if (!selected) {
-      setError(t('noMarkdown'));
-      return;
+  const activateWorkspace = useCallback(async (handle: FileSystemDirectoryHandle, preferredPath?: string): Promise<boolean> => {
+    workspaceScanController.current?.abort();
+    const controller = new AbortController();
+    workspaceScanController.current = controller;
+    setWorkspaceScanning(true);
+    try {
+      const snapshot = await collectWorkspace(handle, { signal: controller.signal });
+      setWorkspace(snapshot);
+      setWorkspaceOpen(true);
+      const selected = snapshot.files.find((file) => file.path === preferredPath)
+        ?? snapshot.files.find((file) => /^readme\.(md|markdown|mdx)$/i.test(file.path))
+        ?? snapshot.files[0];
+      if (!selected) {
+        setError(t('noMarkdown'));
+        return false;
+      }
+      await openWorkspaceFile(selected, snapshot);
+      await saveWorkspaceHandle(handle);
+      await recordRecent({ id: `workspace:${handle.name}`, title: handle.name, kind: 'workspace' });
+      return true;
+    } catch (caught) {
+      if (caught instanceof WorkspaceScanError) {
+        if (caught.code !== 'cancelled') setError(t('workspaceScanLimit'));
+        return false;
+      }
+      throw caught;
+    } finally {
+      if (workspaceScanController.current === controller) {
+        workspaceScanController.current = undefined;
+        setWorkspaceScanning(false);
+      }
     }
-    await openWorkspaceFile(selected, snapshot);
-    await saveWorkspaceHandle(handle);
-    await recordRecent({ id: `workspace:${handle.name}`, title: handle.name, kind: 'workspace' });
   }, [openWorkspaceFile, recordRecent, t]);
+
+  const cancelWorkspaceScan = useCallback(() => workspaceScanController.current?.abort(), []);
 
   useEffect(() => {
     if (initialized.current) return;
@@ -472,6 +494,12 @@ export function App() {
     setRestorableHandle(undefined);
   };
 
+  const refreshWorkspace = async () => {
+    if (!workspace) return;
+    const refreshed = await activateWorkspace(workspace.handle, activeFile?.path);
+    if (refreshed) setNotice(t('workspaceRefreshed'));
+  };
+
   const openRemote = useCallback(async (value: string, requestPermission = true) => {
     if (!isRemoteUrl(value)) { setError(t('invalidUrl')); setRemoteRetryUrl(undefined); return; }
     if (remoteLoadingRef.current) return;
@@ -645,7 +673,7 @@ export function App() {
 
       <div className={`workspace ${contextOpen ? 'with-context' : ''}`}>
         {contextOpen && <aside className="context-panel" aria-label={t('workspace')}>
-          <div className="context-heading"><span>{t('workspace')}</span><strong>{workspace?.name ?? t('restoreTitle')}</strong></div>
+          <div className="context-heading"><span>{t('workspace')}</span><div><strong>{workspace?.name ?? t('restoreTitle')}</strong>{workspace && <button disabled={workspaceScanning} onClick={() => void refreshWorkspace()} aria-label={t('refreshWorkspace')} title={t('refreshWorkspace')}><RotateCw className={workspaceScanning ? 'loading-spinner' : ''} /></button>}</div></div>
           {workspace && <label className="file-filter"><Search /><input value={fileFilter} onChange={(event) => setFileFilter(event.target.value)} placeholder={t('filterFiles')} /></label>}
           {restorableHandle && <div className="restore-card"><RotateCw /><strong>{t('restoreTitle')}</strong><p>{t('restoreBody')}</p><button onClick={() => void restoreWorkspace()}>{t('restore')}</button><button className="quiet" onClick={() => setRestorableHandle(undefined)}>{t('dismiss')}</button></div>}
           <nav className="context-files">
@@ -672,6 +700,7 @@ export function App() {
       {commandOpen && <CommandPalette query={commandQuery} matches={commandMatches} workspaceMatches={workspaceMatches} recent={recent} shortcuts={shortcutLabels} t={t} onQuery={setCommandQuery} onClose={() => { setCommandOpen(false); setCommandQuery(''); }} onFile={() => void handleOpenFile()} onFolder={() => void handleDirectory()} onUrl={() => { setCommandOpen(false); setUrlOpen(true); }} onTypedUrl={(value) => void openRemote(value)} onWorkspace={() => setWorkspaceOpen((open) => !open)} onOutline={() => setOutlineOpen((open) => !open)} onQuietMode={() => { setWorkspaceOpen(false); setOutlineOpen(false); }} onLightTheme={() => updateSettings({ theme: 'light' })} onDarkTheme={() => updateSettings({ theme: 'dark' })} onSettings={() => { setCommandOpen(false); setSettingsOpen(true); }} onRecent={(item) => void openRecent(item)} onMatch={jumpToSearchResult} onWorkspaceFile={openWorkspaceSearchResult} />}
       {urlOpen && <UrlDialog value={urlValue} loading={remoteLoading} t={t} onValue={setUrlValue} onClose={() => setUrlOpen(false)} onCancel={cancelRemoteLoad} onOpen={() => void openRemote(urlValue)} />}
       {settingsOpen && <SettingsDrawer settings={settings} t={t} onChange={(patch) => { updateSettings(patch.contentWidth === undefined ? patch : { ...patch, wideView: false }); if (patch.showOutline !== undefined) setOutlineOpen(patch.showOutline); }} onReset={() => updateSettings(defaultSettings)} onClose={() => setSettingsOpen(false)} />}
+      {workspaceScanning && <div className="remote-loading workspace-loading" role="status" aria-live="polite"><LoaderCircle /><span>{t('scanningWorkspace')}</span><button onClick={cancelWorkspaceScan}>{t('cancel')}</button></div>}
       {remoteLoading && <div className="remote-loading" role="status" aria-live="polite"><LoaderCircle /><span>{t('loadingRemote')}</span><button onClick={cancelRemoteLoad}>{t('cancel')}</button></div>}
       {notice && <div className="toast" role="status">{notice}</div>}
     </div>

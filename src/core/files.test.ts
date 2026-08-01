@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collectWorkspace, getWorkspaceFileHandle, isMarkdownFile, readWorkspaceFileSnapshot } from './files';
+import { collectWorkspace, getWorkspaceFileHandle, isMarkdownFile, readWorkspaceFileSnapshot, WorkspaceScanError } from './files';
 
 function fileHandle(name: string, text = name, lastModified = 1): FileSystemFileHandle {
   return {
@@ -38,7 +38,7 @@ describe('isMarkdownFile', () => {
 });
 
 describe('workspace collection', () => {
-  it('builds a sorted nested tree, filters non-Markdown files, and ignores hidden directories', async () => {
+  it('builds a sorted nested tree and skips hidden and dependency/build directories', async () => {
     const root = directoryHandle('notes', {
       '10-last.md': fileHandle('10-last.md'),
       assets: directoryHandle('assets', { 'cover.png': fileHandle('cover.png') }),
@@ -48,6 +48,9 @@ describe('workspace collection', () => {
         'draft.txt': fileHandle('draft.txt'),
       }),
       '.private': directoryHandle('.private', { 'secret.md': fileHandle('secret.md') }),
+      node_modules: directoryHandle('node_modules', { 'package.md': fileHandle('package.md') }),
+      vendor: directoryHandle('vendor', { 'dependency.md': fileHandle('dependency.md') }),
+      dist: directoryHandle('dist', { 'bundle.md': fileHandle('bundle.md') }),
       '2-first.md': fileHandle('2-first.md'),
     });
 
@@ -68,6 +71,23 @@ describe('workspace collection', () => {
         { kind: 'file', path: 'docs/2-next.md', depth: 1 },
       ],
     });
+  });
+
+  it.each([
+    ['max-files', { maxFiles: 1 }, directoryHandle('notes', { 'a.md': fileHandle('a.md'), 'b.md': fileHandle('b.md') })],
+    ['max-directories', { maxDirectories: 1 }, directoryHandle('notes', { docs: directoryHandle('docs', { 'a.md': fileHandle('a.md') }) })],
+    ['max-depth', { maxDepth: 0 }, directoryHandle('notes', { docs: directoryHandle('docs', { 'a.md': fileHandle('a.md') }) })],
+  ] as const)('stops safely at the %s scan boundary', async (code, options, root) => {
+    await expect(collectWorkspace(root, options)).rejects.toMatchObject({
+      name: 'WorkspaceScanError', code,
+    } satisfies Partial<WorkspaceScanError>);
+  });
+
+  it('honors cancellation before scanning directory contents', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await expect(collectWorkspace(directoryHandle('notes', { 'a.md': fileHandle('a.md') }), { signal: controller.signal }))
+      .rejects.toMatchObject({ name: 'WorkspaceScanError', code: 'cancelled' } satisfies Partial<WorkspaceScanError>);
   });
 
   it('opens a nested handle by normalized workspace path', async () => {
