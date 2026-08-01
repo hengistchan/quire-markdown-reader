@@ -39,6 +39,8 @@ import type {
 type ActiveOverlay = 'open-menu' | 'more-menu' | 'command' | 'settings' | 'url-dialog' | null;
 interface ResumeTarget { scrollPosition: number; headingId?: string }
 const WIDE_READER_WIDTH = 980;
+const MERMAID_CACHE_LIMIT = 50;
+const mermaidSvgCache = new Map<string, string>();
 
 function getSystemTheme(): 'light' | 'dark' {
   return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -369,18 +371,44 @@ export function App() {
   useEffect(() => {
     if (!settings.enableMermaid || !articleRef.current) return;
     let cancelled = false;
-    void import('mermaid').then(({ default: mermaid }) => {
-      if (cancelled || !articleRef.current) return;
-      mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: resolvedTheme === 'dark' ? 'dark' : 'neutral', fontFamily: 'ui-sans-serif, system-ui, sans-serif' });
-      const nodes = [...articleRef.current.querySelectorAll<HTMLElement>('.mermaid')];
-      for (const node of nodes) {
-        const encoded = node.dataset.mermaidSource;
-        if (encoded) node.textContent = decodeURIComponent(encoded);
-        node.removeAttribute('data-processed');
+    let observer: IntersectionObserver | undefined;
+    const theme = resolvedTheme === 'dark' ? 'dark' : 'neutral';
+    const renderNode = async (node: HTMLElement) => {
+      const encoded = node.dataset.mermaidSource;
+      if (!encoded || node.dataset.resourceState === 'rendering') return;
+      const cacheKey = `${theme}:${encoded}`;
+      const cached = mermaidSvgCache.get(cacheKey);
+      if (cached) {
+        node.innerHTML = cached;
+        node.dataset.resourceState = 'ready';
+        return;
       }
-      if (nodes.length) void mermaid.run({ nodes, suppressErrors: true });
-    });
-    return () => { cancelled = true; };
+      node.dataset.resourceState = 'rendering';
+      node.textContent = decodeURIComponent(encoded);
+      node.removeAttribute('data-processed');
+      const { default: mermaid } = await import('mermaid');
+      if (cancelled) return;
+      mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme, fontFamily: 'ui-sans-serif, system-ui, sans-serif' });
+      await mermaid.run({ nodes: [node], suppressErrors: true });
+      if (cancelled) return;
+      node.dataset.resourceState = 'ready';
+      mermaidSvgCache.set(cacheKey, node.innerHTML);
+      if (mermaidSvgCache.size > MERMAID_CACHE_LIMIT) mermaidSvgCache.delete(mermaidSvgCache.keys().next().value!);
+    };
+    const nodes = [...articleRef.current.querySelectorAll<HTMLElement>('.mermaid')];
+    if ('IntersectionObserver' in window) {
+      observer = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          observer?.unobserve(entry.target);
+          void renderNode(entry.target as HTMLElement);
+        }
+      }, { rootMargin: '500px 0px' });
+      for (const node of nodes) observer.observe(node);
+    } else {
+      for (const node of nodes) void renderNode(node);
+    }
+    return () => { cancelled = true; observer?.disconnect(); };
   }, [html, resolvedTheme, settings.enableMermaid]);
 
   useEffect(() => {

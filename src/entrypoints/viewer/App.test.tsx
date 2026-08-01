@@ -7,9 +7,12 @@ import { createDocumentHandoff, takeDocumentHandoff } from '../../infrastructure
 import * as workspacePersistence from '../../core/workspacePersistence';
 import { App } from './App';
 
-vi.mock('mermaid', () => ({
-  default: { initialize: vi.fn(), run: vi.fn(async () => undefined) },
+const mermaidMocks = vi.hoisted(() => ({
+  initialize: vi.fn(),
+  run: vi.fn(async () => undefined),
 }));
+
+vi.mock('mermaid', () => ({ default: mermaidMocks }));
 
 function installBrowser(overrides: Record<string, unknown> = {}, recentItems: unknown = []) {
   const local = {
@@ -45,6 +48,8 @@ describe('Quire viewer experience', () => {
     vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
     vi.stubGlobal('scrollTo', vi.fn());
     Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() });
+    mermaidMocks.initialize.mockClear();
+    mermaidMocks.run.mockClear();
   });
 
   afterEach(() => {
@@ -312,6 +317,52 @@ describe('Quire viewer experience', () => {
     const file = { name: 'dropped.md', text: async () => '# Dropped heading\n\nDropped body.' } as File;
     fireEvent.drop(shell, { dataTransfer: { items: [], files: [file] } });
     await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Dropped body.'));
+  });
+
+  it('defers Mermaid until a diagram approaches the viewport', async () => {
+    const observers: Array<{ callback: IntersectionObserverCallback; targets: Element[] }> = [];
+    class TestIntersectionObserver {
+      readonly root = null;
+      readonly rootMargin = '500px 0px';
+      readonly thresholds = [0];
+      private readonly record: { callback: IntersectionObserverCallback; targets: Element[] };
+      constructor(callback: IntersectionObserverCallback) {
+        this.record = { callback, targets: [] };
+        observers.push(this.record);
+      }
+      observe(target: Element) { this.record.targets.push(target); }
+      unobserve() {}
+      disconnect() {}
+      takeRecords(): IntersectionObserverEntry[] { return []; }
+    }
+    vi.stubGlobal('IntersectionObserver', TestIntersectionObserver);
+    installBrowser({ storage: { local: {
+      get: vi.fn(async (key: string) => key === 'reader-settings'
+        ? { 'reader-settings': { ...defaultSettings, enableMermaid: true } }
+        : { 'recent-documents': [] }),
+      set: vi.fn(async () => undefined),
+      remove: vi.fn(async () => undefined),
+    } } });
+    await createDocumentHandoff({
+      title: 'Lazy diagram.md',
+      markdown: '# Lazy diagram\n\n```mermaid\ngraph TD\nUniqueLazyNode-->B\n```',
+    }, { id: 'lazy-mermaid', now: Date.now() });
+    history.replaceState(null, '', '/viewer.html?handoff=lazy-mermaid');
+    render(<App />);
+
+    await waitFor(() => expect(document.querySelector('.mermaid')).toBeTruthy());
+    expect(mermaidMocks.run).not.toHaveBeenCalled();
+    const target = document.querySelector<HTMLElement>('.mermaid')!;
+    let record: { callback: IntersectionObserverCallback; targets: Element[] } | undefined;
+    await waitFor(() => {
+      record = [...observers].reverse().find((candidate) => candidate.targets.includes(target));
+      expect(record).toBeTruthy();
+    });
+    act(() => record!.callback(
+      [{ target, isIntersecting: true } as unknown as IntersectionObserverEntry],
+      {} as IntersectionObserver,
+    ));
+    await waitFor(() => expect(mermaidMocks.run).toHaveBeenCalledWith(expect.objectContaining({ nodes: [target] })));
   });
 
   it('keeps menus, command center, URL dialog, and settings mutually exclusive', async () => {

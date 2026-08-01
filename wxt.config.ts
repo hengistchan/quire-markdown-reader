@@ -1,8 +1,26 @@
 import { defineConfig } from 'wxt';
 
+function readerVendorChunk(id: string): string | undefined {
+  if (!id.includes('/node_modules/')) return undefined;
+  if (/\/(?:react|react-dom|scheduler)\//.test(id)) return 'react-vendor';
+  if (id.includes('/node_modules/katex/')) return 'katex-vendor';
+  if (id.includes('/node_modules/highlight.js/')) return 'highlight-vendor';
+  if (id.includes('/node_modules/lucide-react/')) return 'icons-vendor';
+  if (/\/node_modules\/(?:markdown-it|markdown-it-anchor|markdown-it-deflist|markdown-it-texmath|@mdit|dompurify)\//.test(id)) return 'markdown-vendor';
+  return undefined;
+}
+
 export default defineConfig({
   srcDir: 'src',
   modules: ['@wxt-dev/module-react'],
+  hooks: {
+    'vite:build:extendConfig'(entrypoints, viteConfig) {
+      if (!entrypoints.some((entrypoint) => entrypoint.name === 'viewer')) return;
+      const output = viteConfig.build?.rollupOptions?.output;
+      if (!output || Array.isArray(output) || output.inlineDynamicImports) return;
+      output.manualChunks = readerVendorChunk;
+    },
+  },
   zip: {
     excludeSources: ['AGENTS.md'],
   },
