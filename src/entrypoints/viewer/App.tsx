@@ -10,7 +10,7 @@ import {
 import { isLocalMarkdownUrl } from '../../core/localMarkdown';
 import { renderMarkdown } from '../../core/markdown';
 import { fetchRemoteMarkdown, RemoteMarkdownError } from '../../core/remote';
-import { hostPermissionPattern, isMarkdownLink, isRelativeUrl, isRemoteUrl, resolveWorkspacePath } from '../../core/paths';
+import { hostPermissionPattern, isMarkdownLink, isRelativeUrl, isRemoteUrl, linkFragment, resolveWorkspacePath } from '../../core/paths';
 import { loadWorkspaceHandle, saveWorkspaceHandle } from '../../core/workspacePersistence';
 import { takeDocumentHandoff } from '../../infrastructure/handoffStore';
 import { createTranslator, resolveLocale } from '../../shared/i18n';
@@ -80,9 +80,11 @@ export function App() {
   const [remoteLoading, setRemoteLoading] = useState(false);
   const [recent, setRecent] = useState<RecentItem[]>([]);
   const [collapsedDirectories, setCollapsedDirectories] = useState<Set<string>>(new Set());
+  const [documentNavigationVersion, setDocumentNavigationVersion] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
   const articleRef = useRef<HTMLElement>(null);
   const remoteLoadingRef = useRef(false);
+  const pendingDocumentFragment = useRef<string | undefined>(undefined);
   const initialized = useRef(false);
   const progress = useReadingProgress();
 
@@ -109,7 +111,12 @@ export function App() {
     setRecent(await rememberRecentItem(item));
   }, []);
 
-  const openImportedDocument = useCallback((imported: ImportedDocument, kind: SourceKind = 'imported') => {
+  const queueDocumentNavigation = useCallback((fragment?: string) => {
+    pendingDocumentFragment.current = fragment;
+    setDocumentNavigationVersion((version) => version + 1);
+  }, []);
+
+  const openImportedDocument = useCallback((imported: ImportedDocument, kind: SourceKind = 'imported', fragment?: string) => {
     setTitle(imported.title.replace(/\.(md|markdown|mdx)$/i, ''));
     setSource(imported.markdown);
     setSourceUrl(imported.sourceUrl);
@@ -119,10 +126,11 @@ export function App() {
     setActiveModified(undefined);
     setWorkspaceOpen(false);
     setError(undefined);
+    queueDocumentNavigation(fragment);
     scrollTo({ top: 0 });
-  }, []);
+  }, [queueDocumentNavigation]);
 
-  const openWorkspaceFile = useCallback(async (file: WorkspaceFile, currentWorkspace?: WorkspaceSnapshot) => {
+  const openWorkspaceFile = useCallback(async (file: WorkspaceFile, currentWorkspace?: WorkspaceSnapshot, fragment?: string) => {
     const snapshot = await readWorkspaceFileSnapshot(file);
     if (currentWorkspace) setWorkspace(currentWorkspace);
     setActiveFile(file);
@@ -133,8 +141,9 @@ export function App() {
     setSourceUrl(undefined);
     setRemoteState(undefined);
     setError(undefined);
+    queueDocumentNavigation(fragment);
     scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
+  }, [queueDocumentNavigation]);
 
   const activateWorkspace = useCallback(async (handle: FileSystemDirectoryHandle, preferredPath?: string) => {
     const snapshot = await collectWorkspace(handle);
@@ -245,6 +254,22 @@ export function App() {
     void resolveImages();
     return () => { cancelled = true; for (const url of objectUrls) URL.revokeObjectURL(url); };
   }, [activeFile, html, sourceUrl, t, workspace]);
+
+  useEffect(() => {
+    if (documentNavigationVersion === 0) return;
+    const fragment = pendingDocumentFragment.current;
+    const frame = requestAnimationFrame(() => {
+      if (fragment) {
+        const target = document.getElementById(fragment);
+        target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (target) setActiveHeadingId(fragment);
+        history.pushState(null, '', `${location.pathname}${location.search}#${encodeURIComponent(fragment)}`);
+      } else if (location.hash) {
+        history.replaceState(null, '', `${location.pathname}${location.search}`);
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [documentNavigationVersion]);
 
   useEffect(() => {
     if (!settings.autoRefresh || !activeFile || (sourceKind !== 'workspace' && sourceKind !== 'file')) return;
@@ -404,7 +429,7 @@ export function App() {
       }
       const result = await fetchRemoteMarkdown(value);
       if (!result.document) return;
-      openImportedDocument(result.document, 'remote');
+      openImportedDocument(result.document, 'remote', linkFragment(value));
       setRemoteState(result.state);
       setUrlOpen(false);
       setOpenMenuOpen(false);
@@ -431,7 +456,7 @@ export function App() {
       event.preventDefault();
       const path = resolveWorkspacePath(activeFile.path, raw);
       const file = workspace.files.find((candidate) => candidate.path === path);
-      if (file) void openWorkspaceFile(file);
+      if (file) void openWorkspaceFile(file, undefined, linkFragment(raw));
       else setError(t('linkedFileMissing'));
       return;
     }

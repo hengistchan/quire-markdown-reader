@@ -32,9 +32,22 @@ describe('renderMarkdown', () => {
     expect(html).toContain('katex');
   });
 
-  it('opens links without exposing the viewer tab', () => {
-    const html = renderMarkdown('[Example](https://example.com)', defaultSettings);
+  it.each([
+    ['HTTPS', 'https://example.com'],
+    ['protocol-relative', '//example.com/readme.md'],
+    ['email', 'mailto:hello@example.com'],
+  ])('opens %s links without exposing the viewer tab', (_label, href) => {
+    const html = renderMarkdown(`[Example](${href})`, defaultSettings);
     expect(html).toContain('target="_blank"');
     expect(html).toContain('rel="noopener noreferrer"');
   });
-});
+
+  it.each(['#chapter', 'guide.md#intro', '../README.md', '/images/example.png'])(
+    'keeps internal link %s in the viewer tab',
+    (href) => {
+      const html = renderMarkdown(`[Internal](${href})`, defaultSettings);
+      expect(html).not.toContain('target="_blank"');
+      expect(html).not.toContain('rel="noopener noreferrer"');
+    },
+  );
+  });

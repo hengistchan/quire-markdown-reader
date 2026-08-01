@@ -8,6 +8,10 @@ All notable changes to Quire are documented here. This project follows [Semantic
 
 - Replaced the global imported-document storage key with isolated, single-use document handoffs that expire after ten minutes
 
+### Fixed
+
+- Opened only external web and email links in a new tab, while preserving heading fragments when navigating between Markdown documents
+
 ## [0.0.2] - 2026-08-01
 
 ### Added

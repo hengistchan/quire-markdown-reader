@@ -21,6 +21,10 @@ function slugify(value: string): string {
     .replace(/-+/g, '-');
 }
 
+function opensInNewTab(href: string): boolean {
+  return /^(?:https?:)?\/\//i.test(href) || /^mailto:/i.test(href);
+}
+
 export function createMarkdownRenderer(settings: ReaderSettings): MarkdownIt {
   const escapeHtml = (value: string): string => value
     .replaceAll('&', '&amp;')
@@ -47,8 +51,11 @@ export function createMarkdownRenderer(settings: ReaderSettings): MarkdownIt {
 
   const defaultLinkOpen = markdown.renderer.rules.link_open;
   markdown.renderer.rules.link_open = (tokens, index, options, env, self) => {
-    tokens[index]?.attrSet('target', '_blank');
-    tokens[index]?.attrSet('rel', 'noopener noreferrer');
+    const token = tokens[index];
+    if (token && opensInNewTab(token.attrGet('href') ?? '')) {
+      token.attrSet('target', '_blank');
+      token.attrSet('rel', 'noopener noreferrer');
+    }
     return defaultLinkOpen?.(tokens, index, options, env, self) ?? self.renderToken(tokens, index, options);
   };
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hostPermissionPattern, isMarkdownLink, isRelativeUrl, isRemoteUrl, resolveWorkspacePath } from './paths';
+import { hostPermissionPattern, isMarkdownLink, isRelativeUrl, isRemoteUrl, linkFragment, resolveWorkspacePath } from './paths';
 
 describe('URL classification', () => {
   it.each(['https://example.com/readme.md', 'http://localhost:4173/guide'])('accepts remote URL %s', (value) => {
@@ -20,6 +20,19 @@ describe('URL classification', () => {
 
   it.each(['guide.md', 'guide.MARKDOWN#intro', '../notes.mdx?raw=1'])('recognizes Markdown link %s', (value) => {
     expect(isMarkdownLink(value)).toBe(true);
+  });
+});
+
+describe('linkFragment', () => {
+  it('decodes fragments for document heading navigation', () => {
+    expect(linkFragment('guide.md#section-16')).toBe('section-16');
+    expect(linkFragment('../guide.md#%E7%AB%A0%E8%8A%82')).toBe('章节');
+  });
+
+  it('rejects absent, empty, or malformed fragments', () => {
+    expect(linkFragment('guide.md')).toBeUndefined();
+    expect(linkFragment('guide.md#')).toBeUndefined();
+    expect(linkFragment('guide.md#%ZZ')).toBeUndefined();
   });
 });
 

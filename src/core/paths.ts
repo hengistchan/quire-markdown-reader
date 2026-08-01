@@ -17,6 +17,16 @@ export function isMarkdownLink(value: string): boolean {
   return MARKDOWN_LINK.test(value);
 }
 
+export function linkFragment(value: string): string | undefined {
+  const hashIndex = value.indexOf('#');
+  if (hashIndex < 0 || hashIndex === value.length - 1) return undefined;
+  try {
+    return decodeURIComponent(value.slice(hashIndex + 1));
+  } catch {
+    return undefined;
+  }
+}
+
 export function resolveWorkspacePath(currentFilePath: string, href: string): string | undefined {
   if (!isRelativeUrl(href)) return undefined;
   const cleanHref = href.split(/[?#]/, 1)[0];
