@@ -67,19 +67,23 @@ async function captureLocalizedSet(config) {
       await chrome.storage.local.clear();
       await chrome.storage.local.set({
         'reader-settings': {
-          locale: appLocale,
-          theme: 'dark',
-          fontFamily: 'sans',
-          fontSize: 18,
-          lineHeight: 1.76,
-          contentWidth: 760,
-          showReadingProgress: true,
-          showOutline: true,
-          autoRefresh: true,
-          enableKatex: true,
-          enableMermaid: true,
-          enableHtml: false,
-          customCss: '',
+          version: 2,
+          settings: {
+            locale: appLocale,
+            theme: 'dark',
+            fontFamily: 'sans',
+            fontSize: 18,
+            lineHeight: 1.76,
+            contentWidth: 760,
+            wideView: false,
+            showReadingProgress: true,
+            showOutline: true,
+            autoRefresh: true,
+            enableKatex: true,
+            enableMermaid: true,
+            enableHtml: false,
+            customCss: '',
+          },
         },
       });
     }, { appLocale: config.appLocale });
