@@ -7,10 +7,12 @@ All notable changes to Quire are documented here. This project follows [Semantic
 ### Changed
 
 - Replaced the global imported-document storage key with isolated, single-use document handoffs that expire after ten minutes
+- Added platform-correct shortcut labels and implemented the displayed open-file, open-folder, and open-URL keyboard actions
 
 ### Fixed
 
 - Opened only external web and email links in a new tab, while preserving heading fragments when navigating between Markdown documents
+- Kept the browser's native `Cmd/Ctrl+F` find action and made command-center document and workspace-file results navigable
 
 ## [0.0.2] - 2026-08-01
 

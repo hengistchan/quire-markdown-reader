@@ -48,6 +48,13 @@ export function createMarkdownRenderer(settings: ReaderSettings): MarkdownIt {
   markdown.use(abbr).use(deflist).use(footnote).use(tasklist, { enabled: true, label: true });
   markdown.use(container, { name: 'note' });
   markdown.use(container, { name: 'warning' });
+  markdown.core.ruler.push('source-line-attributes', (state) => {
+    for (const token of state.tokens) {
+      if (!token.map || token.type === 'inline' || token.type.endsWith('_close')) continue;
+      token.attrSet('data-source-line-start', String(token.map[0] + 1));
+      token.attrSet('data-source-line-end', String(token.map[1]));
+    }
+  });
 
   const defaultLinkOpen = markdown.renderer.rules.link_open;
   markdown.renderer.rules.link_open = (tokens, index, options, env, self) => {
@@ -81,7 +88,7 @@ export function createMarkdownRenderer(settings: ReaderSettings): MarkdownIt {
 export function renderMarkdown(source: string, settings: ReaderSettings): string {
   const rendered = createMarkdownRenderer(settings).render(source);
   return DOMPurify.sanitize(rendered, {
-    ADD_ATTR: ['target', 'rel', 'data-mermaid-source'],
+    ADD_ATTR: ['target', 'rel', 'data-mermaid-source', 'data-source-line-start', 'data-source-line-end'],
     ADD_TAGS: settings.enableKatex ? ['math', 'semantics', 'annotation', 'mrow', 'mi', 'mo', 'mn'] : [],
   });
 }

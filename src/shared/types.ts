@@ -59,6 +59,15 @@ export interface HeadingItem {
   level: number;
 }
 
+export interface DocumentSearchResult {
+  id: string;
+  text: string;
+  headingId?: string;
+  blockIndex: number;
+  startOffset: number;
+  lineNumber: number;
+}
+
 export interface ImportedDocument {
   title: string;
   markdown: string;

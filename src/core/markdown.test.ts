@@ -6,6 +6,8 @@ describe('renderMarkdown', () => {
   it('renders headings, task lists, and anchored outline targets', () => {
     const html = renderMarkdown('# Hello world\n\n- [x] Read it', defaultSettings);
     expect(html).toContain('id="hello-world"');
+    expect(html).toContain('data-source-line-start="1"');
+    expect(html).toContain('data-source-line-end="1"');
     expect(html).toContain('task-list-item');
     expect(html).toContain('checked');
   });

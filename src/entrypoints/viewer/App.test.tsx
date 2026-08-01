@@ -43,6 +43,7 @@ describe('Quire viewer experience', () => {
     history.replaceState(null, '', '/');
     vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
     vi.stubGlobal('scrollTo', vi.fn());
+    Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() });
   });
 
   afterEach(() => {
@@ -178,5 +179,47 @@ describe('Quire viewer experience', () => {
     expect(within(palette).getByRole('button', { name: /Use dark theme/ })).toBeTruthy();
     fireEvent.keyDown(input, { key: 'ArrowDown' });
     expect(document.activeElement).toBe(within(palette).getByRole('button', { name: /Use dark theme/ }));
+  });
+
+  it('preserves native find and implements the displayed open shortcuts', async () => {
+    installBrowser();
+    const openFilePicker = vi.fn(async () => []);
+    const openDirectoryPicker = vi.fn(async () => { throw new DOMException('Cancelled', 'AbortError'); });
+    vi.stubGlobal('showOpenFilePicker', openFilePicker);
+    vi.stubGlobal('showDirectoryPicker', openDirectoryPicker);
+    render(<App />);
+    await screen.findByLabelText('Document navigation');
+
+    const nativeFind = new KeyboardEvent('keydown', { key: 'f', ctrlKey: true, cancelable: true });
+    window.dispatchEvent(nativeFind);
+    expect(nativeFind.defaultPrevented).toBe(false);
+    expect(screen.queryByRole('dialog', { name: 'Command center' })).toBeNull();
+
+    fireEvent.keyDown(window, { key: 'o', ctrlKey: true });
+    await waitFor(() => expect(openFilePicker).toHaveBeenCalledOnce());
+    fireEvent.keyDown(window, { key: 'o', ctrlKey: true, shiftKey: true });
+    await waitFor(() => expect(openDirectoryPicker).toHaveBeenCalledOnce());
+    fireEvent.keyDown(window, { key: 'l', ctrlKey: true });
+    expect(screen.getByRole('dialog', { name: 'Open Markdown from the web' })).toBeTruthy();
+  });
+
+  it('jumps to and highlights a structured document search result', async () => {
+    installBrowser();
+    await createDocumentHandoff({
+      title: 'Searchable.md',
+      markdown: '# Searchable\n\nIntro.\n\n## Details\n\nFind the needle in this paragraph.',
+    }, { id: 'search-document', now: Date.now() });
+    history.replaceState(null, '', '/viewer.html?handoff=search-document');
+    const user = userEvent.setup();
+    render(<App />);
+
+    await screen.findByText('Find the needle in this paragraph.');
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+    const palette = screen.getByRole('dialog', { name: 'Command center' });
+    await user.type(within(palette).getByPlaceholderText('Type a command, filename, or URL…'), 'needle');
+    await user.click(within(palette).getByRole('button', { name: /Find the needle in this paragraph/ }));
+
+    await waitFor(() => expect(document.querySelector('mark[data-quire-search-hit]')?.textContent).toBe('needle'));
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
   });
 });

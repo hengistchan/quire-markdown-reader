@@ -156,6 +156,24 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     await reopened.getByRole('button', { name: 'Open folder' }).click();
     await expect(reopened.getByRole('alert')).toContainText('Access was not granted');
 
+    const nativeFindPreserved = await reopened.evaluate(() => {
+      const event = new KeyboardEvent('keydown', { key: 'f', ctrlKey: true, cancelable: true });
+      dispatchEvent(event);
+      return !event.defaultPrevented;
+    });
+    expect(nativeFindPreserved).toBe(true);
+    await reopened.keyboard.press('Control+K');
+    const commandCenter = reopened.getByRole('dialog', { name: 'Command center' });
+    await commandCenter.getByPlaceholder('Type a command, filename, or URL…').fill('guide');
+    await expect(commandCenter.getByText('Workspace files')).toBeVisible();
+    await commandCenter.getByRole('button', { name: /guide\.md/ }).click();
+    await expect(reopened.locator('.document-identity strong')).toHaveText('guide');
+    await reopened.keyboard.press('Control+K');
+    const documentSearch = reopened.getByRole('dialog', { name: 'Command center' });
+    await documentSearch.getByPlaceholder('Type a command, filename, or URL…').fill('After refresh');
+    await documentSearch.getByRole('button', { name: /After refresh/ }).click();
+    await expect(reopened.locator('mark[data-quire-search-hit]')).toHaveText('After refresh');
+
     server = createServer((request, response) => {
       if (request.url === '/remote.md') {
         response.writeHead(200, { 'content-type': 'text/markdown', 'access-control-allow-origin': '*', etag: '"quire-e2e"' });

@@ -191,6 +191,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .command-row strong, .command-row small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .command-row strong { font-size: 11px; }
 .command-row small { color: var(--muted); font-size: 9px; }
+.markdown-body mark[data-quire-search-hit] { padding: .08em .16em; border-radius: 3px; color: inherit; background: color-mix(in srgb, #ffd84d 72%, transparent); box-shadow: 0 0 0 2px color-mix(in srgb, #ffd84d 20%, transparent); }
 .document-match { min-height: 38px; }
 .command-empty { margin: 0; padding: 42px; color: var(--muted); text-align: center; font-size: 11px; }
 .command-palette footer { display: flex; gap: 20px; padding: 10px 16px; border-top: 1px solid var(--line); color: var(--faint); font-size: 8px; }
