@@ -52,13 +52,15 @@ This document is the release boundary for the 0.0.3 update. Checked rows require
 
 ## Reproducible verification evidence
 
-- [ ] TypeScript compilation and all unit/component tests pass on the final 0.0.3 commit.
-- [ ] Chrome and Firefox production builds pass manifest and package validation.
-- [ ] The installed Chromium extension passes the complete reader E2E flow.
+- [x] TypeScript compilation and all unit/component tests pass on the final 0.0.3 commit.
+- [x] Chrome and Firefox production builds pass manifest and package validation.
+- [x] The installed Chromium extension passes the complete reader E2E flow.
 - [ ] The installed Firefox action and context-menu flow passes.
 - [ ] The Firefox native shortcut flow passes in the Linux CI environment.
-- [ ] The Firefox source archive reconstructs every packaged file byte-for-byte.
-- [ ] The store artwork verifier passes all ten localized screenshots.
-- [ ] The release guard accepts `v0.0.3` and rejects an older tag.
+- [x] The Firefox source archive reconstructs every packaged file byte-for-byte.
+- [x] The store artwork verifier passes all ten localized screenshots.
+- [x] The release guard accepts `v0.0.3` and rejects an older tag.
 - [ ] GitHub CI passes on the final 0.0.3 commit.
 - [ ] Create and push the annotated `v0.0.3` tag only after every preceding gate passes.
+
+Local macOS evidence on 2026-08-02: the Firefox 153 automation browser starts but does not create its Marionette port before Selenium's timeout, including from a non-hidden temporary application path. No Quire assertion runs in that attempt, so both Firefox rows remain open for the Linux release workflow rather than being reported as product failures or false passes.
