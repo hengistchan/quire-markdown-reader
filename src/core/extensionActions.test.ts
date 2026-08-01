@@ -28,7 +28,7 @@ function extensionApi() {
         query: vi.fn(async () => [{ id: 1, title: 'Active' }]),
       },
       runtime: { getURL: vi.fn((path: string) => `moz-extension://quire${path}`), onInstalled, onMessage },
-      scripting: { executeScript: vi.fn(async () => [{ result: { title: 'Page', markdown: '# Page', sourceUrl: 'https://example.com' } }]) },
+      scripting: { executeScript: vi.fn(async () => [{ result: { title: 'Page', markdown: '# Page', sourceUrl: 'https://example.com', format: 'plain-text' as const } }]) },
       i18n: { getMessage: vi.fn(() => 'Open in Quire') },
       contextMenus: { removeAll: vi.fn(async () => undefined), create: vi.fn(), onClicked: onContext },
       action: { onClicked: onAction },
@@ -65,7 +65,7 @@ describe('extension entry actions', () => {
     expect(api.scripting.executeScript).toHaveBeenCalledWith(expect.objectContaining({ target: { tabId: 7 } }));
     const url = vi.mocked(api.tabs.create).mock.calls[0]?.[0].url ?? '';
     await expect(takeDocumentHandoff(handoffIdFromUrl(url))).resolves.toEqual({
-      title: 'Page', markdown: '# Page', sourceUrl: 'https://example.com',
+      title: 'Page', markdown: '# Page', sourceUrl: 'https://example.com', format: 'plain-text',
     });
   });
 

@@ -16,7 +16,8 @@ Quire has one clear purpose: open local or web Markdown in Chrome as a focused, 
 
 Key features:
 
-- Open individual .md, .markdown, and .mdx files
+- Open individual .md and .markdown files
+- Preview .mdx safely as ordinary Markdown; Quire displays JSX, imports, and expressions as text and never executes them
 - Enter an absolute local Markdown path after enabling file-URL access and keep that path visible in the address bar
 - Connect a local folder and browse a real nested document tree
 - Switch quickly between the folder tree and current document outline
@@ -25,7 +26,7 @@ Key features:
 - Adjust light or dark theme, font, text size, line height, and page width
 - Render highlighted code, task lists, footnotes, callouts, KaTeX formulas, and Mermaid diagrams
 - Open a web Markdown URL with access limited to the website you choose
-- Import the visible text of the current page from the toolbar, context menu, or `Alt/Option + Shift + M`
+- Read the visible text of the current page as a plain-text snapshot from the toolbar, context menu, or `Alt/Option + Shift + M`
 
 Why install Quire?
 

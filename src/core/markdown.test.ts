@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renderMarkdown } from './markdown';
+import { renderMarkdown, renderPlainText } from './markdown';
 import { defaultSettings } from '../shared/settings';
 
 describe('renderMarkdown', () => {
@@ -52,4 +52,20 @@ describe('renderMarkdown', () => {
       expect(html).not.toContain('rel="noopener noreferrer"');
     },
   );
+
+  it('marks document images for lazy asynchronous decoding', () => {
+    const html = renderMarkdown('![Diagram](./diagram.png)', defaultSettings);
+    expect(html).toContain('loading="lazy"');
+    expect(html).toContain('decoding="async"');
+  });
+
+  it('renders imported page text literally instead of interpreting Markdown or HTML', () => {
+    const html = renderPlainText('# Heading\n* not emphasis *\n<script>alert(1)</script>');
+    expect(html).not.toContain('<h1');
+    expect(html).not.toContain('<em>');
+    expect(html).not.toContain('<script>');
+    expect(html).toContain('# Heading');
+    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(html).toContain('data-source-line-start="1"');
+  });
   });

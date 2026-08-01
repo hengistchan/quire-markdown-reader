@@ -4,12 +4,13 @@ Quire is an open-source, read-only Markdown reader and local document workspace 
 
 ## Features
 
-- Open `.md`, `.markdown`, and `.mdx` files with automatic refresh where file handles are supported
+- Open `.md` and `.markdown` files with automatic refresh where file handles are supported
+- Preview `.mdx` safely as ordinary Markdown; JSX, imports, and expressions are shown as text and never executed
 - Preview a local Markdown absolute path entered as a `file://` URL without changing the address bar
 - Connect a local folder, browse its nested tree, and restore it after a browser restart
 - Resolve workspace-relative images and navigate relative Markdown links inside the reader
 - Open a remote Markdown URL after granting access to that website only
-- Import the active page from the toolbar action, page context menu, or `Alt/Option + Shift + M`
+- Read the active page's visible text as a plain-text snapshot from the toolbar action, page context menu, or `Alt/Option + Shift + M`
 - Render task lists, footnotes, definitions, abbreviations, callouts, KaTeX, Mermaid, and highlighted code
 - Search and navigate by document outline
 - Choose light, dark, or system appearance; typography, reading width, and custom document CSS

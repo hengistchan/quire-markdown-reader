@@ -12,6 +12,8 @@ import { footnote } from '@mdit/plugin-footnote';
 import { tasklist } from '@mdit/plugin-tasklist';
 import type { ReaderSettings } from '../shared/types';
 
+export type MarkdownRenderOptions = Pick<ReaderSettings, 'enableKatex' | 'enableMermaid' | 'enableHtml'>;
+
 function slugify(value: string): string {
   return value
     .trim()
@@ -25,7 +27,34 @@ function opensInNewTab(href: string): boolean {
   return /^(?:https?:)?\/\//i.test(href) || /^mailto:/i.test(href);
 }
 
-export function createMarkdownRenderer(settings: ReaderSettings): MarkdownIt {
+export function renderPlainText(source: string): string {
+  const escapeHtml = (value: string): string => value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+  const lines = source.replaceAll('\r\n', '\n').split('\n');
+  const paragraphs: string[] = [];
+  let start = 0;
+  let current: string[] = [];
+  const flush = (end: number) => {
+    if (!current.length) return;
+    paragraphs.push(`<p data-source-line-start="${start + 1}" data-source-line-end="${end}">${current.map(escapeHtml).join('<br>')}</p>`);
+    current = [];
+  };
+  lines.forEach((line, index) => {
+    if (!line.trim()) {
+      flush(index);
+      return;
+    }
+    if (!current.length) start = index;
+    current.push(line);
+  });
+  flush(lines.length);
+  return paragraphs.join('\n');
+}
+
+export function createMarkdownRenderer(settings: MarkdownRenderOptions): MarkdownIt {
   const escapeHtml = (value: string): string => value
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
@@ -66,6 +95,14 @@ export function createMarkdownRenderer(settings: ReaderSettings): MarkdownIt {
     return defaultLinkOpen?.(tokens, index, options, env, self) ?? self.renderToken(tokens, index, options);
   };
 
+  const defaultImage = markdown.renderer.rules.image;
+  markdown.renderer.rules.image = (tokens, index, options, env, self) => {
+    const token = tokens[index];
+    token?.attrSet('loading', 'lazy');
+    token?.attrSet('decoding', 'async');
+    return defaultImage?.(tokens, index, options, env, self) ?? self.renderToken(tokens, index, options);
+  };
+
   if (settings.enableKatex) {
     markdown.use(texmath, { engine: katex, delimiters: 'dollars', katexOptions: { throwOnError: false } });
   }
@@ -85,10 +122,10 @@ export function createMarkdownRenderer(settings: ReaderSettings): MarkdownIt {
   return markdown;
 }
 
-export function renderMarkdown(source: string, settings: ReaderSettings): string {
+export function renderMarkdown(source: string, settings: MarkdownRenderOptions): string {
   const rendered = createMarkdownRenderer(settings).render(source);
   return DOMPurify.sanitize(rendered, {
-    ADD_ATTR: ['target', 'rel', 'data-mermaid-source', 'data-source-line-start', 'data-source-line-end'],
+    ADD_ATTR: ['target', 'rel', 'loading', 'decoding', 'data-mermaid-source', 'data-source-line-start', 'data-source-line-end'],
     ADD_TAGS: settings.enableKatex ? ['math', 'semantics', 'annotation', 'mrow', 'mi', 'mo', 'mn'] : [],
   });
 }

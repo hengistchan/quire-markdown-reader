@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultSettings } from '../../shared/settings';
@@ -176,7 +176,9 @@ describe('Quire viewer experience', () => {
     expect(screen.getByRole('button', { name: 'Use standard reading width' }).getAttribute('aria-pressed')).toBe('true');
     expect(document.querySelector<HTMLElement>('.app-shell')?.style.getPropertyValue('--reader-width')).toBe('980px');
     await waitFor(() => expect(local.set).toHaveBeenCalledWith(expect.objectContaining({
-      'reader-settings': expect.objectContaining({ wideView: true }),
+      'reader-settings': expect.objectContaining({
+        settings: expect.objectContaining({ wideView: true }),
+      }),
     })));
 
     await user.click(screen.getByRole('button', { name: 'Use standard reading width' }));
@@ -196,8 +198,28 @@ describe('Quire viewer experience', () => {
     await waitFor(() => expect(document.querySelector('.markdown-body')?.textContent).toContain('Quire 将 Markdown 变成专注的阅读空间'));
     expect(screen.getByLabelText('文档导航')).toBeTruthy();
     await waitFor(() => expect(local.set).toHaveBeenCalledWith(expect.objectContaining({
-      'reader-settings': expect.objectContaining({ locale: 'zh-CN' }),
+      'reader-settings': expect.objectContaining({
+        settings: expect.objectContaining({ locale: 'zh-CN' }),
+      }),
     })));
+  });
+
+  it('follows live operating-system theme changes in system mode', async () => {
+    let dark = false;
+    let onChange: (() => void) | undefined;
+    vi.stubGlobal('matchMedia', vi.fn(() => ({
+      get matches() { return dark; },
+      addEventListener: vi.fn((_type: string, listener: () => void) => { onChange = listener; }),
+      removeEventListener: vi.fn(),
+    })));
+    installBrowser();
+    render(<App />);
+
+    await screen.findByLabelText('Document navigation');
+    expect(document.documentElement.dataset.theme).toBe('light');
+    dark = true;
+    act(() => onChange?.());
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dark'));
   });
 
   it('opens a keyboard-friendly command center with progressive reader actions', async () => {

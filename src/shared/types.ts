@@ -72,6 +72,7 @@ export interface ImportedDocument {
   title: string;
   markdown: string;
   sourceUrl?: string;
+  format?: 'markdown' | 'plain-text';
 }
 
 export interface DocumentHandoff {

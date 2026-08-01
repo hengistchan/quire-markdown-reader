@@ -7,7 +7,7 @@ import {
 describe('DocumentSession', () => {
   it('creates one source-specific state without unrelated optional fields', () => {
     const imported = createImportedSession({ title: 'Guide.md', markdown: '# Guide', sourceUrl: 'file:///docs/Guide.md' });
-    expect(imported).toEqual({ kind: 'imported', title: 'Guide', markdown: '# Guide', sourceUrl: 'file:///docs/Guide.md' });
+    expect(imported).toEqual({ kind: 'imported', title: 'Guide', markdown: '# Guide', sourceUrl: 'file:///docs/Guide.md', format: 'markdown' });
     expect(documentSourceUrl(imported)).toBe('file:///docs/Guide.md');
 
     const remote = createRemoteSession(

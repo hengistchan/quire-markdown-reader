@@ -21,6 +21,7 @@ export async function importActiveTab(tab?: Browser.tabs.Tab, api: ExtensionApi 
         title: document.title || location.pathname.split('/').pop() || 'Untitled',
         markdown: document.body?.innerText ?? '',
         sourceUrl: location.href,
+        format: 'plain-text' as const,
       }),
     });
     await openViewer(injection[0]?.result as ImportedDocument | undefined, api);

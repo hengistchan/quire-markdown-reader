@@ -8,7 +8,7 @@ import {
   collectWorkspace, getWorkspaceFileHandle, WorkspaceScanError,
 } from '../../core/files';
 import { isLocalMarkdownUrl } from '../../core/localMarkdown';
-import { renderMarkdown } from '../../core/markdown';
+import { renderMarkdown, renderPlainText } from '../../core/markdown';
 import { RemoteMarkdownError } from '../../core/remote';
 import { hostPermissionPattern, isMarkdownLink, isRelativeUrl, isRemoteUrl, linkFragment, resolveWorkspacePath } from '../../core/paths';
 import { searchMarkdown } from '../../core/search';
@@ -33,6 +33,18 @@ const WIDE_READER_WIDTH = 980;
 
 function getSystemTheme(): 'light' | 'dark' {
   return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function useSystemTheme(): 'light' | 'dark' {
+  const [theme, setTheme] = useState<'light' | 'dark'>(getSystemTheme);
+  useEffect(() => {
+    const media = matchMedia('(prefers-color-scheme: dark)');
+    const update = () => setTheme(media.matches ? 'dark' : 'light');
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  return theme;
 }
 
 function extractHeadings(html: string, fallback: string): HeadingItem[] {
@@ -133,8 +145,11 @@ export function App() {
   const remoteRequestController = useRef<AbortController | undefined>(undefined);
   const workspaceScanController = useRef<AbortController | undefined>(undefined);
   const pendingDocumentFragment = useRef<string | undefined>(undefined);
+  const settingsSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const pendingSettings = useRef<ReaderSettings | undefined>(undefined);
   const initialized = useRef(false);
   const progress = useReadingProgress();
+  const systemTheme = useSystemTheme();
 
   const openMenuOpen = activeOverlay === 'open-menu';
   const moreMenuOpen = activeOverlay === 'more-menu';
@@ -144,6 +159,7 @@ export function App() {
   const title = session.title;
   const source = session.markdown;
   const sourceUrl = documentSourceUrl(session);
+  const documentFormat = session.kind === 'imported' ? session.format : 'markdown';
   const remoteState = session.kind === 'remote' ? session.state : undefined;
   const workspace = session.kind === 'workspace' ? session.workspace : undefined;
   const activeFile = session.kind === 'workspace' || session.kind === 'file' ? session.file : undefined;
@@ -151,22 +167,43 @@ export function App() {
 
   const locale = resolveLocale(settings.locale);
   const t = useMemo(() => createTranslator(locale), [locale]);
-  const html = useMemo(() => renderMarkdown(source, settings), [source, settings]);
+  const renderOptions = useMemo(() => ({
+    enableKatex: settings.enableKatex,
+    enableMermaid: settings.enableMermaid,
+    enableHtml: settings.enableHtml,
+  }), [settings.enableHtml, settings.enableKatex, settings.enableMermaid]);
+  const html = useMemo(
+    () => documentFormat === 'plain-text' ? renderPlainText(source) : renderMarkdown(source, renderOptions),
+    [documentFormat, renderOptions, source],
+  );
   const htmlMarkup = useMemo(() => ({ __html: html }), [html]);
   const headings = useMemo(() => extractHeadings(html, t('untitledSection')), [html, t]);
   const shortcutLabels = useMemo(() => createShortcutLabels(), []);
-  const resolvedTheme = settings.theme === 'system' ? getSystemTheme() : settings.theme;
+  const resolvedTheme = settings.theme === 'system' ? systemTheme : settings.theme;
   const workspaceName = workspace?.name
-    ?? (sourceUrl
+    ?? (documentFormat === 'plain-text'
+      ? t('plainTextSnapshot')
+      : sourceUrl
       ? (isLocalMarkdownUrl(sourceUrl) ? t('localFile') : t('fromWeb'))
       : session.kind === 'welcome' ? t('gettingStarted') : t('imported'));
 
   const updateSettings = useCallback((patch: Partial<ReaderSettings>) => {
     setSettings((current) => {
       const next = { ...current, ...patch };
-      void saveSettings(next);
+      pendingSettings.current = next;
+      if (settingsSaveTimer.current) clearTimeout(settingsSaveTimer.current);
+      settingsSaveTimer.current = setTimeout(() => {
+        settingsSaveTimer.current = undefined;
+        pendingSettings.current = undefined;
+        void saveSettings(next);
+      }, 200);
       return next;
     });
+  }, []);
+
+  useEffect(() => () => {
+    if (settingsSaveTimer.current) clearTimeout(settingsSaveTimer.current);
+    if (pendingSettings.current) void saveSettings(pendingSettings.current);
   }, []);
 
   const recordRecent = useCallback(async (item: Omit<RecentItem, 'openedAt'>) => {
@@ -295,37 +332,54 @@ export function App() {
   useEffect(() => {
     if (!articleRef.current) return;
     let cancelled = false;
+    let observer: IntersectionObserver | undefined;
     const objectUrls: string[] = [];
-    const resolveImages = async () => {
-      const images = [...articleRef.current!.querySelectorAll<HTMLImageElement>('img[src]')];
-      for (const image of images) {
-        const raw = image.getAttribute('src');
-        if (!raw || !isRelativeUrl(raw)) continue;
-        image.dataset.resourceState = 'resolving';
-        if (workspace && activeFile) {
-          const path = resolveWorkspacePath(activeFile.path, raw);
-          if (!path) continue;
-          try {
-            const handle = await getWorkspaceFileHandle(workspace.handle, path);
-            const url = URL.createObjectURL(await handle.getFile());
-            objectUrls.push(url);
-            if (!cancelled) {
-              image.src = url;
-              image.dataset.resourceState = 'ready';
-            }
-          } catch (error) {
-            console.warn('Quire could not load a workspace image.', path, error);
-            image.dataset.resourceError = 'true';
-            image.dataset.resourceState = 'error';
-            image.alt = `${image.alt || raw} — ${t('resourceUnavailable')}`;
+    const resolveImage = async (image: HTMLImageElement) => {
+      if (image.dataset.resourceState) return;
+      const raw = image.getAttribute('src');
+      if (!raw || !isRelativeUrl(raw)) return;
+      image.dataset.resourceState = 'resolving';
+      if (workspace && activeFile) {
+        const path = resolveWorkspacePath(activeFile.path, raw);
+        if (!path) return;
+        try {
+          const handle = await getWorkspaceFileHandle(workspace.handle, path);
+          const url = URL.createObjectURL(await handle.getFile());
+          objectUrls.push(url);
+          if (!cancelled) {
+            image.src = url;
+            image.dataset.resourceState = 'ready';
           }
-        } else if (sourceUrl) {
-          image.src = new URL(raw, sourceUrl).href;
+        } catch (caught) {
+          console.warn('Quire could not load a workspace image.', path, caught);
+          image.dataset.resourceError = 'true';
+          image.dataset.resourceState = 'error';
+          image.alt = `${image.alt || raw} — ${t('resourceUnavailable')}`;
         }
+      } else if (sourceUrl) {
+        image.src = new URL(raw, sourceUrl).href;
+        image.dataset.resourceState = 'ready';
       }
     };
-    void resolveImages();
-    return () => { cancelled = true; for (const url of objectUrls) URL.revokeObjectURL(url); };
+    const images = [...articleRef.current.querySelectorAll<HTMLImageElement>('img[src]')]
+      .filter((image) => isRelativeUrl(image.getAttribute('src') ?? ''));
+    if ('IntersectionObserver' in window) {
+      observer = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          observer?.unobserve(entry.target);
+          void resolveImage(entry.target as HTMLImageElement);
+        }
+      }, { rootMargin: '500px 0px' });
+      for (const image of images) observer.observe(image);
+    } else {
+      for (const image of images) void resolveImage(image);
+    }
+    return () => {
+      cancelled = true;
+      observer?.disconnect();
+      for (const url of objectUrls) URL.revokeObjectURL(url);
+    };
   }, [activeFile, html, sourceUrl, t, workspace]);
 
   useEffect(() => {
@@ -415,17 +469,31 @@ export function App() {
   }, [notice]);
 
   useEffect(() => {
+    const elements = headings
+      .map((heading) => document.getElementById(heading.id))
+      .filter((element): element is HTMLElement => Boolean(element));
+    if (!elements.length) {
+      setActiveHeadingId(undefined);
+      return undefined;
+    }
     const updateActiveHeading = () => {
       let next = headings[0]?.id;
-      for (const heading of headings) {
-        const element = document.getElementById(heading.id);
-        if (element && element.getBoundingClientRect().top <= 170) next = heading.id;
+      for (const element of elements) {
+        if (element.getBoundingClientRect().top <= 170) next = element.id;
       }
       setActiveHeadingId(next);
     };
     updateActiveHeading();
-    addEventListener('scroll', updateActiveHeading, { passive: true });
-    return () => removeEventListener('scroll', updateActiveHeading);
+    if (!('IntersectionObserver' in window)) {
+      addEventListener('scroll', updateActiveHeading, { passive: true });
+      return () => removeEventListener('scroll', updateActiveHeading);
+    }
+    const observer = new IntersectionObserver(updateActiveHeading, {
+      rootMargin: '-120px 0px -70% 0px',
+      threshold: [0, 1],
+    });
+    for (const element of elements) observer.observe(element);
+    return () => observer.disconnect();
   }, [headings]);
 
   useEffect(() => {

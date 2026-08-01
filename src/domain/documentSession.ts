@@ -14,6 +14,7 @@ export interface WelcomeDocumentSession extends DocumentContent {
 export interface ImportedDocumentSession extends DocumentContent {
   kind: 'imported';
   sourceUrl?: string;
+  format: 'markdown' | 'plain-text';
 }
 
 export interface FileDocumentSession extends DocumentContent {
@@ -61,6 +62,7 @@ export function createImportedSession(document: ImportedDocument): ImportedDocum
     title: displayDocumentTitle(document.title),
     markdown: document.markdown,
     sourceUrl: document.sourceUrl,
+    format: document.format ?? 'markdown',
   };
 }
 
