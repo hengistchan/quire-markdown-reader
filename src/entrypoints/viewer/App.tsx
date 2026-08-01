@@ -12,6 +12,7 @@ import { renderMarkdown } from '../../core/markdown';
 import { fetchRemoteMarkdown, RemoteMarkdownError } from '../../core/remote';
 import { hostPermissionPattern, isMarkdownLink, isRelativeUrl, isRemoteUrl, resolveWorkspacePath } from '../../core/paths';
 import { loadWorkspaceHandle, saveWorkspaceHandle } from '../../core/workspacePersistence';
+import { takeDocumentHandoff } from '../../infrastructure/handoffStore';
 import { createTranslator, resolveLocale } from '../../shared/i18n';
 import { loadRecentItems, rememberRecentItem, type RecentItem } from '../../shared/recent';
 import { defaultSettings, loadSettings, saveSettings } from '../../shared/settings';
@@ -155,18 +156,17 @@ export function App() {
     if (initialized.current) return;
     initialized.current = true;
     void (async () => {
-      const [loadedSettings, stored, recentItems] = await Promise.all([
+      const handoffId = new URL(location.href).searchParams.get('handoff');
+      const [loadedSettings, importedDocument, recentItems] = await Promise.all([
         loadSettings(),
-        typeof browser === 'undefined' ? Promise.resolve({} as Record<string, unknown>) : browser.storage.local.get(['importedDocument']),
+        handoffId ? takeDocumentHandoff(handoffId) : Promise.resolve(undefined),
         loadRecentItems(),
       ]);
       setSettings(loadedSettings);
       setRecent(recentItems);
-      const imported = stored.importedDocument as ImportedDocument | undefined;
-      const importedDocument = imported && typeof imported.markdown === 'string' ? imported : undefined;
       if (importedDocument) {
         openImportedDocument(importedDocument);
-        if (typeof browser !== 'undefined') await browser.storage.local.remove('importedDocument');
+        history.replaceState(null, '', `${location.pathname}${location.hash}`);
       }
       if ('showDirectoryPicker' in window && !importedDocument) {
         try {

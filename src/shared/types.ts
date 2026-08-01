@@ -65,6 +65,12 @@ export interface ImportedDocument {
   sourceUrl?: string;
 }
 
+export interface DocumentHandoff {
+  id: string;
+  document: ImportedDocument;
+  createdAt: number;
+}
+
 export interface RemoteDocumentState {
   url: string;
   etag?: string;

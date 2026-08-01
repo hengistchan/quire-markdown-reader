@@ -2,6 +2,12 @@
 
 All notable changes to Quire are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- Replaced the global imported-document storage key with isolated, single-use document handoffs that expire after ten minutes
+
 ## [0.0.2] - 2026-08-01
 
 ### Added
@@ -44,5 +50,6 @@ All notable changes to Quire are documented here. This project follows [Semantic
 - First-run guidance, actionable error and permission states, English and Simplified Chinese interfaces
 - Reproducible browser packages, automated tests, community documents, store materials, and release automation
 
+[Unreleased]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.2...HEAD
 [0.0.2]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/hengistchan/quire-markdown-reader/releases/tag/v0.0.1

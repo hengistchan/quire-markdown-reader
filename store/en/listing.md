@@ -37,6 +37,6 @@ Quire is open source. It has no account, analytics, ads, tracking, or developer 
 
 - Active tab and scripting: import visible page text only after an explicit user action.
 - Context menus: provide “Open in Quire.”
-- Storage: save reader preferences, onboarding state, recent metadata, and the one-time active-page import consumed by the reader.
+- Storage: save reader preferences, onboarding state, and recent metadata on this device.
 - Optional website access: fetch a user-selected remote Markdown document from that origin only.
 - Local file-URL access: after you enable it in Chrome's extension details, detect and read only local .md, .markdown, or .mdx documents you open explicitly in the address bar.

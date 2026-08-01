@@ -1,12 +1,15 @@
 import type { ImportedDocument } from '../shared/types';
+import { cleanupExpiredDocumentHandoffs, createDocumentHandoff } from '../infrastructure/handoffStore';
 import { isOpenLocalMarkdownMessage } from './localMarkdown';
 
 type ExtensionApi = typeof browser;
 
 export async function openViewer(document?: ImportedDocument, api: ExtensionApi = browser): Promise<void> {
-  if (document) await api.storage.local.set({ importedDocument: document });
-  else await api.storage.local.remove('importedDocument');
-  await api.tabs.create({ url: api.runtime.getURL('/viewer.html') });
+  const viewerUrl = api.runtime.getURL('/viewer.html');
+  const url = document
+    ? `${viewerUrl}?handoff=${encodeURIComponent(await createDocumentHandoff(document))}`
+    : viewerUrl;
+  await api.tabs.create({ url });
 }
 
 export async function importActiveTab(tab?: Browser.tabs.Tab, api: ExtensionApi = browser): Promise<void> {
@@ -27,10 +30,14 @@ export async function importActiveTab(tab?: Browser.tabs.Tab, api: ExtensionApi 
 }
 
 export function registerBrowserHandlers(api: ExtensionApi = browser): void {
+  void api.storage.local.remove('importedDocument');
+  void cleanupExpiredDocumentHandoffs().catch(() => undefined);
+
   api.runtime.onMessage.addListener((message, sender) => {
     if (!isOpenLocalMarkdownMessage(message) || sender.tab?.id === undefined) return undefined;
-    return api.storage.local.set({ importedDocument: message.document })
-      .then(() => ({ viewerUrl: api.runtime.getURL('/viewer.html') }));
+    return createDocumentHandoff(message.document).then((handoffId) => ({
+      viewerUrl: `${api.runtime.getURL('/viewer.html')}?handoff=${encodeURIComponent(handoffId)}`,
+    }));
   });
 
   api.runtime.onInstalled.addListener(async () => {

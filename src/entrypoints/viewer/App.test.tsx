@@ -1,7 +1,9 @@
+import 'fake-indexeddb/auto';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultSettings } from '../../shared/settings';
+import { createDocumentHandoff, takeDocumentHandoff } from '../../infrastructure/handoffStore';
 import { App } from './App';
 
 vi.mock('mermaid', () => ({
@@ -27,8 +29,18 @@ function installBrowser(overrides: Record<string, unknown> = {}) {
   return { api, local };
 }
 
+async function deleteHandoffDatabase(): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const request = indexedDB.deleteDatabase('quire-document-handoffs');
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
 describe('Quire viewer experience', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await deleteHandoffDatabase();
+    history.replaceState(null, '', '/');
     vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
     vi.stubGlobal('scrollTo', vi.fn());
   });
@@ -56,6 +68,29 @@ describe('Quire viewer experience', () => {
 
     await waitFor(() => expect(api.permissions.request).toHaveBeenCalledWith({ origins: ['https://docs.example.com/*'] }));
     await waitFor(() => expect(document.querySelector('[role="alert"]')?.textContent).toContain('Access was not granted'));
+  });
+
+  it('consumes only the handoff ID from its own URL and removes it from the address', async () => {
+    installBrowser();
+    await createDocumentHandoff(
+      { title: 'Session A.md', markdown: '# Session A\n\nIsolated document.' },
+      { id: 'viewer-a', now: Date.now() },
+    );
+    await createDocumentHandoff(
+      { title: 'Session B.md', markdown: '# Session B\n\nOther document.' },
+      { id: 'viewer-b', now: Date.now() },
+    );
+    history.replaceState(null, '', '/viewer.html?handoff=viewer-a');
+
+    render(<App />);
+
+    expect(await screen.findByText('Isolated document.')).toBeTruthy();
+    expect(screen.queryByText('Other document.')).toBeNull();
+    expect(location.search).toBe('');
+    await expect(takeDocumentHandoff('viewer-a')).resolves.toBeUndefined();
+    await expect(takeDocumentHandoff('viewer-b')).resolves.toEqual({
+      title: 'Session B.md', markdown: '# Session B\n\nOther document.',
+    });
   });
 
   it('shows immediate loading feedback while a remote Markdown request is pending', async () => {

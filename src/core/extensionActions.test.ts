@@ -1,4 +1,7 @@
+import 'fake-indexeddb/auto';
 import { describe, expect, it, vi } from 'vitest';
+import { beforeEach } from 'vitest';
+import { takeDocumentHandoff } from '../infrastructure/handoffStore';
 import { OPEN_LOCAL_MARKDOWN } from './localMarkdown';
 import { importActiveTab, openViewer, registerBrowserHandlers } from './extensionActions';
 
@@ -35,11 +38,24 @@ function extensionApi() {
   };
 }
 
+async function deleteHandoffDatabase(): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const request = indexedDB.deleteDatabase('quire-document-handoffs');
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function handoffIdFromUrl(value: string): string {
+  return new URL(value).searchParams.get('handoff') ?? '';
+}
+
 describe('extension entry actions', () => {
+  beforeEach(deleteHandoffDatabase);
+
   it('opens a clean viewer when there is no imported document', async () => {
     const { api } = extensionApi();
     await openViewer(undefined, api);
-    expect(api.storage.local.remove).toHaveBeenCalledWith('importedDocument');
     expect(api.tabs.create).toHaveBeenCalledWith({ url: 'moz-extension://quire/viewer.html' });
   });
 
@@ -47,8 +63,9 @@ describe('extension entry actions', () => {
     const { api } = extensionApi();
     await importActiveTab({ id: 7 } as Browser.tabs.Tab, api);
     expect(api.scripting.executeScript).toHaveBeenCalledWith(expect.objectContaining({ target: { tabId: 7 } }));
-    expect(api.storage.local.set).toHaveBeenCalledWith({
-      importedDocument: { title: 'Page', markdown: '# Page', sourceUrl: 'https://example.com' },
+    const url = vi.mocked(api.tabs.create).mock.calls[0]?.[0].url ?? '';
+    await expect(takeDocumentHandoff(handoffIdFromUrl(url))).resolves.toEqual({
+      title: 'Page', markdown: '# Page', sourceUrl: 'https://example.com',
     });
   });
 
@@ -56,8 +73,7 @@ describe('extension entry actions', () => {
     const { api } = extensionApi();
     vi.mocked(api.scripting.executeScript).mockRejectedValueOnce(new Error('denied'));
     await importActiveTab({ id: 7 } as Browser.tabs.Tab, api);
-    expect(api.storage.local.remove).toHaveBeenCalledWith('importedDocument');
-    expect(api.tabs.create).toHaveBeenCalledOnce();
+    expect(api.tabs.create).toHaveBeenCalledWith({ url: 'moz-extension://quire/viewer.html' });
   });
 
   it('wires installation, action, shortcut, and context-menu flows', async () => {
@@ -86,8 +102,9 @@ describe('extension entry actions', () => {
       { tab: { id: 9 } } as Browser.runtime.MessageSender,
     );
 
-    expect(harness.api.storage.local.set).toHaveBeenCalledWith({ importedDocument: document });
-    expect(response).toEqual({ viewerUrl: 'moz-extension://quire/viewer.html' });
+    const viewerUrl = (response as unknown as { viewerUrl?: string } | undefined)?.viewerUrl ?? '';
+    expect(viewerUrl).toMatch(/^moz-extension:\/\/quire\/viewer\.html\?handoff=/);
+    await expect(takeDocumentHandoff(handoffIdFromUrl(viewerUrl))).resolves.toEqual(document);
     expect(harness.api.tabs.update).not.toHaveBeenCalled();
     expect(harness.api.tabs.create).not.toHaveBeenCalled();
   });
@@ -105,7 +122,6 @@ describe('extension entry actions', () => {
       {} as Browser.runtime.MessageSender,
     );
 
-    expect(harness.api.storage.local.set).not.toHaveBeenCalled();
     expect(harness.api.tabs.update).not.toHaveBeenCalled();
   });
 
