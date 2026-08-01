@@ -117,6 +117,47 @@ describe('Quire viewer experience', () => {
     expect(await screen.findByText('Remote content arrived.')).toBeTruthy();
   });
 
+  it('lets the user cancel a pending remote request without showing a failure', async () => {
+    const fetcher = vi.fn((_url: string | URL | Request, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true });
+    }));
+    vi.stubGlobal('fetch', fetcher);
+    installBrowser({ permissions: { request: vi.fn(async () => true) } });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'Open' }));
+    await user.click(screen.getByRole('button', { name: /Open URL/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Open Markdown from the web' });
+    await user.type(within(dialog).getByPlaceholderText('https://example.com/guide.md'), 'https://docs.example.com/slow.md');
+    await user.click(within(dialog).getByRole('button', { name: 'Open' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Open Markdown from the web' })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('offers a retry after a remote network failure', async () => {
+    const fetcher = vi.fn()
+      .mockRejectedValueOnce(new TypeError('Offline'))
+      .mockResolvedValueOnce(new Response('# Retried\n\nThe retry succeeded.'));
+    vi.stubGlobal('fetch', fetcher);
+    installBrowser({ permissions: { request: vi.fn(async () => true) } });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'Open' }));
+    await user.click(screen.getByRole('button', { name: /Open URL/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Open Markdown from the web' });
+    await user.type(within(dialog).getByPlaceholderText('https://example.com/guide.md'), 'https://docs.example.com/retry.md');
+    await user.click(within(dialog).getByRole('button', { name: 'Open' }));
+
+    await user.click(await screen.findByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('The retry succeeded.')).toBeTruthy();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
   it('toggles a persistent wider reading width beside the Open control', async () => {
     const { local } = installBrowser();
     const user = userEvent.setup();

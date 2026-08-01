@@ -124,12 +124,14 @@ export function App() {
   const [notice, setNotice] = useState<string>();
   const [error, setError] = useState<string>();
   const [remoteLoading, setRemoteLoading] = useState(false);
+  const [remoteRetryUrl, setRemoteRetryUrl] = useState<string>();
   const [recent, setRecent] = useState<RecentItem[]>([]);
   const [collapsedDirectories, setCollapsedDirectories] = useState<Set<string>>(new Set());
   const [documentNavigationVersion, setDocumentNavigationVersion] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
   const articleRef = useRef<HTMLElement>(null);
   const remoteLoadingRef = useRef(false);
+  const remoteRequestController = useRef<AbortController | undefined>(undefined);
   const pendingDocumentFragment = useRef<string | undefined>(undefined);
   const initialized = useRef(false);
   const progress = useReadingProgress();
@@ -339,17 +341,43 @@ export function App() {
 
   useEffect(() => {
     if (!settings.autoRefresh || !remoteState || sourceKind !== 'remote') return;
-    const timer = setInterval(() => {
-      if (document.hidden) return;
-      void fetchRemoteMarkdown(remoteState.url, remoteState).then((result) => {
+    let cancelled = false;
+    let delay = 30_000;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let controller: AbortController | undefined;
+    const schedule = (wait: number) => {
+      if (!cancelled) timer = setTimeout(() => void refresh(), wait);
+    };
+    const refresh = async () => {
+      if (document.hidden || !navigator.onLine) { schedule(30_000); return; }
+      controller = new AbortController();
+      try {
+        const result = await fetchRemoteMarkdown(remoteState.url, remoteState, fetch, { signal: controller.signal });
+        if (cancelled) return;
+        delay = 30_000;
         setRemoteState(result.state);
         if (result.document) {
           setSource(result.document.markdown);
           setNotice(t('updated'));
         }
-      }).catch(() => undefined);
-    }, 30_000);
-    return () => clearInterval(timer);
+      } catch (caught) {
+        if (cancelled || (caught instanceof RemoteMarkdownError && caught.code === 'cancelled')) return;
+        delay = Math.min(delay * 2, 5 * 60_000);
+      }
+      schedule(delay);
+    };
+    const resumeOnline = () => {
+      if (timer) clearTimeout(timer);
+      schedule(0);
+    };
+    addEventListener('online', resumeOnline);
+    schedule(delay);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      controller?.abort();
+      removeEventListener('online', resumeOnline);
+    };
   }, [remoteState, settings.autoRefresh, sourceKind, t]);
 
   useEffect(() => {
@@ -445,10 +473,13 @@ export function App() {
   };
 
   const openRemote = useCallback(async (value: string, requestPermission = true) => {
-    if (!isRemoteUrl(value)) { setError(t('invalidUrl')); return; }
+    if (!isRemoteUrl(value)) { setError(t('invalidUrl')); setRemoteRetryUrl(undefined); return; }
     if (remoteLoadingRef.current) return;
+    const requestController = new AbortController();
+    remoteRequestController.current = requestController;
     remoteLoadingRef.current = true;
     setError(undefined);
+    setRemoteRetryUrl(undefined);
     setRemoteLoading(true);
     try {
       const permission = hostPermissionPattern(value);
@@ -456,7 +487,7 @@ export function App() {
         const granted = await browser.permissions.request({ origins: [permission] });
         if (!granted) { setError(t('permissionDenied')); return; }
       }
-      const result = await fetchRemoteMarkdown(value);
+      const result = await fetchRemoteMarkdown(value, undefined, fetch, { signal: requestController.signal });
       if (!result.document) return;
       openImportedDocument(result.document, 'remote', linkFragment(value));
       setRemoteState(result.state);
@@ -468,13 +499,21 @@ export function App() {
       if (caught instanceof RemoteMarkdownError) {
         if (caught.code === 'invalid-url') setError(t('invalidUrl'));
         else if (caught.code === 'too-large') setError(t('remoteTooLarge'));
-        else setError(`${t('remoteServerError')} ${caught.status}.`);
+        else if (caught.code === 'timeout') { setError(t('remoteTimeout')); setRemoteRetryUrl(value); }
+        else if (caught.code === 'network-error') { setError(t('remoteReadError')); setRemoteRetryUrl(value); }
+        else if (caught.code === 'http-error') { setError(`${t('remoteServerError')} ${caught.status}.`); setRemoteRetryUrl(value); }
       } else setError(t('remoteReadError'));
     } finally {
+      if (remoteRequestController.current === requestController) remoteRequestController.current = undefined;
       remoteLoadingRef.current = false;
       setRemoteLoading(false);
     }
   }, [openImportedDocument, recordRecent, t]);
+
+  const cancelRemoteLoad = useCallback(() => {
+    remoteRequestController.current?.abort();
+    setUrlOpen(false);
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -621,7 +660,7 @@ export function App() {
 
         <main className="reader-stage">
           <div className="paper-grain" aria-hidden="true" />
-          {error && <div className="error-banner" role="alert"><AlertCircle /><span>{error}</span><button onClick={() => setError(undefined)} aria-label={t('dismissNotice')}><X /></button></div>}
+          {error && <div className="error-banner" role="alert"><AlertCircle /><span>{error}</span><div className="error-actions">{remoteRetryUrl && <button className="retry-button" onClick={() => void openRemote(remoteRetryUrl, false)}>{t('retry')}</button>}<button onClick={() => { setError(undefined); setRemoteRetryUrl(undefined); }} aria-label={t('dismissNotice')}><X /></button></div></div>}
           {sourceKind !== 'welcome' && <div className="document-meta">{readMinutes} {t('minuteRead')}</div>}
           <article ref={articleRef} className={`markdown-body font-${settings.fontFamily}`} onClick={handleArticleClick} dangerouslySetInnerHTML={htmlMarkup} />
           {settings.customCss && <style>{`@scope (.markdown-body) { ${settings.customCss} }`}</style>}
@@ -631,9 +670,9 @@ export function App() {
       </div>
 
       {commandOpen && <CommandPalette query={commandQuery} matches={commandMatches} workspaceMatches={workspaceMatches} recent={recent} shortcuts={shortcutLabels} t={t} onQuery={setCommandQuery} onClose={() => { setCommandOpen(false); setCommandQuery(''); }} onFile={() => void handleOpenFile()} onFolder={() => void handleDirectory()} onUrl={() => { setCommandOpen(false); setUrlOpen(true); }} onTypedUrl={(value) => void openRemote(value)} onWorkspace={() => setWorkspaceOpen((open) => !open)} onOutline={() => setOutlineOpen((open) => !open)} onQuietMode={() => { setWorkspaceOpen(false); setOutlineOpen(false); }} onLightTheme={() => updateSettings({ theme: 'light' })} onDarkTheme={() => updateSettings({ theme: 'dark' })} onSettings={() => { setCommandOpen(false); setSettingsOpen(true); }} onRecent={(item) => void openRecent(item)} onMatch={jumpToSearchResult} onWorkspaceFile={openWorkspaceSearchResult} />}
-      {urlOpen && <UrlDialog value={urlValue} loading={remoteLoading} t={t} onValue={setUrlValue} onClose={() => setUrlOpen(false)} onOpen={() => void openRemote(urlValue)} />}
+      {urlOpen && <UrlDialog value={urlValue} loading={remoteLoading} t={t} onValue={setUrlValue} onClose={() => setUrlOpen(false)} onCancel={cancelRemoteLoad} onOpen={() => void openRemote(urlValue)} />}
       {settingsOpen && <SettingsDrawer settings={settings} t={t} onChange={(patch) => { updateSettings(patch.contentWidth === undefined ? patch : { ...patch, wideView: false }); if (patch.showOutline !== undefined) setOutlineOpen(patch.showOutline); }} onReset={() => updateSettings(defaultSettings)} onClose={() => setSettingsOpen(false)} />}
-      {remoteLoading && <div className="remote-loading" role="status" aria-live="polite"><LoaderCircle /><span>{t('loadingRemote')}</span></div>}
+      {remoteLoading && <div className="remote-loading" role="status" aria-live="polite"><LoaderCircle /><span>{t('loadingRemote')}</span><button onClick={cancelRemoteLoad}>{t('cancel')}</button></div>}
       {notice && <div className="toast" role="status">{notice}</div>}
     </div>
   );
@@ -689,8 +728,8 @@ function CommandPalette({ query, matches, workspaceMatches, recent, shortcuts, t
   return <div className="command-backdrop" onMouseDown={onClose}><section className="command-palette" role="dialog" aria-modal="true" aria-label={t('commandCenter')} onKeyDown={navigateRows} onMouseDown={(event) => event.stopPropagation()}><div className="command-input"><Search /><input autoFocus value={query} onChange={(event) => onQuery(event.target.value)} placeholder={t('commandPlaceholder')} /><kbd>esc</kbd></div><div className="command-results">{isRemoteUrl(query.trim()) && <div className="command-group"><label>URL</label><button className="command-row active" onClick={() => onTypedUrl(query.trim())}><Globe2 /><span><strong>{t('openUrl')}</strong><small>{query.trim()}</small></span><kbd>↵</kbd></button></div>}{visibleRecent.length > 0 && <div className="command-group"><label>{t('recentlyOpened')}</label>{visibleRecent.map((item, index) => <button key={item.id} className={`command-row ${!needle && index === 0 ? 'active' : ''}`} onClick={() => onRecent(item)}><File /><span><strong>{item.title}</strong><small>{item.kind === 'remote' ? t('fromWeb') : t('workspace')}</small></span></button>)}</div>}{workspaceMatches.length > 0 && <div className="command-group"><label>{t('workspaceFiles')}</label>{workspaceMatches.map((file) => <button key={file.id} className="command-row workspace-match" onClick={() => onWorkspaceFile(file)}><File /><span><strong>{file.name}</strong><small>{file.path}</small></span></button>)}</div>}{actions.length > 0 && <div className="command-group"><label>{t('commands')}</label>{actions.map((action) => <button key={action.key} className="command-row" onClick={() => { action.run(); onClose(); }}>{action.icon}<span><strong>{action.label}</strong><small>{action.detail}</small></span>{action.shortcut && <kbd>{action.shortcut}</kbd>}</button>)}</div>}{matches.length > 0 && <div className="command-group"><label>{t('currentDocument')}</label>{matches.map((match) => <button key={match.id} className="command-row document-match" onClick={() => onMatch(match)}><Search /><span><strong>{match.text}</strong><small>{t('line')} {match.lineNumber}</small></span></button>)}</div>}{!hasResults && <p className="command-empty">{t('noCommandResults')}</p>}</div><footer><span>↑↓ {t('search')}</span><span>↵ {t('open')}</span><span>Esc {t('close')}</span></footer></section></div>;
 }
 
-function UrlDialog({ value, loading, t, onValue, onClose, onOpen }: { value: string; loading: boolean; t: Translator; onValue: (value: string) => void; onClose: () => void; onOpen: () => void }) {
-  return <div className="modal-backdrop" onMouseDown={loading ? undefined : onClose}><section className="url-dialog" role="dialog" aria-modal="true" aria-labelledby="url-title" aria-busy={loading} onMouseDown={(event) => event.stopPropagation()}><div className="url-dialog-icon"><Globe2 /></div><h2 id="url-title">{t('urlTitle')}</h2><p>{t('urlDescription')}</p><input autoFocus disabled={loading} type="url" value={value} onChange={(event) => onValue(event.target.value)} onKeyDown={(event) => !loading && event.key === 'Enter' && onOpen()} placeholder={t('urlPlaceholder')} /><div className="dialog-actions"><button className="quiet-button" disabled={loading} onClick={onClose}>{t('cancel')}</button><button className="primary-button" disabled={loading} onClick={onOpen}>{loading && <LoaderCircle className="loading-spinner" />}<span>{loading ? t('loadingRemote') : t('open')}</span></button></div></section></div>;
+function UrlDialog({ value, loading, t, onValue, onClose, onCancel, onOpen }: { value: string; loading: boolean; t: Translator; onValue: (value: string) => void; onClose: () => void; onCancel: () => void; onOpen: () => void }) {
+  return <div className="modal-backdrop" onMouseDown={loading ? undefined : onClose}><section className="url-dialog" role="dialog" aria-modal="true" aria-labelledby="url-title" aria-busy={loading} onMouseDown={(event) => event.stopPropagation()}><div className="url-dialog-icon"><Globe2 /></div><h2 id="url-title">{t('urlTitle')}</h2><p>{t('urlDescription')}</p><input autoFocus disabled={loading} type="url" value={value} onChange={(event) => onValue(event.target.value)} onKeyDown={(event) => !loading && event.key === 'Enter' && onOpen()} placeholder={t('urlPlaceholder')} /><div className="dialog-actions"><button className="quiet-button" onClick={loading ? onCancel : onClose}>{t('cancel')}</button><button className="primary-button" disabled={loading} onClick={onOpen}>{loading && <LoaderCircle className="loading-spinner" />}<span>{loading ? t('loadingRemote') : t('open')}</span></button></div></section></div>;
 }
 
 function SettingsDrawer({ settings, t, onChange, onReset, onClose }: { settings: ReaderSettings; t: Translator; onChange: (patch: Partial<ReaderSettings>) => void; onReset: () => void; onClose: () => void }) {

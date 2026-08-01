@@ -169,10 +169,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .outline-progress i { height: 4px; overflow: hidden; border-radius: 4px; background: var(--panel-strong); }
 .outline-progress b { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
 
-.error-banner { display: grid; grid-template-columns: 20px 1fr 28px; align-items: center; gap: 9px; width: min(100%, var(--reader-width)); margin: 0 auto 25px; padding: 10px 11px 10px 13px; border: 1px solid color-mix(in srgb, #d75e58 34%, var(--line)); border-radius: 8px; color: color-mix(in srgb, #d75e58 78%, var(--ink)); background: color-mix(in srgb, #d75e58 8%, var(--paper)); font-size: 11px; }
+.error-banner { display: grid; grid-template-columns: 20px 1fr auto; align-items: center; gap: 9px; width: min(100%, var(--reader-width)); margin: 0 auto 25px; padding: 10px 11px 10px 13px; border: 1px solid color-mix(in srgb, #d75e58 34%, var(--line)); border-radius: 8px; color: color-mix(in srgb, #d75e58 78%, var(--ink)); background: color-mix(in srgb, #d75e58 8%, var(--paper)); font-size: 11px; }
 .error-banner > svg { width: 16px; }
 .error-banner button { display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 6px; background: transparent; cursor: pointer; }
 .error-banner button svg { width: 14px; }
+.error-actions { display: flex; align-items: center; gap: 5px; }
+.error-banner .retry-button { width: auto; padding: 0 9px; border: 1px solid currentColor; font-weight: 750; }
 
 .command-backdrop, .modal-backdrop, .drawer-backdrop { position: fixed; z-index: 90; inset: 0; animation: fade-in 130ms ease both; }
 .command-backdrop, .modal-backdrop { background: rgba(3, 6, 11, .72); }
@@ -261,6 +263,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .toast { position: fixed; z-index: 120; right: 20px; bottom: 20px; max-width: 340px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); box-shadow: var(--shadow); font-size: 10px; animation: rise-in 150ms ease both; }
 .remote-loading { position: fixed; z-index: 120; top: 68px; right: 20px; display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px; border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line)); border-radius: 9px; color: var(--ink); background: var(--panel); box-shadow: var(--shadow); font-size: 10px; font-weight: 700; animation: rise-in 150ms ease both; }
 .remote-loading svg, .loading-spinner { width: 14px; animation: spin 760ms linear infinite; }
+.remote-loading button { padding: 4px 7px; border: 0; border-radius: 5px; color: var(--accent-ink); background: var(--accent-soft); cursor: pointer; font: inherit; }
 
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes rise-in { from { opacity: 0; transform: translateY(7px); } }

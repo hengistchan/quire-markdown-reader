@@ -199,7 +199,7 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     await reopened.getByRole('dialog', { name: 'Open Markdown from the web' }).getByRole('button', { name: 'Open' }).click();
     await expect(reopened.getByText('Fetched with an origin-scoped permission.')).toBeVisible();
     await reopened.getByRole('link', { name: 'Next remote document' }).click();
-    await expect(reopened.getByRole('status')).toHaveText('Loading Markdown…');
+    await expect(reopened.getByRole('status')).toContainText('Loading Markdown…');
     await expect(reopened.getByText('The linked network document finished loading.')).toBeVisible();
     await expect(reopened.getByRole('status')).toHaveCount(0);
 

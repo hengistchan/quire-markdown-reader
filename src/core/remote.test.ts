@@ -44,4 +44,43 @@ describe('fetchRemoteMarkdown', () => {
       headers: { 'content-length': String(5 * 1024 * 1024 + 1) },
     }))).rejects.toMatchObject({ name: 'RemoteMarkdownError', code: 'too-large' } satisfies Partial<RemoteMarkdownError>);
   });
+
+  it('stops an unknown-length response as soon as streamed bytes exceed the limit', async () => {
+    const cancelled = vi.fn();
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(new TextEncoder().encode('12345'));
+        controller.enqueue(new TextEncoder().encode('67890'));
+      },
+      cancel: cancelled,
+    });
+
+    await expect(fetchRemoteMarkdown(
+      'https://example.com/stream.md',
+      undefined,
+      async () => new Response(stream),
+      { maxBytes: 8 },
+    )).rejects.toMatchObject({ code: 'too-large' } satisfies Partial<RemoteMarkdownError>);
+    expect(cancelled).toHaveBeenCalled();
+  });
+
+  it('distinguishes timeouts, caller cancellation, and network failures', async () => {
+    const waitForAbort = vi.fn((_url: string | URL | Request, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true });
+    }));
+    await expect(fetchRemoteMarkdown(
+      'https://example.com/slow.md', undefined, waitForAbort, { timeoutMs: 5 },
+    )).rejects.toMatchObject({ code: 'timeout' } satisfies Partial<RemoteMarkdownError>);
+
+    const controller = new AbortController();
+    const cancelledRequest = fetchRemoteMarkdown(
+      'https://example.com/cancelled.md', undefined, waitForAbort, { signal: controller.signal },
+    );
+    controller.abort();
+    await expect(cancelledRequest).rejects.toMatchObject({ code: 'cancelled' } satisfies Partial<RemoteMarkdownError>);
+
+    await expect(fetchRemoteMarkdown(
+      'https://example.com/offline.md', undefined, async () => { throw new TypeError('Failed to fetch'); },
+    )).rejects.toMatchObject({ code: 'network-error' } satisfies Partial<RemoteMarkdownError>);
+  });
 });
