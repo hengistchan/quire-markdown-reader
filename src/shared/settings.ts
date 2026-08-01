@@ -7,6 +7,7 @@ export const defaultSettings: ReaderSettings = {
   fontSize: 18,
   lineHeight: 1.76,
   contentWidth: 760,
+  wideView: false,
   showReadingProgress: true,
   showOutline: true,
   autoRefresh: true,

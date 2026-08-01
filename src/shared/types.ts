@@ -8,6 +8,7 @@ export interface ReaderSettings {
   fontSize: number;
   lineHeight: number;
   contentWidth: number;
+  wideView: boolean;
   showReadingProgress: boolean;
   showOutline: boolean;
   autoRefresh: boolean;

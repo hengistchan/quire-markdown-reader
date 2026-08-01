@@ -80,7 +80,20 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     await expect(page.getByRole('heading', { level: 1, name: 'Welcome to Quire' })).toBeVisible();
     await expect(page.locator('.context-panel')).toHaveCount(0);
 
-    await page.getByRole('button', { name: 'Open', exact: true }).click();
+    const openControl = page.getByRole('button', { name: 'Open', exact: true });
+    const wideControl = page.getByRole('button', { name: 'Use wider reading width' });
+    const topbarSearch = page.locator('.topbar-actions').getByRole('button', { name: 'Command center' });
+    const [openBox, wideBox, searchBox, standardReaderBox] = await Promise.all([
+      openControl.boundingBox(), wideControl.boundingBox(), topbarSearch.boundingBox(), page.locator('.markdown-body').boundingBox(),
+    ]);
+    expect(wideBox!.x).toBeGreaterThan(openBox!.x + openBox!.width - 1);
+    expect(wideBox!.x + wideBox!.width).toBeLessThanOrEqual(searchBox!.x + 1);
+    await wideControl.click();
+    await expect(page.getByRole('button', { name: 'Use standard reading width' })).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(async () => (await page.locator('.markdown-body').boundingBox())!.width).toBeGreaterThan(standardReaderBox!.width);
+    await page.getByRole('button', { name: 'Use standard reading width' }).click();
+
+    await openControl.click();
     await page.getByRole('button', { name: 'Open folder' }).click();
     await expect(page.locator('.document-identity strong')).toHaveText('README');
     await expect(page.getByRole('button', { name: 'docs' })).toBeVisible();

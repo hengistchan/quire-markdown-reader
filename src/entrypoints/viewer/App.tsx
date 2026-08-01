@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle, Check, ChevronDown, ChevronRight, Command, File, FilePlus2, Folder,
   FolderOpen, Globe2, ListTree, Moon, MoreHorizontal, RotateCw, Search, Settings2,
-  ShieldCheck, Sun, X,
+  ShieldCheck, StretchHorizontal, Sun, X,
 } from 'lucide-react';
 import {
   collectWorkspace, getWorkspaceFileHandle, readWorkspaceFileSnapshot,
@@ -21,6 +21,7 @@ import type {
 } from '../../shared/types';
 
 type SourceKind = 'welcome' | 'file' | 'workspace' | 'remote' | 'imported';
+const WIDE_READER_WIDTH = 980;
 
 function getSystemTheme(): 'light' | 'dark' {
   return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -445,6 +446,7 @@ export function App() {
     : [];
   const readMinutes = Math.max(1, Math.ceil(source.replace(/[`#>*_\-[\]]/g, ' ').trim().split(/\s+/).length / 220));
   const contextOpen = workspaceOpen && Boolean(workspace || restorableHandle);
+  const readerWidth = settings.wideView ? WIDE_READER_WIDTH : settings.contentWidth;
 
   const openRecent = async (item: RecentItem) => {
     if (item.kind === 'remote' && item.url) await openRemote(item.url);
@@ -459,7 +461,7 @@ export function App() {
   };
 
   return (
-    <div className="app-shell" style={{ '--reader-width': `${settings.contentWidth}px`, '--reader-size': `${settings.fontSize}px`, '--reader-leading': settings.lineHeight } as React.CSSProperties}>
+    <div className="app-shell" style={{ '--reader-width': `${readerWidth}px`, '--reader-size': `${settings.fontSize}px`, '--reader-leading': settings.lineHeight } as React.CSSProperties}>
       {settings.showReadingProgress && <div className="reading-progress" style={{ transform: `scaleX(${progress / 100})` }} />}
       <aside className="navigation-rail" aria-label={t('documentNavigation')}>
         <img className="rail-brand" src="/icon/96.png" alt="Quire" />
@@ -484,6 +486,7 @@ export function App() {
             <button className="open-trigger" onClick={() => { setOpenMenuOpen((open) => !open); setMoreMenuOpen(false); }} aria-expanded={openMenuOpen}><span>{t('open')}</span><ChevronDown /></button>
             {openMenuOpen && <OpenMenu t={t} onFile={() => void handleOpenFile()} onFolder={() => void handleDirectory()} onUrl={() => { setOpenMenuOpen(false); setUrlOpen(true); }} />}
           </div>
+          <button className={`topbar-icon ${settings.wideView ? 'active' : ''}`} onClick={() => updateSettings({ wideView: !settings.wideView })} aria-label={settings.wideView ? t('disableWideView') : t('enableWideView')} aria-pressed={settings.wideView} title={settings.wideView ? t('disableWideView') : t('enableWideView')}><StretchHorizontal /></button>
           <button className="topbar-icon" onClick={() => setCommandOpen(true)} aria-label={t('commandCenter')}><Search /></button>
           <div className="menu-anchor">
             <button className="topbar-icon" onClick={() => { setMoreMenuOpen((open) => !open); setOpenMenuOpen(false); }} aria-label={t('moreActions')} aria-expanded={moreMenuOpen}><MoreHorizontal /></button>
@@ -521,7 +524,7 @@ export function App() {
 
       {commandOpen && <CommandPalette query={commandQuery} matches={commandMatches} recent={recent} t={t} onQuery={setCommandQuery} onClose={() => { setCommandOpen(false); setCommandQuery(''); }} onFile={() => void handleOpenFile()} onFolder={() => void handleDirectory()} onUrl={() => { setCommandOpen(false); setUrlOpen(true); }} onTypedUrl={(value) => void openRemote(value)} onWorkspace={() => setWorkspaceOpen((open) => !open)} onOutline={() => setOutlineOpen((open) => !open)} onQuietMode={() => { setWorkspaceOpen(false); setOutlineOpen(false); }} onLightTheme={() => updateSettings({ theme: 'light' })} onDarkTheme={() => updateSettings({ theme: 'dark' })} onSettings={() => { setCommandOpen(false); setSettingsOpen(true); }} onRecent={(item) => void openRecent(item)} />}
       {urlOpen && <UrlDialog value={urlValue} t={t} onValue={setUrlValue} onClose={() => setUrlOpen(false)} onOpen={() => void openRemote(urlValue)} />}
-      {settingsOpen && <SettingsDrawer settings={settings} t={t} onChange={(patch) => { updateSettings(patch); if (patch.showOutline !== undefined) setOutlineOpen(patch.showOutline); }} onReset={() => updateSettings(defaultSettings)} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <SettingsDrawer settings={settings} t={t} onChange={(patch) => { updateSettings(patch.contentWidth === undefined ? patch : { ...patch, wideView: false }); if (patch.showOutline !== undefined) setOutlineOpen(patch.showOutline); }} onReset={() => updateSettings(defaultSettings)} onClose={() => setSettingsOpen(false)} />}
       {notice && <div className="toast" role="status">{notice}</div>}
     </div>
   );

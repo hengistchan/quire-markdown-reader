@@ -58,6 +58,31 @@ describe('Quire viewer experience', () => {
     await waitFor(() => expect(document.querySelector('[role="alert"]')?.textContent).toContain('Access was not granted'));
   });
 
+  it('toggles a persistent wider reading width beside the Open control', async () => {
+    const { local } = installBrowser();
+    const user = userEvent.setup();
+    render(<App />);
+
+    const wideButton = await screen.findByRole('button', { name: 'Use wider reading width' });
+    const openButton = screen.getByRole('button', { name: 'Open' });
+    const searchButton = within(document.querySelector<HTMLElement>('.topbar-actions')!).getByRole('button', { name: 'Command center' });
+    expect(openButton.compareDocumentPosition(wideButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(wideButton.compareDocumentPosition(searchButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(wideButton.getAttribute('aria-pressed')).toBe('false');
+    expect(document.querySelector<HTMLElement>('.app-shell')?.style.getPropertyValue('--reader-width')).toBe('760px');
+
+    await user.click(wideButton);
+
+    expect(screen.getByRole('button', { name: 'Use standard reading width' }).getAttribute('aria-pressed')).toBe('true');
+    expect(document.querySelector<HTMLElement>('.app-shell')?.style.getPropertyValue('--reader-width')).toBe('980px');
+    await waitFor(() => expect(local.set).toHaveBeenCalledWith(expect.objectContaining({
+      'reader-settings': expect.objectContaining({ wideView: true }),
+    })));
+
+    await user.click(screen.getByRole('button', { name: 'Use standard reading width' }));
+    expect(document.querySelector<HTMLElement>('.app-shell')?.style.getPropertyValue('--reader-width')).toBe('760px');
+  });
+
   it('switches the complete reader UI to Simplified Chinese and persists it', async () => {
     const { local } = installBrowser();
     const user = userEvent.setup();
