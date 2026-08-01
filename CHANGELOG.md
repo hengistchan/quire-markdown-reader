@@ -10,6 +10,7 @@ All notable changes to Quire are documented here. This project follows [Semantic
 - Added platform-correct shortcut labels and implemented the displayed open-file, open-folder, and open-URL keyboard actions
 - Bounded remote Markdown downloads with streamed byte limits, a 20-second timeout, active cancellation, retry actions, offline pausing, and exponential refresh backoff
 - Added cancellable workspace scans with dependency/build-directory ignores, depth and item limits, plus an explicit workspace refresh action
+- Unified source-specific document state behind a discriminated `DocumentSession`, shared source adapters, and one mutually exclusive overlay state
 
 ### Fixed
 

@@ -222,6 +222,27 @@ describe('Quire viewer experience', () => {
     expect(document.activeElement).toBe(within(palette).getByRole('button', { name: /Use dark theme/ }));
   });
 
+  it('keeps menus, command center, URL dialog, and settings mutually exclusive', async () => {
+    installBrowser();
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: 'Open' }));
+    expect(document.querySelector('.open-menu')).toBeTruthy();
+
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+    expect(document.querySelector('.open-menu')).toBeNull();
+    const command = screen.getByRole('dialog', { name: 'Command center' });
+    await user.click(within(command).getByRole('button', { name: /Open URL/ }));
+    expect(screen.queryByRole('dialog', { name: 'Command center' })).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Open Markdown from the web' })).toBeTruthy();
+
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+    const nextCommand = screen.getByRole('dialog', { name: 'Command center' });
+    await user.click(within(nextCommand).getByRole('button', { name: /Reader settings/ }));
+    expect(screen.queryByRole('dialog', { name: 'Command center' })).toBeNull();
+    expect(document.querySelector('.settings-drawer[aria-label="Reader settings"]')).toBeTruthy();
+  });
+
   it('preserves native find and implements the displayed open shortcuts', async () => {
     installBrowser();
     const openFilePicker = vi.fn(async () => []);

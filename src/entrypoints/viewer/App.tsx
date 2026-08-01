@@ -1,29 +1,34 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   AlertCircle, Check, ChevronDown, ChevronRight, Command, File, FilePlus2, Folder,
   FolderOpen, Globe2, ListTree, LoaderCircle, Moon, MoreHorizontal, RotateCw, Search, Settings2,
   ShieldCheck, StretchHorizontal, Sun, X,
 } from 'lucide-react';
 import {
-  collectWorkspace, getWorkspaceFileHandle, readWorkspaceFileSnapshot, WorkspaceScanError,
+  collectWorkspace, getWorkspaceFileHandle, WorkspaceScanError,
 } from '../../core/files';
 import { isLocalMarkdownUrl } from '../../core/localMarkdown';
 import { renderMarkdown } from '../../core/markdown';
-import { fetchRemoteMarkdown, RemoteMarkdownError } from '../../core/remote';
+import { RemoteMarkdownError } from '../../core/remote';
 import { hostPermissionPattern, isMarkdownLink, isRelativeUrl, isRemoteUrl, linkFragment, resolveWorkspacePath } from '../../core/paths';
 import { searchMarkdown } from '../../core/search';
 import { createShortcutLabels, type ShortcutLabels } from '../../core/shortcuts';
+import { createFileDocumentSource, createRemoteDocumentSource } from '../../application/documentSources';
+import {
+  createFileSession, createImportedSession, createRemoteSession, createWelcomeSession,
+  createWorkspaceSession, documentSessionReducer, documentSourceUrl,
+} from '../../domain/documentSession';
 import { loadWorkspaceHandle, saveWorkspaceHandle } from '../../core/workspacePersistence';
 import { takeDocumentHandoff } from '../../infrastructure/handoffStore';
 import { createTranslator, resolveLocale } from '../../shared/i18n';
 import { loadRecentItems, rememberRecentItem, type RecentItem } from '../../shared/recent';
 import { defaultSettings, loadSettings, saveSettings } from '../../shared/settings';
 import type {
-  DocumentSearchResult, HeadingItem, ImportedDocument, ReaderSettings, RemoteDocumentState, WorkspaceFile,
+  DocumentSearchResult, HeadingItem, ImportedDocument, ReaderSettings, WorkspaceFile,
   WorkspaceSnapshot, WorkspaceTreeNode,
 } from '../../shared/types';
 
-type SourceKind = 'welcome' | 'file' | 'workspace' | 'remote' | 'imported';
+type ActiveOverlay = 'open-menu' | 'more-menu' | 'command' | 'settings' | 'url-dialog' | null;
 const WIDE_READER_WIDTH = 980;
 
 function getSystemTheme(): 'light' | 'dark' {
@@ -101,22 +106,15 @@ function useReadingProgress(): number {
 export function App() {
   const [settings, setSettings] = useState<ReaderSettings>(defaultSettings);
   const initialTranslator = useMemo(() => createTranslator(resolveLocale(defaultSettings.locale)), []);
-  const [title, setTitle] = useState(() => initialTranslator('welcomeDocumentTitle'));
-  const [source, setSource] = useState(() => initialTranslator('welcomeDocument'));
-  const [sourceKind, setSourceKind] = useState<SourceKind>('welcome');
-  const [sourceUrl, setSourceUrl] = useState<string>();
-  const [remoteState, setRemoteState] = useState<RemoteDocumentState>();
-  const [workspace, setWorkspace] = useState<WorkspaceSnapshot>();
-  const [activeFile, setActiveFile] = useState<WorkspaceFile>();
-  const [activeModified, setActiveModified] = useState<number>();
+  const [session, dispatchSession] = useReducer(
+    documentSessionReducer,
+    undefined,
+    () => createWelcomeSession(initialTranslator('welcomeDocumentTitle'), initialTranslator('welcomeDocument')),
+  );
   const [restorableHandle, setRestorableHandle] = useState<FileSystemDirectoryHandle>();
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [outlineOpen, setOutlineOpen] = useState(true);
-  const [openMenuOpen, setOpenMenuOpen] = useState(false);
-  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
-  const [commandOpen, setCommandOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [urlOpen, setUrlOpen] = useState(false);
+  const [activeOverlay, setActiveOverlay] = useState<ActiveOverlay>(null);
   const [urlValue, setUrlValue] = useState('');
   const [commandQuery, setCommandQuery] = useState('');
   const [fileFilter, setFileFilter] = useState('');
@@ -138,6 +136,19 @@ export function App() {
   const initialized = useRef(false);
   const progress = useReadingProgress();
 
+  const openMenuOpen = activeOverlay === 'open-menu';
+  const moreMenuOpen = activeOverlay === 'more-menu';
+  const commandOpen = activeOverlay === 'command';
+  const settingsOpen = activeOverlay === 'settings';
+  const urlOpen = activeOverlay === 'url-dialog';
+  const title = session.title;
+  const source = session.markdown;
+  const sourceUrl = documentSourceUrl(session);
+  const remoteState = session.kind === 'remote' ? session.state : undefined;
+  const workspace = session.kind === 'workspace' ? session.workspace : undefined;
+  const activeFile = session.kind === 'workspace' || session.kind === 'file' ? session.file : undefined;
+  const activeModified = session.kind === 'workspace' || session.kind === 'file' ? session.lastModified : undefined;
+
   const locale = resolveLocale(settings.locale);
   const t = useMemo(() => createTranslator(locale), [locale]);
   const html = useMemo(() => renderMarkdown(source, settings), [source, settings]);
@@ -148,7 +159,7 @@ export function App() {
   const workspaceName = workspace?.name
     ?? (sourceUrl
       ? (isLocalMarkdownUrl(sourceUrl) ? t('localFile') : t('fromWeb'))
-      : sourceKind === 'welcome' ? t('gettingStarted') : t('imported'));
+      : session.kind === 'welcome' ? t('gettingStarted') : t('imported'));
 
   const updateSettings = useCallback((patch: Partial<ReaderSettings>) => {
     setSettings((current) => {
@@ -167,14 +178,8 @@ export function App() {
     setDocumentNavigationVersion((version) => version + 1);
   }, []);
 
-  const openImportedDocument = useCallback((imported: ImportedDocument, kind: SourceKind = 'imported', fragment?: string) => {
-    setTitle(imported.title.replace(/\.(md|markdown|mdx)$/i, ''));
-    setSource(imported.markdown);
-    setSourceUrl(imported.sourceUrl);
-    setSourceKind(kind);
-    setWorkspace(undefined);
-    setActiveFile(undefined);
-    setActiveModified(undefined);
+  const openImportedDocument = useCallback((imported: ImportedDocument, fragment?: string) => {
+    dispatchSession({ type: 'replace', session: createImportedSession(imported) });
     setWorkspaceOpen(false);
     setError(undefined);
     queueDocumentNavigation(fragment);
@@ -182,19 +187,18 @@ export function App() {
   }, [queueDocumentNavigation]);
 
   const openWorkspaceFile = useCallback(async (file: WorkspaceFile, currentWorkspace?: WorkspaceSnapshot, fragment?: string) => {
-    const snapshot = await readWorkspaceFileSnapshot(file);
-    if (currentWorkspace) setWorkspace(currentWorkspace);
-    setActiveFile(file);
-    setActiveModified(snapshot.lastModified);
-    setTitle(file.name.replace(/\.(md|markdown|mdx)$/i, ''));
-    setSource(snapshot.markdown);
-    setSourceKind('workspace');
-    setSourceUrl(undefined);
-    setRemoteState(undefined);
+    const snapshot = await createFileDocumentSource(file, 'workspace').load();
+    const targetWorkspace = currentWorkspace ?? (session.kind === 'workspace' ? session.workspace : undefined);
+    if (!targetWorkspace) throw new Error('A workspace is required to open a workspace file.');
+    if (snapshot.lastModified === undefined) throw new Error('A local file snapshot requires modification metadata.');
+    dispatchSession({
+      type: 'replace',
+      session: createWorkspaceSession(targetWorkspace, file, snapshot.markdown, snapshot.lastModified),
+    });
     setError(undefined);
     queueDocumentNavigation(fragment);
     scrollTo({ top: 0, behavior: 'smooth' });
-  }, [queueDocumentNavigation]);
+  }, [queueDocumentNavigation, session]);
 
   const activateWorkspace = useCallback(async (handle: FileSystemDirectoryHandle, preferredPath?: string): Promise<boolean> => {
     workspaceScanController.current?.abort();
@@ -203,7 +207,6 @@ export function App() {
     setWorkspaceScanning(true);
     try {
       const snapshot = await collectWorkspace(handle, { signal: controller.signal });
-      setWorkspace(snapshot);
       setWorkspaceOpen(true);
       const selected = snapshot.files.find((file) => file.path === preferredPath)
         ?? snapshot.files.find((file) => /^readme\.(md|markdown|mdx)$/i.test(file.path))
@@ -268,10 +271,9 @@ export function App() {
   }, [locale, resolvedTheme]);
 
   useEffect(() => {
-    if (sourceKind !== 'welcome') return;
-    setTitle(t('welcomeDocumentTitle'));
-    setSource(t('welcomeDocument'));
-  }, [sourceKind, t]);
+    if (session.kind !== 'welcome') return;
+    dispatchSession({ type: 'localize-welcome', title: t('welcomeDocumentTitle'), markdown: t('welcomeDocument') });
+  }, [session.kind, t]);
 
   useEffect(() => {
     if (!settings.enableMermaid || !articleRef.current) return;
@@ -343,26 +345,26 @@ export function App() {
   }, [documentNavigationVersion]);
 
   useEffect(() => {
-    if (!settings.autoRefresh || !activeFile || (sourceKind !== 'workspace' && sourceKind !== 'file')) return;
+    if (!settings.autoRefresh || !activeFile || (session.kind !== 'workspace' && session.kind !== 'file')) return;
     let checking = false;
     const check = async () => {
       if (checking || document.hidden) return;
       checking = true;
       try {
-        const snapshot = await readWorkspaceFileSnapshot(activeFile);
-        if (activeModified !== undefined && snapshot.lastModified !== activeModified) {
-          setSource(snapshot.markdown);
-          setActiveModified(snapshot.lastModified);
+        const sourceAdapter = createFileDocumentSource(activeFile, session.kind);
+        const result = await sourceAdapter.refresh?.({ title, markdown: source, lastModified: activeModified });
+        if (result?.changed && result.snapshot.lastModified !== undefined) {
+          dispatchSession({ type: 'refresh-local', markdown: result.snapshot.markdown, lastModified: result.snapshot.lastModified });
           setNotice(t('updated'));
         }
       } finally { checking = false; }
     };
     const timer = setInterval(() => void check(), 1500);
     return () => clearInterval(timer);
-  }, [activeFile, activeModified, settings.autoRefresh, sourceKind, t]);
+  }, [activeFile, activeModified, session.kind, settings.autoRefresh, source, t, title]);
 
   useEffect(() => {
-    if (!settings.autoRefresh || !remoteState || sourceKind !== 'remote') return;
+    if (!settings.autoRefresh || !remoteState || session.kind !== 'remote') return;
     let cancelled = false;
     let delay = 30_000;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -374,14 +376,18 @@ export function App() {
       if (document.hidden || !navigator.onLine) { schedule(30_000); return; }
       controller = new AbortController();
       try {
-        const result = await fetchRemoteMarkdown(remoteState.url, remoteState, fetch, { signal: controller.signal });
+        const sourceAdapter = createRemoteDocumentSource(remoteState.url);
+        const result = await sourceAdapter.refresh?.({ title, markdown: source, sourceUrl, remoteState }, controller.signal);
         if (cancelled) return;
         delay = 30_000;
-        setRemoteState(result.state);
-        if (result.document) {
-          setSource(result.document.markdown);
-          setNotice(t('updated'));
+        if (result?.snapshot.remoteState) {
+          dispatchSession({
+            type: 'refresh-remote',
+            document: result.changed ? { title: result.snapshot.title, markdown: result.snapshot.markdown, sourceUrl: result.snapshot.sourceUrl } : undefined,
+            state: result.snapshot.remoteState,
+          });
         }
+        if (result?.changed) setNotice(t('updated'));
       } catch (caught) {
         if (cancelled || (caught instanceof RemoteMarkdownError && caught.code === 'cancelled')) return;
         delay = Math.min(delay * 2, 5 * 60_000);
@@ -400,7 +406,7 @@ export function App() {
       controller?.abort();
       removeEventListener('online', resumeOnline);
     };
-  }, [remoteState, settings.autoRefresh, sourceKind, t]);
+  }, [remoteState, session.kind, settings.autoRefresh, source, sourceUrl, t, title]);
 
   useEffect(() => {
     if (!notice) return;
@@ -426,8 +432,7 @@ export function App() {
     if (!openMenuOpen && !moreMenuOpen) return;
     const closeMenus = (event: PointerEvent) => {
       if ((event.target as Element).closest('.menu-anchor')) return;
-      setOpenMenuOpen(false);
-      setMoreMenuOpen(false);
+      setActiveOverlay(null);
     };
     addEventListener('pointerdown', closeMenus);
     return () => removeEventListener('pointerdown', closeMenus);
@@ -435,28 +440,20 @@ export function App() {
 
   const handleFile = async (file: File) => {
     if (!file.name.match(/\.(md|markdown|mdx)$/i)) { setError(t('fileTypeError')); return; }
-    openImportedDocument({ title: file.name, markdown: await file.text() }, 'file');
-    setOpenMenuOpen(false);
-    setCommandOpen(false);
+    openImportedDocument({ title: file.name, markdown: await file.text() });
+    setActiveOverlay(null);
   };
 
   const handleFileHandle = async (handle: FileSystemFileHandle) => {
     if (!handle.name.match(/\.(md|markdown|mdx)$/i)) { setError(t('fileTypeError')); return; }
     const file: WorkspaceFile = { id: handle.name, name: handle.name, path: handle.name, depth: 0, handle };
-    const snapshot = await readWorkspaceFileSnapshot(file);
-    setTitle(handle.name.replace(/\.(md|markdown|mdx)$/i, ''));
-    setSource(snapshot.markdown);
-    setSourceKind('file');
-    setSourceUrl(undefined);
-    setRemoteState(undefined);
-    setWorkspace(undefined);
-    setActiveFile(file);
-    setActiveModified(snapshot.lastModified);
+    const snapshot = await createFileDocumentSource(file, 'file').load();
+    if (snapshot.lastModified === undefined) throw new Error('A local file snapshot requires modification metadata.');
+    dispatchSession({ type: 'replace', session: createFileSession(file, snapshot.markdown, snapshot.lastModified) });
     setWorkspaceOpen(false);
     setError(undefined);
     scrollTo({ top: 0 });
-    setOpenMenuOpen(false);
-    setCommandOpen(false);
+    setActiveOverlay(null);
   };
 
   const handleOpenFile = async () => {
@@ -473,8 +470,7 @@ export function App() {
   };
 
   const handleDirectory = async () => {
-    setOpenMenuOpen(false);
-    setCommandOpen(false);
+    setActiveOverlay(null);
     if (!('showDirectoryPicker' in window)) { setError(t('folderUnsupported')); return; }
     try {
       const handle = await window.showDirectoryPicker({ mode: 'read' });
@@ -515,14 +511,15 @@ export function App() {
         const granted = await browser.permissions.request({ origins: [permission] });
         if (!granted) { setError(t('permissionDenied')); return; }
       }
-      const result = await fetchRemoteMarkdown(value, undefined, fetch, { signal: requestController.signal });
-      if (!result.document) return;
-      openImportedDocument(result.document, 'remote', linkFragment(value));
-      setRemoteState(result.state);
-      setUrlOpen(false);
-      setOpenMenuOpen(false);
-      setCommandOpen(false);
-      await recordRecent({ id: `remote:${result.state.url}`, title: result.document.title, kind: 'remote', url: result.state.url });
+      const snapshot = await createRemoteDocumentSource(value).load(requestController.signal);
+      if (!snapshot.remoteState) throw new Error('A remote document snapshot requires refresh state.');
+      const document = { title: snapshot.title, markdown: snapshot.markdown, sourceUrl: snapshot.sourceUrl };
+      dispatchSession({ type: 'replace', session: createRemoteSession(document, snapshot.remoteState) });
+      queueDocumentNavigation(linkFragment(value));
+      setWorkspaceOpen(false);
+      scrollTo({ top: 0 });
+      setActiveOverlay(null);
+      await recordRecent({ id: `remote:${snapshot.remoteState.url}`, title: snapshot.title, kind: 'remote', url: snapshot.remoteState.url });
     } catch (caught) {
       if (caught instanceof RemoteMarkdownError) {
         if (caught.code === 'invalid-url') setError(t('invalidUrl'));
@@ -536,11 +533,11 @@ export function App() {
       remoteLoadingRef.current = false;
       setRemoteLoading(false);
     }
-  }, [openImportedDocument, recordRecent, t]);
+  }, [queueDocumentNavigation, recordRecent, t]);
 
   const cancelRemoteLoad = useCallback(() => {
     remoteRequestController.current?.abort();
-    setUrlOpen(false);
+    setActiveOverlay(null);
   }, []);
 
   useEffect(() => {
@@ -549,21 +546,17 @@ export function App() {
       const key = event.key.toLowerCase();
       if (modifier && key === 'k') {
         event.preventDefault();
-        setCommandOpen(true);
+        setActiveOverlay('command');
       } else if (modifier && key === 'o') {
         event.preventDefault();
         if (event.shiftKey) void handleDirectory();
         else void handleOpenFile();
       } else if (modifier && key === 'l') {
         event.preventDefault();
-        setUrlOpen(true);
+        setActiveOverlay('url-dialog');
       }
       if (event.key === 'Escape') {
-        setCommandOpen(false);
-        setSettingsOpen(false);
-        setUrlOpen(false);
-        setOpenMenuOpen(false);
-        setMoreMenuOpen(false);
+        setActiveOverlay(null);
       }
     };
     addEventListener('keydown', onKeyDown);
@@ -612,7 +605,7 @@ export function App() {
     if (item.kind === 'remote' && item.url) await openRemote(item.url);
     else if (workspace && item.title === workspace.name) setWorkspaceOpen(true);
     else if (restorableHandle) await restoreWorkspace();
-    setCommandOpen(false);
+    setActiveOverlay(null);
   };
 
   const jumpToHeading = (id: string) => {
@@ -622,7 +615,7 @@ export function App() {
 
   const jumpToSearchResult = (result: DocumentSearchResult) => {
     const query = commandQuery;
-    setCommandOpen(false);
+    setActiveOverlay(null);
     setCommandQuery('');
     requestAnimationFrame(() => {
       if (articleRef.current) revealSearchResult(articleRef.current, result, query);
@@ -630,7 +623,7 @@ export function App() {
   };
 
   const openWorkspaceSearchResult = (file: WorkspaceFile) => {
-    setCommandOpen(false);
+    setActiveOverlay(null);
     setCommandQuery('');
     void openWorkspaceFile(file);
   };
@@ -643,10 +636,10 @@ export function App() {
         <div className="rail-actions">
           <button className={contextOpen ? 'active' : ''} onClick={() => workspace ? setWorkspaceOpen((open) => !open) : void handleDirectory()} aria-label={t('toggleWorkspace')} title={t('toggleWorkspace')}><FolderOpen /></button>
           <button className={outlineOpen ? 'active' : ''} onClick={() => setOutlineOpen((open) => !open)} aria-label={t('toggleOutline')} title={t('toggleOutline')}><ListTree /></button>
-          <button className={commandOpen ? 'active' : ''} onClick={() => setCommandOpen(true)} aria-label={t('commandCenter')} title={`${t('commandCenter')} · ${shortcutLabels.command}`}><Search /></button>
+          <button className={commandOpen ? 'active' : ''} onClick={() => setActiveOverlay('command')} aria-label={t('commandCenter')} title={`${t('commandCenter')} · ${shortcutLabels.command}`}><Search /></button>
         </div>
         <div className="rail-bottom">
-          <button className={settingsOpen ? 'active' : ''} onClick={() => setSettingsOpen(true)} aria-label={t('settings')} title={t('settings')}><Settings2 /></button>
+          <button className={settingsOpen ? 'active' : ''} onClick={() => setActiveOverlay('settings')} aria-label={t('settings')} title={t('settings')}><Settings2 /></button>
           <kbd>{shortcutLabels.command}</kbd>
         </div>
       </aside>
@@ -658,14 +651,14 @@ export function App() {
         </div>
         <div className="topbar-actions">
           <div className="menu-anchor">
-            <button className="open-trigger" onClick={() => { setOpenMenuOpen((open) => !open); setMoreMenuOpen(false); }} aria-expanded={openMenuOpen}><span>{t('open')}</span><ChevronDown /></button>
-            {openMenuOpen && <OpenMenu t={t} shortcuts={shortcutLabels} onFile={() => void handleOpenFile()} onFolder={() => void handleDirectory()} onUrl={() => { setOpenMenuOpen(false); setUrlOpen(true); }} />}
+            <button className="open-trigger" onClick={() => setActiveOverlay((current) => current === 'open-menu' ? null : 'open-menu')} aria-expanded={openMenuOpen}><span>{t('open')}</span><ChevronDown /></button>
+            {openMenuOpen && <OpenMenu t={t} shortcuts={shortcutLabels} onFile={() => void handleOpenFile()} onFolder={() => void handleDirectory()} onUrl={() => setActiveOverlay('url-dialog')} />}
           </div>
           <button className={`topbar-icon ${settings.wideView ? 'active' : ''}`} onClick={() => updateSettings({ wideView: !settings.wideView })} aria-label={settings.wideView ? t('disableWideView') : t('enableWideView')} aria-pressed={settings.wideView} title={settings.wideView ? t('disableWideView') : t('enableWideView')}><StretchHorizontal /></button>
-          <button className="topbar-icon" onClick={() => setCommandOpen(true)} aria-label={t('commandCenter')}><Search /></button>
+          <button className="topbar-icon" onClick={() => setActiveOverlay('command')} aria-label={t('commandCenter')}><Search /></button>
           <div className="menu-anchor">
-            <button className="topbar-icon" onClick={() => { setMoreMenuOpen((open) => !open); setOpenMenuOpen(false); }} aria-label={t('moreActions')} aria-expanded={moreMenuOpen}><MoreHorizontal /></button>
-            {moreMenuOpen && <MoreMenu t={t} commandShortcut={shortcutLabels.command} onCommand={() => { setMoreMenuOpen(false); setCommandOpen(true); }} onOutline={() => { setMoreMenuOpen(false); setOutlineOpen((open) => !open); }} onSettings={() => { setMoreMenuOpen(false); setSettingsOpen(true); }} />}
+            <button className="topbar-icon" onClick={() => setActiveOverlay((current) => current === 'more-menu' ? null : 'more-menu')} aria-label={t('moreActions')} aria-expanded={moreMenuOpen}><MoreHorizontal /></button>
+            {moreMenuOpen && <MoreMenu t={t} commandShortcut={shortcutLabels.command} onCommand={() => setActiveOverlay('command')} onOutline={() => { setActiveOverlay(null); setOutlineOpen((open) => !open); }} onSettings={() => setActiveOverlay('settings')} />}
           </div>
           <input ref={fileInput} hidden type="file" accept=".md,.markdown,.mdx,text/markdown" onChange={(event) => event.target.files?.[0] && void handleFile(event.target.files[0])} />
         </div>
@@ -689,7 +682,7 @@ export function App() {
         <main className="reader-stage">
           <div className="paper-grain" aria-hidden="true" />
           {error && <div className="error-banner" role="alert"><AlertCircle /><span>{error}</span><div className="error-actions">{remoteRetryUrl && <button className="retry-button" onClick={() => void openRemote(remoteRetryUrl, false)}>{t('retry')}</button>}<button onClick={() => { setError(undefined); setRemoteRetryUrl(undefined); }} aria-label={t('dismissNotice')}><X /></button></div></div>}
-          {sourceKind !== 'welcome' && <div className="document-meta">{readMinutes} {t('minuteRead')}</div>}
+          {session.kind !== 'welcome' && <div className="document-meta">{readMinutes} {t('minuteRead')}</div>}
           <article ref={articleRef} className={`markdown-body font-${settings.fontFamily}`} onClick={handleArticleClick} dangerouslySetInnerHTML={htmlMarkup} />
           {settings.customCss && <style>{`@scope (.markdown-body) { ${settings.customCss} }`}</style>}
           <footer className="document-footer"><span>{t('endDocument')}</span><i /></footer>
@@ -697,9 +690,9 @@ export function App() {
         </main>
       </div>
 
-      {commandOpen && <CommandPalette query={commandQuery} matches={commandMatches} workspaceMatches={workspaceMatches} recent={recent} shortcuts={shortcutLabels} t={t} onQuery={setCommandQuery} onClose={() => { setCommandOpen(false); setCommandQuery(''); }} onFile={() => void handleOpenFile()} onFolder={() => void handleDirectory()} onUrl={() => { setCommandOpen(false); setUrlOpen(true); }} onTypedUrl={(value) => void openRemote(value)} onWorkspace={() => setWorkspaceOpen((open) => !open)} onOutline={() => setOutlineOpen((open) => !open)} onQuietMode={() => { setWorkspaceOpen(false); setOutlineOpen(false); }} onLightTheme={() => updateSettings({ theme: 'light' })} onDarkTheme={() => updateSettings({ theme: 'dark' })} onSettings={() => { setCommandOpen(false); setSettingsOpen(true); }} onRecent={(item) => void openRecent(item)} onMatch={jumpToSearchResult} onWorkspaceFile={openWorkspaceSearchResult} />}
-      {urlOpen && <UrlDialog value={urlValue} loading={remoteLoading} t={t} onValue={setUrlValue} onClose={() => setUrlOpen(false)} onCancel={cancelRemoteLoad} onOpen={() => void openRemote(urlValue)} />}
-      {settingsOpen && <SettingsDrawer settings={settings} t={t} onChange={(patch) => { updateSettings(patch.contentWidth === undefined ? patch : { ...patch, wideView: false }); if (patch.showOutline !== undefined) setOutlineOpen(patch.showOutline); }} onReset={() => updateSettings(defaultSettings)} onClose={() => setSettingsOpen(false)} />}
+      {commandOpen && <CommandPalette query={commandQuery} matches={commandMatches} workspaceMatches={workspaceMatches} recent={recent} shortcuts={shortcutLabels} t={t} onQuery={setCommandQuery} onClose={() => { setActiveOverlay(null); setCommandQuery(''); }} onFile={() => void handleOpenFile()} onFolder={() => void handleDirectory()} onUrl={() => setActiveOverlay('url-dialog')} onTypedUrl={(value) => void openRemote(value)} onWorkspace={() => setWorkspaceOpen((open) => !open)} onOutline={() => setOutlineOpen((open) => !open)} onQuietMode={() => { setWorkspaceOpen(false); setOutlineOpen(false); }} onLightTheme={() => updateSettings({ theme: 'light' })} onDarkTheme={() => updateSettings({ theme: 'dark' })} onSettings={() => setActiveOverlay('settings')} onRecent={(item) => void openRecent(item)} onMatch={jumpToSearchResult} onWorkspaceFile={openWorkspaceSearchResult} />}
+      {urlOpen && <UrlDialog value={urlValue} loading={remoteLoading} t={t} onValue={setUrlValue} onClose={() => setActiveOverlay(null)} onCancel={cancelRemoteLoad} onOpen={() => void openRemote(urlValue)} />}
+      {settingsOpen && <SettingsDrawer settings={settings} t={t} onChange={(patch) => { updateSettings(patch.contentWidth === undefined ? patch : { ...patch, wideView: false }); if (patch.showOutline !== undefined) setOutlineOpen(patch.showOutline); }} onReset={() => updateSettings(defaultSettings)} onClose={() => setActiveOverlay(null)} />}
       {workspaceScanning && <div className="remote-loading workspace-loading" role="status" aria-live="polite"><LoaderCircle /><span>{t('scanningWorkspace')}</span><button onClick={cancelWorkspaceScan}>{t('cancel')}</button></div>}
       {remoteLoading && <div className="remote-loading" role="status" aria-live="polite"><LoaderCircle /><span>{t('loadingRemote')}</span><button onClick={cancelRemoteLoad}>{t('cancel')}</button></div>}
       {notice && <div className="toast" role="status">{notice}</div>}
@@ -754,7 +747,7 @@ function CommandPalette({ query, matches, workspaceMatches, recent, shortcuts, t
     const next = event.key === 'ArrowDown' ? (active + 1) % rows.length : (active <= 0 ? rows.length - 1 : active - 1);
     rows[next]?.focus();
   };
-  return <div className="command-backdrop" onMouseDown={onClose}><section className="command-palette" role="dialog" aria-modal="true" aria-label={t('commandCenter')} onKeyDown={navigateRows} onMouseDown={(event) => event.stopPropagation()}><div className="command-input"><Search /><input autoFocus value={query} onChange={(event) => onQuery(event.target.value)} placeholder={t('commandPlaceholder')} /><kbd>esc</kbd></div><div className="command-results">{isRemoteUrl(query.trim()) && <div className="command-group"><label>URL</label><button className="command-row active" onClick={() => onTypedUrl(query.trim())}><Globe2 /><span><strong>{t('openUrl')}</strong><small>{query.trim()}</small></span><kbd>↵</kbd></button></div>}{visibleRecent.length > 0 && <div className="command-group"><label>{t('recentlyOpened')}</label>{visibleRecent.map((item, index) => <button key={item.id} className={`command-row ${!needle && index === 0 ? 'active' : ''}`} onClick={() => onRecent(item)}><File /><span><strong>{item.title}</strong><small>{item.kind === 'remote' ? t('fromWeb') : t('workspace')}</small></span></button>)}</div>}{workspaceMatches.length > 0 && <div className="command-group"><label>{t('workspaceFiles')}</label>{workspaceMatches.map((file) => <button key={file.id} className="command-row workspace-match" onClick={() => onWorkspaceFile(file)}><File /><span><strong>{file.name}</strong><small>{file.path}</small></span></button>)}</div>}{actions.length > 0 && <div className="command-group"><label>{t('commands')}</label>{actions.map((action) => <button key={action.key} className="command-row" onClick={() => { action.run(); onClose(); }}>{action.icon}<span><strong>{action.label}</strong><small>{action.detail}</small></span>{action.shortcut && <kbd>{action.shortcut}</kbd>}</button>)}</div>}{matches.length > 0 && <div className="command-group"><label>{t('currentDocument')}</label>{matches.map((match) => <button key={match.id} className="command-row document-match" onClick={() => onMatch(match)}><Search /><span><strong>{match.text}</strong><small>{t('line')} {match.lineNumber}</small></span></button>)}</div>}{!hasResults && <p className="command-empty">{t('noCommandResults')}</p>}</div><footer><span>↑↓ {t('search')}</span><span>↵ {t('open')}</span><span>Esc {t('close')}</span></footer></section></div>;
+  return <div className="command-backdrop" onMouseDown={onClose}><section className="command-palette" role="dialog" aria-modal="true" aria-label={t('commandCenter')} onKeyDown={navigateRows} onMouseDown={(event) => event.stopPropagation()}><div className="command-input"><Search /><input autoFocus value={query} onChange={(event) => onQuery(event.target.value)} placeholder={t('commandPlaceholder')} /><kbd>esc</kbd></div><div className="command-results">{isRemoteUrl(query.trim()) && <div className="command-group"><label>URL</label><button className="command-row active" onClick={() => onTypedUrl(query.trim())}><Globe2 /><span><strong>{t('openUrl')}</strong><small>{query.trim()}</small></span><kbd>↵</kbd></button></div>}{visibleRecent.length > 0 && <div className="command-group"><label>{t('recentlyOpened')}</label>{visibleRecent.map((item, index) => <button key={item.id} className={`command-row ${!needle && index === 0 ? 'active' : ''}`} onClick={() => onRecent(item)}><File /><span><strong>{item.title}</strong><small>{item.kind === 'remote' ? t('fromWeb') : t('workspace')}</small></span></button>)}</div>}{workspaceMatches.length > 0 && <div className="command-group"><label>{t('workspaceFiles')}</label>{workspaceMatches.map((file) => <button key={file.id} className="command-row workspace-match" onClick={() => onWorkspaceFile(file)}><File /><span><strong>{file.name}</strong><small>{file.path}</small></span></button>)}</div>}{actions.length > 0 && <div className="command-group"><label>{t('commands')}</label>{actions.map((action) => <button key={action.key} className="command-row" onClick={() => { action.run(); if (action.key !== 'url' && action.key !== 'settings') onClose(); }}>{action.icon}<span><strong>{action.label}</strong><small>{action.detail}</small></span>{action.shortcut && <kbd>{action.shortcut}</kbd>}</button>)}</div>}{matches.length > 0 && <div className="command-group"><label>{t('currentDocument')}</label>{matches.map((match) => <button key={match.id} className="command-row document-match" onClick={() => onMatch(match)}><Search /><span><strong>{match.text}</strong><small>{t('line')} {match.lineNumber}</small></span></button>)}</div>}{!hasResults && <p className="command-empty">{t('noCommandResults')}</p>}</div><footer><span>↑↓ {t('search')}</span><span>↵ {t('open')}</span><span>Esc {t('close')}</span></footer></section></div>;
 }
 
 function UrlDialog({ value, loading, t, onValue, onClose, onCancel, onOpen }: { value: string; loading: boolean; t: Translator; onValue: (value: string) => void; onClose: () => void; onCancel: () => void; onOpen: () => void }) {
