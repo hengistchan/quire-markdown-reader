@@ -270,6 +270,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .remote-loading svg, .loading-spinner { width: 14px; animation: spin 760ms linear infinite; }
 .remote-loading button { padding: 4px 7px; border: 0; border-radius: 5px; color: var(--accent-ink); background: var(--accent-soft); cursor: pointer; font: inherit; }
 .workspace-loading { top: 112px; }
+.drop-overlay { position: fixed; z-index: 200; inset: 14px; display: grid; place-content: center; justify-items: center; gap: 12px; border: 2px dashed var(--accent); border-radius: 16px; color: var(--accent-ink); background: color-mix(in srgb, var(--paper) 90%, transparent); backdrop-filter: blur(12px); pointer-events: none; }
+.drop-overlay svg { width: 34px; height: 34px; }
+.drop-overlay strong { font-size: 13px; }
+.resume-prompt { position: fixed; z-index: 125; right: 20px; bottom: 20px; display: flex; align-items: center; gap: 8px; max-width: min(520px, calc(100vw - 40px)); padding: 9px 10px 9px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: var(--shadow); font-size: 10px; animation: rise-in 150ms ease both; }
+.resume-prompt span { margin-right: 4px; font-weight: 750; }
+.resume-prompt button { min-height: 28px; padding: 0 9px; border: 0; border-radius: 6px; color: white; background: var(--accent); cursor: pointer; font-size: 9px; font-weight: 750; }
+.resume-prompt button.quiet { color: var(--muted); background: var(--panel-strong); }
 
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes rise-in { from { opacity: 0; transform: translateY(7px); } }
@@ -309,8 +316,16 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 }
 
 @media print {
-  .navigation-rail, .topbar, .context-panel, .outline-popover, .reading-progress { display: none !important; }
+  :root, body { color-scheme: light; background: white !important; }
+  .navigation-rail, .topbar, .context-panel, .outline-popover, .reading-progress,
+  .paper-grain, .error-banner, .remote-loading, .drop-overlay, .resume-prompt, .toast { display: none !important; }
   .workspace { display: block; margin: 0; }
-  .reader-stage { padding: 0; background: white; }
-  .markdown-body { width: 100%; color: black; }
+  .reader-stage { min-height: auto; padding: 0; background: white !important; }
+  .markdown-body { width: 100%; max-width: none; color: black; font-size: 11pt; }
+  .markdown-body pre { overflow: visible; white-space: pre-wrap; break-inside: avoid; }
+  .markdown-body table { width: 100%; break-inside: auto; }
+  .markdown-body thead { display: table-header-group; }
+  .markdown-body tr, .markdown-body img, .markdown-body blockquote { break-inside: avoid; }
+  .markdown-body a[href^='http']::after { content: ' (' attr(href) ')'; color: #555; font-size: .8em; overflow-wrap: anywhere; }
+  .document-footer { color: #555; }
 }

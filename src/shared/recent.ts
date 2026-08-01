@@ -1,7 +1,7 @@
 export type RecentItem =
-  | { id: string; title: string; kind: 'remote'; url: string; openedAt: number; scrollPosition?: number }
-  | { id: string; title: string; kind: 'workspace-file'; workspaceId: string; filePath: string; openedAt: number; scrollPosition?: number }
-  | { id: string; title: string; kind: 'local-file'; fileId: string; openedAt: number; scrollPosition?: number };
+  | { id: string; title: string; kind: 'remote'; url: string; openedAt: number; scrollPosition?: number; headingId?: string }
+  | { id: string; title: string; kind: 'workspace-file'; workspaceId: string; filePath: string; openedAt: number; scrollPosition?: number; headingId?: string }
+  | { id: string; title: string; kind: 'local-file'; fileId: string; openedAt: number; scrollPosition?: number; headingId?: string };
 
 export type RecentItemInput = RecentItem extends infer Item
   ? Item extends RecentItem ? Omit<Item, 'openedAt'> : never
@@ -26,11 +26,12 @@ function normalizeItem(value: unknown): RecentItem | undefined {
   const scrollPosition = typeof value.scrollPosition === 'number' && Number.isFinite(value.scrollPosition) && value.scrollPosition >= 0
     ? value.scrollPosition
     : undefined;
-  if (value.kind === 'remote' && typeof value.url === 'string') return { ...base, kind: 'remote', url: value.url, scrollPosition };
+  const headingId = typeof value.headingId === 'string' ? value.headingId : undefined;
+  if (value.kind === 'remote' && typeof value.url === 'string') return { ...base, kind: 'remote', url: value.url, scrollPosition, headingId };
   if (value.kind === 'workspace-file' && typeof value.workspaceId === 'string' && typeof value.filePath === 'string') {
-    return { ...base, kind: 'workspace-file', workspaceId: value.workspaceId, filePath: value.filePath, scrollPosition };
+    return { ...base, kind: 'workspace-file', workspaceId: value.workspaceId, filePath: value.filePath, scrollPosition, headingId };
   }
-  if (value.kind === 'local-file' && typeof value.fileId === 'string') return { ...base, kind: 'local-file', fileId: value.fileId, scrollPosition };
+  if (value.kind === 'local-file' && typeof value.fileId === 'string') return { ...base, kind: 'local-file', fileId: value.fileId, scrollPosition, headingId };
   return undefined;
 }
 
@@ -62,16 +63,17 @@ export async function loadRecentItems(): Promise<RecentItem[]> {
 
 export async function rememberRecentItem(item: RecentItemInput): Promise<RecentItem[]> {
   const current = await loadRecentItems();
-  const next = [{ ...item, openedAt: Date.now() } as RecentItem, ...current.filter((entry) => entry.id !== item.id)].slice(0, MAX_RECENT);
+  const previous = current.find((entry) => entry.id === item.id);
+  const next = [{ ...previous, ...item, openedAt: Date.now() } as RecentItem, ...current.filter((entry) => entry.id !== item.id)].slice(0, MAX_RECENT);
   if (typeof browser !== 'undefined' && browser.storage) {
     await browser.storage.local.set({ [STORAGE_KEY]: { version: SCHEMA_VERSION, items: next } satisfies PersistedRecentItems });
   }
   return next;
 }
 
-export async function updateRecentPosition(id: string, scrollPosition: number): Promise<RecentItem[]> {
+export async function updateRecentPosition(id: string, scrollPosition: number, headingId?: string): Promise<RecentItem[]> {
   const current = await loadRecentItems();
-  const next = current.map((item) => item.id === id ? { ...item, scrollPosition } : item);
+  const next = current.map((item) => item.id === id ? { ...item, scrollPosition, headingId } : item);
   if (typeof browser !== 'undefined' && browser.storage) {
     await browser.storage.local.set({ [STORAGE_KEY]: { version: SCHEMA_VERSION, items: next } satisfies PersistedRecentItems });
   }

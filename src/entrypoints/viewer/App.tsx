@@ -24,7 +24,9 @@ import {
 } from '../../core/workspacePersistence';
 import { takeDocumentHandoff } from '../../infrastructure/handoffStore';
 import { createTranslator, resolveLocale } from '../../shared/i18n';
-import { loadRecentItems, rememberRecentItem, type RecentItem, type RecentItemInput } from '../../shared/recent';
+import {
+  loadRecentItems, rememberRecentItem, updateRecentPosition, type RecentItem, type RecentItemInput,
+} from '../../shared/recent';
 import { defaultSettings, loadSettings, saveSettings } from '../../shared/settings';
 import type {
   DocumentSearchResult, HeadingItem, ImportedDocument, ReaderSettings, WorkspaceFile,
@@ -32,6 +34,7 @@ import type {
 } from '../../shared/types';
 
 type ActiveOverlay = 'open-menu' | 'more-menu' | 'command' | 'settings' | 'url-dialog' | null;
+interface ResumeTarget { scrollPosition: number; headingId?: string }
 const WIDE_READER_WIDTH = 980;
 
 function getSystemTheme(): 'light' | 'dark' {
@@ -152,12 +155,16 @@ export function App() {
   const [recent, setRecent] = useState<RecentItem[]>([]);
   const [collapsedDirectories, setCollapsedDirectories] = useState<Set<string>>(new Set());
   const [documentNavigationVersion, setDocumentNavigationVersion] = useState(0);
+  const [resumeTarget, setResumeTarget] = useState<ResumeTarget>();
+  const [dragActive, setDragActive] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const articleRef = useRef<HTMLElement>(null);
   const remoteLoadingRef = useRef(false);
   const remoteRequestController = useRef<AbortController | undefined>(undefined);
   const workspaceScanController = useRef<AbortController | undefined>(undefined);
   const pendingDocumentFragment = useRef<string | undefined>(undefined);
+  const activeHeadingRef = useRef<string | undefined>(undefined);
+  const lastScrollPositionRef = useRef(0);
   const settingsSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const pendingSettings = useRef<ReaderSettings | undefined>(undefined);
   const initialized = useRef(false);
@@ -177,6 +184,13 @@ export function App() {
   const workspace = session.kind === 'workspace' ? session.workspace : undefined;
   const activeFile = session.kind === 'workspace' || session.kind === 'file' ? session.file : undefined;
   const activeModified = session.kind === 'workspace' || session.kind === 'file' ? session.lastModified : undefined;
+  const currentRecentId = session.kind === 'remote'
+    ? `remote:${session.state.url}`
+    : session.kind === 'workspace' && session.workspace.id
+      ? `workspace-file:${session.workspace.id}:${session.file.path}`
+      : session.kind === 'file' && session.file.id.startsWith('file:')
+        ? `local-file:${session.file.id.slice('file:'.length)}`
+        : undefined;
 
   const locale = resolveLocale(settings.locale);
   const t = useMemo(() => createTranslator(locale), [locale]);
@@ -517,6 +531,31 @@ export function App() {
     return () => observer.disconnect();
   }, [headings]);
 
+  useEffect(() => { activeHeadingRef.current = activeHeadingId; }, [activeHeadingId]);
+
+  useEffect(() => {
+    if (!currentRecentId) return undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    lastScrollPositionRef.current = Math.max(0, scrollY);
+    const persist = () => {
+      timer = undefined;
+      void updateRecentPosition(currentRecentId, lastScrollPositionRef.current, activeHeadingRef.current)
+        .then(setRecent)
+        .catch(() => undefined);
+    };
+    const schedule = () => {
+      lastScrollPositionRef.current = Math.max(0, scrollY);
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(persist, 800);
+    };
+    addEventListener('scroll', schedule, { passive: true });
+    return () => {
+      removeEventListener('scroll', schedule);
+      if (timer) clearTimeout(timer);
+      persist();
+    };
+  }, [currentRecentId]);
+
   useEffect(() => {
     if (!openMenuOpen && !moreMenuOpen) return;
     const closeMenus = (event: PointerEvent) => {
@@ -693,6 +732,7 @@ export function App() {
   const readerWidth = settings.wideView ? WIDE_READER_WIDTH : settings.contentWidth;
 
   const openRecent = async (item: RecentItem) => {
+    setResumeTarget(undefined);
     if (item.kind === 'remote' && item.url) await openRemote(item.url);
     else if (item.kind === 'workspace-file') {
       const stored = await loadWorkspaceRecord(item.workspaceId);
@@ -711,6 +751,47 @@ export function App() {
         else setError(t('permissionDenied'));
       }
     }
+    if ((item.scrollPosition ?? 0) > 80 || item.headingId) {
+      setResumeTarget({ scrollPosition: item.scrollPosition ?? 0, headingId: item.headingId });
+    }
+    setActiveOverlay(null);
+  };
+
+  const continueReading = () => {
+    const target = resumeTarget;
+    setResumeTarget(undefined);
+    requestAnimationFrame(() => {
+      const heading = target?.headingId ? document.getElementById(target.headingId) : undefined;
+      if (heading) heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      else scrollTo({ top: target?.scrollPosition ?? 0, behavior: 'smooth' });
+    });
+  };
+
+  const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setDragActive(false);
+    for (const item of [...event.dataTransfer.items]) {
+      const getHandle = (item as DataTransferItem & { getAsFileSystemHandle?: () => Promise<FileSystemHandle | null> }).getAsFileSystemHandle;
+      const handle = await getHandle?.call(item);
+      if (handle?.kind === 'directory') { await activateWorkspace(handle as FileSystemDirectoryHandle); return; }
+      if (handle?.kind === 'file') { await handleFileHandle(handle as FileSystemFileHandle); return; }
+    }
+    const file = event.dataTransfer.files[0];
+    if (file) await handleFile(file);
+  };
+
+  const handlePaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    if ((event.target as Element).closest('input, textarea, select, [contenteditable="true"]')) return;
+    const file = event.clipboardData.files[0];
+    if (file) {
+      event.preventDefault();
+      void handleFile(file);
+      return;
+    }
+    const markdown = event.clipboardData.getData('text/plain');
+    if (!markdown.trim()) return;
+    event.preventDefault();
+    openImportedDocument({ title: t('pastedDocument'), markdown });
     setActiveOverlay(null);
   };
 
@@ -735,7 +816,7 @@ export function App() {
   };
 
   return (
-    <div className="app-shell" style={{ '--reader-width': `${readerWidth}px`, '--reader-size': `${settings.fontSize}px`, '--reader-leading': settings.lineHeight } as React.CSSProperties}>
+    <div className={`app-shell ${dragActive ? 'drag-active' : ''}`} style={{ '--reader-width': `${readerWidth}px`, '--reader-size': `${settings.fontSize}px`, '--reader-leading': settings.lineHeight } as React.CSSProperties} onDragEnter={(event) => { event.preventDefault(); setDragActive(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragActive(false); }} onDrop={(event) => void handleDrop(event)} onPaste={handlePaste}>
       {settings.showReadingProgress && <div className="reading-progress" style={{ transform: `scaleX(${progress / 100})` }} />}
       <aside className="navigation-rail" aria-label={t('documentNavigation')}>
         <img className="rail-brand" src="/icon/96.png" alt="Quire" />
@@ -801,6 +882,8 @@ export function App() {
       {settingsOpen && <SettingsDrawer settings={settings} t={t} onChange={(patch) => { updateSettings(patch.contentWidth === undefined ? patch : { ...patch, wideView: false }); if (patch.showOutline !== undefined) setOutlineOpen(patch.showOutline); }} onReset={() => updateSettings(defaultSettings)} onClose={() => setActiveOverlay(null)} />}
       {workspaceScanning && <div className="remote-loading workspace-loading" role="status" aria-live="polite"><LoaderCircle /><span>{t('scanningWorkspace')}</span><button onClick={cancelWorkspaceScan}>{t('cancel')}</button></div>}
       {remoteLoading && <div className="remote-loading" role="status" aria-live="polite"><LoaderCircle /><span>{t('loadingRemote')}</span><button onClick={cancelRemoteLoad}>{t('cancel')}</button></div>}
+      {dragActive && <div className="drop-overlay" aria-hidden="true"><FolderOpen /><strong>{t('dropToOpen')}</strong></div>}
+      {resumeTarget && <div className="resume-prompt" role="status"><span>{t('resumeReading')}</span><button onClick={continueReading}>{t('continueReading')}</button><button className="quiet" onClick={() => { setResumeTarget(undefined); scrollTo({ top: 0, behavior: 'smooth' }); }}>{t('startFromTop')}</button></div>}
       {notice && <div className="toast" role="status">{notice}</div>}
     </div>
   );

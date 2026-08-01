@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { loadRecentItems, rememberRecentItem } from './recent';
+import { loadRecentItems, rememberRecentItem, updateRecentPosition } from './recent';
 
 describe('recent documents', () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -43,6 +43,22 @@ describe('recent documents', () => {
       { kind: 'local-file', fileId: 'b' },
       { kind: 'workspace-file', workspaceId: 'a', filePath: 'README.md' },
     ]);
+  });
+
+  it('preserves and updates reading position metadata', async () => {
+    let stored: unknown = { version: 2, items: [{
+      id: 'remote:guide', title: 'Guide', kind: 'remote', url: 'https://example.com/guide.md',
+      openedAt: 1, scrollPosition: 480, headingId: 'architecture',
+    }] };
+    vi.stubGlobal('browser', { storage: { local: {
+      get: vi.fn(async () => ({ 'recent-documents': stored })),
+      set: vi.fn(async (value: Record<string, unknown>) => { stored = value['recent-documents']; }),
+    } } });
+
+    const remembered = await rememberRecentItem({ id: 'remote:guide', title: 'Guide', kind: 'remote', url: 'https://example.com/guide.md' });
+    expect(remembered[0]).toMatchObject({ scrollPosition: 480, headingId: 'architecture' });
+    const updated = await updateRecentPosition('remote:guide', 720, 'testing');
+    expect(updated[0]).toMatchObject({ scrollPosition: 720, headingId: 'testing' });
   });
 
   it('treats malformed or unavailable storage as empty', async () => {

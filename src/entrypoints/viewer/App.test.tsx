@@ -272,7 +272,7 @@ describe('Quire viewer experience', () => {
     }));
     vi.spyOn(workspacePersistence, 'saveWorkspaceHandle').mockImplementation(async (_handle, id) => id ?? 'generated');
     installBrowser({}, { version: 2, items: [
-      { id: 'workspace-file:first:first.md', title: 'first.md', kind: 'workspace-file', workspaceId: 'first', filePath: 'first.md', openedAt: 2 },
+      { id: 'workspace-file:first:first.md', title: 'first.md', kind: 'workspace-file', workspaceId: 'first', filePath: 'first.md', openedAt: 2, scrollPosition: 320, headingId: 'first-workspace' },
       { id: 'workspace-file:second:second.md', title: 'second.md', kind: 'workspace-file', workspaceId: 'second', filePath: 'second.md', openedAt: 1 },
     ] });
     const user = userEvent.setup();
@@ -282,10 +282,29 @@ describe('Quire viewer experience', () => {
     fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
     await user.click(within(screen.getByRole('dialog', { name: 'Command center' })).getByRole('button', { name: /first.md/ }));
     await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('First workspace'));
+    await user.click(screen.getByRole('button', { name: 'Continue reading' }));
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
 
     fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
     await user.click(within(screen.getByRole('dialog', { name: 'Command center' })).getByRole('button', { name: /second.md/ }));
     await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Second workspace'));
+  });
+
+  it('opens pasted and dropped Markdown without another dialog', async () => {
+    installBrowser();
+    render(<App />);
+    await screen.findByLabelText('Document navigation');
+    const shell = document.querySelector<HTMLElement>('.app-shell')!;
+
+    fireEvent.paste(shell, {
+      clipboardData: { files: [], getData: () => '# Pasted heading\n\nPasted body.' },
+    });
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Pasted body.'));
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    const file = { name: 'dropped.md', text: async () => '# Dropped heading\n\nDropped body.' } as File;
+    fireEvent.drop(shell, { dataTransfer: { items: [], files: [file] } });
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Dropped body.'));
   });
 
   it('keeps menus, command center, URL dialog, and settings mutually exclusive', async () => {
