@@ -22,7 +22,7 @@ export default defineConfig({
     },
   },
   zip: {
-    excludeSources: ['AGENTS.md'],
+    excludeSources: ['AGENTS.md', 'test-results/**'],
   },
   manifest: ({ browser }) => ({
     name: '__MSG_extName__',
