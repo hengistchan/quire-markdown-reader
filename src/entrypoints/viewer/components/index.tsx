@@ -120,7 +120,10 @@ export function CommandPalette({ query, matches, workspaceMatches, recent, short
     { key: 'dark-theme', label: t('useDarkTheme'), detail: t('appearance'), icon: <Moon />, shortcut: '', run: onDarkTheme },
     { key: 'settings', label: t('settings'), detail: t('settingsLive'), icon: <Settings2 />, shortcut: '', run: onSettings },
   ].filter((action) => !needle || `${action.label} ${action.detail}`.toLowerCase().includes(needle));
-  const visibleRecent = recent.filter((item) => !needle || item.title.toLowerCase().includes(needle)).slice(0, 5);
+  const visibleRecent = recent
+    .filter((item) => !needle || item.title.toLowerCase().includes(needle))
+    .filter((item) => item.kind !== 'workspace-file' || !workspaceMatches.some((file) => file.path === item.filePath))
+    .slice(0, 5);
   const hasResults = actions.length || visibleRecent.length || matches.length || workspaceMatches.length || isRemoteUrl(query.trim());
   const navigateRows = (event: React.KeyboardEvent<HTMLElement>) => {
     if (!['ArrowDown', 'ArrowUp', 'Enter'].includes(event.key)) return;

@@ -291,7 +291,13 @@ describe('Quire viewer experience', () => {
     expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
 
     fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
-    await user.click(within(screen.getByRole('dialog', { name: 'Command center' })).getByRole('button', { name: /second.md/ }));
+    const commandCenter = within(screen.getByRole('dialog', { name: 'Command center' }));
+    const commandInput = commandCenter.getByPlaceholderText('Type a command, filename, or URL…');
+    await user.type(commandInput, 'first');
+    expect(commandCenter.getAllByRole('button', { name: /first.md/ })).toHaveLength(1);
+    await user.clear(commandInput);
+    await user.type(commandInput, 'second');
+    await user.click(commandCenter.getByRole('button', { name: /second.md/ }));
     await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Second workspace'));
     expect(screen.getByRole('button', { name: 'Previous document' }).hasAttribute('disabled')).toBe(false);
 
