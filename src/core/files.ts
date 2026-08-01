@@ -19,6 +19,7 @@ export class WorkspaceScanError extends Error {
 }
 
 export interface WorkspaceScanOptions {
+  workspaceId?: string;
   maxDepth?: number;
   maxFiles?: number;
   maxDirectories?: number;
@@ -106,7 +107,7 @@ export async function collectMarkdownFiles(directory: FileSystemDirectoryHandle,
 
 export async function collectWorkspace(directory: FileSystemDirectoryHandle, options: WorkspaceScanOptions = {}): Promise<WorkspaceSnapshot> {
   const { files, tree } = await collectDirectory(directory, createScanContext(options));
-  return { name: directory.name, files, tree, handle: directory };
+  return { id: options.workspaceId, name: directory.name, files, tree, handle: directory };
 }
 
 export async function readWorkspaceFile(file: WorkspaceFile): Promise<string> {

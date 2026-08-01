@@ -47,6 +47,7 @@ export interface WorkspaceFileNode {
 export type WorkspaceTreeNode = WorkspaceDirectory | WorkspaceFileNode;
 
 export interface WorkspaceSnapshot {
+  id?: string;
   name: string;
   files: WorkspaceFile[];
   tree: WorkspaceTreeNode[];

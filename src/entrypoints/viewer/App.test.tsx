@@ -4,17 +4,18 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultSettings } from '../../shared/settings';
 import { createDocumentHandoff, takeDocumentHandoff } from '../../infrastructure/handoffStore';
+import * as workspacePersistence from '../../core/workspacePersistence';
 import { App } from './App';
 
 vi.mock('mermaid', () => ({
   default: { initialize: vi.fn(), run: vi.fn(async () => undefined) },
 }));
 
-function installBrowser(overrides: Record<string, unknown> = {}) {
+function installBrowser(overrides: Record<string, unknown> = {}, recentItems: unknown = []) {
   const local = {
     get: vi.fn(async (key: string | string[]) => {
       if (key === 'reader-settings') return { 'reader-settings': { ...defaultSettings, enableMermaid: false } };
-      if (key === 'recent-documents') return { 'recent-documents': [] };
+      if (key === 'recent-documents') return { 'recent-documents': recentItems };
       return { onboardingComplete: false };
     }),
     set: vi.fn(async () => undefined),
@@ -48,6 +49,7 @@ describe('Quire viewer experience', () => {
 
   afterEach(() => {
     cleanup();
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 
@@ -242,6 +244,48 @@ describe('Quire viewer experience', () => {
     expect(within(palette).getByRole('button', { name: /Use dark theme/ })).toBeTruthy();
     fireEvent.keyDown(input, { key: 'ArrowDown' });
     expect(document.activeElement).toBe(within(palette).getByRole('button', { name: /Use dark theme/ }));
+  });
+
+  it('restores separate same-named workspaces from recent documents', async () => {
+    const workspaceHandle = (fileName: string, markdown: string) => {
+      const file = {
+        kind: 'file', name: fileName,
+        getFile: vi.fn(async () => ({ name: fileName, lastModified: 1, text: async () => markdown }) as File),
+      } as unknown as FileSystemFileHandle;
+      return {
+        kind: 'directory', name: 'docs',
+        queryPermission: vi.fn(async () => 'granted' as PermissionState),
+        requestPermission: vi.fn(async () => 'granted' as PermissionState),
+        entries: async function* () { yield [fileName, file] as [string, FileSystemFileHandle]; },
+      } as unknown as FileSystemDirectoryHandle;
+    };
+    const handles = {
+      first: workspaceHandle('first.md', '# First workspace'),
+      second: workspaceHandle('second.md', '# Second workspace'),
+    };
+    vi.spyOn(workspacePersistence, 'loadWorkspaceRecord').mockImplementation(async (id) => ({
+      id,
+      kind: 'workspace',
+      name: 'docs',
+      handle: handles[id as keyof typeof handles],
+      savedAt: 1,
+    }));
+    vi.spyOn(workspacePersistence, 'saveWorkspaceHandle').mockImplementation(async (_handle, id) => id ?? 'generated');
+    installBrowser({}, { version: 2, items: [
+      { id: 'workspace-file:first:first.md', title: 'first.md', kind: 'workspace-file', workspaceId: 'first', filePath: 'first.md', openedAt: 2 },
+      { id: 'workspace-file:second:second.md', title: 'second.md', kind: 'workspace-file', workspaceId: 'second', filePath: 'second.md', openedAt: 1 },
+    ] });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await screen.findByLabelText('Document navigation');
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+    await user.click(within(screen.getByRole('dialog', { name: 'Command center' })).getByRole('button', { name: /first.md/ }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('First workspace'));
+
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+    await user.click(within(screen.getByRole('dialog', { name: 'Command center' })).getByRole('button', { name: /second.md/ }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Second workspace'));
   });
 
   it('keeps menus, command center, URL dialog, and settings mutually exclusive', async () => {

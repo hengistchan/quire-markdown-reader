@@ -18,10 +18,13 @@ import {
   createFileSession, createImportedSession, createRemoteSession, createWelcomeSession,
   createWorkspaceSession, documentSessionReducer, documentSourceUrl,
 } from '../../domain/documentSession';
-import { loadWorkspaceHandle, saveWorkspaceHandle } from '../../core/workspacePersistence';
+import {
+  loadActiveWorkspace, loadFileRecord, loadWorkspaceRecord, saveFileHandle, saveWorkspaceHandle,
+  type PersistedWorkspaceHandle,
+} from '../../core/workspacePersistence';
 import { takeDocumentHandoff } from '../../infrastructure/handoffStore';
 import { createTranslator, resolveLocale } from '../../shared/i18n';
-import { loadRecentItems, rememberRecentItem, type RecentItem } from '../../shared/recent';
+import { loadRecentItems, rememberRecentItem, type RecentItem, type RecentItemInput } from '../../shared/recent';
 import { defaultSettings, loadSettings, saveSettings } from '../../shared/settings';
 import type {
   DocumentSearchResult, HeadingItem, ImportedDocument, ReaderSettings, WorkspaceFile,
@@ -33,6 +36,16 @@ const WIDE_READER_WIDTH = 980;
 
 function getSystemTheme(): 'light' | 'dark' {
   return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+async function requestReadPermission(handle: FileSystemHandle): Promise<PermissionState> {
+  const permissionHandle = handle as FileSystemHandle & {
+    queryPermission?: (options: { mode: 'read' }) => Promise<PermissionState>;
+    requestPermission?: (options: { mode: 'read' }) => Promise<PermissionState>;
+  };
+  const current = await permissionHandle.queryPermission?.({ mode: 'read' });
+  if (current === 'granted') return current;
+  return await permissionHandle.requestPermission?.({ mode: 'read' }) ?? 'granted';
 }
 
 function useSystemTheme(): 'light' | 'dark' {
@@ -123,7 +136,7 @@ export function App() {
     undefined,
     () => createWelcomeSession(initialTranslator('welcomeDocumentTitle'), initialTranslator('welcomeDocument')),
   );
-  const [restorableHandle, setRestorableHandle] = useState<FileSystemDirectoryHandle>();
+  const [restorableWorkspace, setRestorableWorkspace] = useState<PersistedWorkspaceHandle>();
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [outlineOpen, setOutlineOpen] = useState(true);
   const [activeOverlay, setActiveOverlay] = useState<ActiveOverlay>(null);
@@ -206,7 +219,7 @@ export function App() {
     if (pendingSettings.current) void saveSettings(pendingSettings.current);
   }, []);
 
-  const recordRecent = useCallback(async (item: Omit<RecentItem, 'openedAt'>) => {
+  const recordRecent = useCallback(async (item: RecentItemInput) => {
     setRecent(await rememberRecentItem(item));
   }, []);
 
@@ -232,18 +245,28 @@ export function App() {
       type: 'replace',
       session: createWorkspaceSession(targetWorkspace, file, snapshot.markdown, snapshot.lastModified),
     });
+    if (targetWorkspace.id) {
+      await recordRecent({
+        id: `workspace-file:${targetWorkspace.id}:${file.path}`,
+        title: file.name,
+        kind: 'workspace-file',
+        workspaceId: targetWorkspace.id,
+        filePath: file.path,
+      });
+    }
     setError(undefined);
     queueDocumentNavigation(fragment);
     scrollTo({ top: 0, behavior: 'smooth' });
-  }, [queueDocumentNavigation, session]);
+  }, [queueDocumentNavigation, recordRecent, session]);
 
-  const activateWorkspace = useCallback(async (handle: FileSystemDirectoryHandle, preferredPath?: string): Promise<boolean> => {
+  const activateWorkspace = useCallback(async (handle: FileSystemDirectoryHandle, preferredPath?: string, existingId?: string): Promise<boolean> => {
     workspaceScanController.current?.abort();
     const controller = new AbortController();
     workspaceScanController.current = controller;
     setWorkspaceScanning(true);
     try {
-      const snapshot = await collectWorkspace(handle, { signal: controller.signal });
+      const workspaceId = await saveWorkspaceHandle(handle, existingId);
+      const snapshot = await collectWorkspace(handle, { signal: controller.signal, workspaceId });
       setWorkspaceOpen(true);
       const selected = snapshot.files.find((file) => file.path === preferredPath)
         ?? snapshot.files.find((file) => /^readme\.(md|markdown|mdx)$/i.test(file.path))
@@ -253,8 +276,6 @@ export function App() {
         return false;
       }
       await openWorkspaceFile(selected, snapshot);
-      await saveWorkspaceHandle(handle);
-      await recordRecent({ id: `workspace:${handle.name}`, title: handle.name, kind: 'workspace' });
       return true;
     } catch (caught) {
       if (caught instanceof WorkspaceScanError) {
@@ -268,7 +289,7 @@ export function App() {
         setWorkspaceScanning(false);
       }
     }
-  }, [openWorkspaceFile, recordRecent, t]);
+  }, [openWorkspaceFile, t]);
 
   const cancelWorkspaceScan = useCallback(() => workspaceScanController.current?.abort(), []);
 
@@ -290,11 +311,11 @@ export function App() {
       }
       if ('showDirectoryPicker' in window && !importedDocument) {
         try {
-          const handle = await loadWorkspaceHandle();
-          if (!handle) return;
-          const permission = await handle.queryPermission({ mode: 'read' });
-          if (permission === 'granted') await activateWorkspace(handle);
-          else { setRestorableHandle(handle); setWorkspaceOpen(true); }
+          const storedWorkspace = await loadActiveWorkspace();
+          if (!storedWorkspace) return;
+          const permission = await storedWorkspace.handle.queryPermission({ mode: 'read' });
+          if (permission === 'granted') await activateWorkspace(storedWorkspace.handle, undefined, storedWorkspace.id);
+          else { setRestorableWorkspace(storedWorkspace); setWorkspaceOpen(true); }
         } catch {
           // An old or browser-incompatible handle should not block the reader.
         }
@@ -512,9 +533,10 @@ export function App() {
     setActiveOverlay(null);
   };
 
-  const handleFileHandle = async (handle: FileSystemFileHandle) => {
+  const handleFileHandle = async (handle: FileSystemFileHandle, existingId?: string) => {
     if (!handle.name.match(/\.(md|markdown|mdx)$/i)) { setError(t('fileTypeError')); return; }
-    const file: WorkspaceFile = { id: handle.name, name: handle.name, path: handle.name, depth: 0, handle };
+    const fileId = await saveFileHandle(handle, existingId);
+    const file: WorkspaceFile = { id: `file:${fileId}`, name: handle.name, path: handle.name, depth: 0, handle };
     const snapshot = await createFileDocumentSource(file, 'file').load();
     if (snapshot.lastModified === undefined) throw new Error('A local file snapshot requires modification metadata.');
     dispatchSession({ type: 'replace', session: createFileSession(file, snapshot.markdown, snapshot.lastModified) });
@@ -522,6 +544,7 @@ export function App() {
     setError(undefined);
     scrollTo({ top: 0 });
     setActiveOverlay(null);
+    await recordRecent({ id: `local-file:${fileId}`, title: handle.name, kind: 'local-file', fileId });
   };
 
   const handleOpenFile = async () => {
@@ -551,16 +574,16 @@ export function App() {
   };
 
   const restoreWorkspace = async () => {
-    if (!restorableHandle) return;
-    const permission = await restorableHandle.requestPermission({ mode: 'read' });
+    if (!restorableWorkspace) return;
+    const permission = await restorableWorkspace.handle.requestPermission({ mode: 'read' });
     if (permission !== 'granted') { setError(t('permissionDenied')); return; }
-    await activateWorkspace(restorableHandle);
-    setRestorableHandle(undefined);
+    await activateWorkspace(restorableWorkspace.handle, undefined, restorableWorkspace.id);
+    setRestorableWorkspace(undefined);
   };
 
   const refreshWorkspace = async () => {
     if (!workspace) return;
-    const refreshed = await activateWorkspace(workspace.handle, activeFile?.path);
+    const refreshed = await activateWorkspace(workspace.handle, activeFile?.path, workspace.id);
     if (refreshed) setNotice(t('workspaceRefreshed'));
   };
 
@@ -666,13 +689,28 @@ export function App() {
     ? workspace.files.filter((file) => file.path.toLowerCase().includes(fileFilter.trim().toLowerCase()))
     : [];
   const readMinutes = Math.max(1, Math.ceil(source.replace(/[`#>*_\-[\]]/g, ' ').trim().split(/\s+/).length / 220));
-  const contextOpen = workspaceOpen && Boolean(workspace || restorableHandle);
+  const contextOpen = workspaceOpen && Boolean(workspace || restorableWorkspace);
   const readerWidth = settings.wideView ? WIDE_READER_WIDTH : settings.contentWidth;
 
   const openRecent = async (item: RecentItem) => {
     if (item.kind === 'remote' && item.url) await openRemote(item.url);
-    else if (workspace && item.title === workspace.name) setWorkspaceOpen(true);
-    else if (restorableHandle) await restoreWorkspace();
+    else if (item.kind === 'workspace-file') {
+      const stored = await loadWorkspaceRecord(item.workspaceId);
+      if (!stored) setError(t('folderReadError'));
+      else {
+        const granted = await requestReadPermission(stored.handle);
+        if (granted === 'granted') await activateWorkspace(stored.handle, item.filePath, stored.id);
+        else setError(t('permissionDenied'));
+      }
+    } else if (item.kind === 'local-file') {
+      const stored = await loadFileRecord(item.fileId);
+      if (!stored) setError(t('fileReadError'));
+      else {
+        const granted = await requestReadPermission(stored.handle);
+        if (granted === 'granted') await handleFileHandle(stored.handle, stored.id);
+        else setError(t('permissionDenied'));
+      }
+    }
     setActiveOverlay(null);
   };
 
@@ -736,7 +774,7 @@ export function App() {
         {contextOpen && <aside className="context-panel" aria-label={t('workspace')}>
           <div className="context-heading"><span>{t('workspace')}</span><div><strong>{workspace?.name ?? t('restoreTitle')}</strong>{workspace && <button disabled={workspaceScanning} onClick={() => void refreshWorkspace()} aria-label={t('refreshWorkspace')} title={t('refreshWorkspace')}><RotateCw className={workspaceScanning ? 'loading-spinner' : ''} /></button>}</div></div>
           {workspace && <label className="file-filter"><Search /><input value={fileFilter} onChange={(event) => setFileFilter(event.target.value)} placeholder={t('filterFiles')} /></label>}
-          {restorableHandle && <div className="restore-card"><RotateCw /><strong>{t('restoreTitle')}</strong><p>{t('restoreBody')}</p><button onClick={() => void restoreWorkspace()}>{t('restore')}</button><button className="quiet" onClick={() => setRestorableHandle(undefined)}>{t('dismiss')}</button></div>}
+          {restorableWorkspace && <div className="restore-card"><RotateCw /><strong>{t('restoreTitle')}</strong><p>{t('restoreBody')}</p><button onClick={() => void restoreWorkspace()}>{t('restore')}</button><button className="quiet" onClick={() => setRestorableWorkspace(undefined)}>{t('dismiss')}</button></div>}
           <nav className="context-files">
             {fileFilter.trim() ? filteredFiles.map((file) => (
               <button key={file.id} className={`file-row filtered ${activeFile?.id === file.id ? 'active' : ''}`} onClick={() => void openWorkspaceFile(file)}><File /><span>{file.path}</span></button>
@@ -815,7 +853,7 @@ function CommandPalette({ query, matches, workspaceMatches, recent, shortcuts, t
     const next = event.key === 'ArrowDown' ? (active + 1) % rows.length : (active <= 0 ? rows.length - 1 : active - 1);
     rows[next]?.focus();
   };
-  return <div className="command-backdrop" onMouseDown={onClose}><section className="command-palette" role="dialog" aria-modal="true" aria-label={t('commandCenter')} onKeyDown={navigateRows} onMouseDown={(event) => event.stopPropagation()}><div className="command-input"><Search /><input autoFocus value={query} onChange={(event) => onQuery(event.target.value)} placeholder={t('commandPlaceholder')} /><kbd>esc</kbd></div><div className="command-results">{isRemoteUrl(query.trim()) && <div className="command-group"><label>URL</label><button className="command-row active" onClick={() => onTypedUrl(query.trim())}><Globe2 /><span><strong>{t('openUrl')}</strong><small>{query.trim()}</small></span><kbd>↵</kbd></button></div>}{visibleRecent.length > 0 && <div className="command-group"><label>{t('recentlyOpened')}</label>{visibleRecent.map((item, index) => <button key={item.id} className={`command-row ${!needle && index === 0 ? 'active' : ''}`} onClick={() => onRecent(item)}><File /><span><strong>{item.title}</strong><small>{item.kind === 'remote' ? t('fromWeb') : t('workspace')}</small></span></button>)}</div>}{workspaceMatches.length > 0 && <div className="command-group"><label>{t('workspaceFiles')}</label>{workspaceMatches.map((file) => <button key={file.id} className="command-row workspace-match" onClick={() => onWorkspaceFile(file)}><File /><span><strong>{file.name}</strong><small>{file.path}</small></span></button>)}</div>}{actions.length > 0 && <div className="command-group"><label>{t('commands')}</label>{actions.map((action) => <button key={action.key} className="command-row" onClick={() => { action.run(); if (action.key !== 'url' && action.key !== 'settings') onClose(); }}>{action.icon}<span><strong>{action.label}</strong><small>{action.detail}</small></span>{action.shortcut && <kbd>{action.shortcut}</kbd>}</button>)}</div>}{matches.length > 0 && <div className="command-group"><label>{t('currentDocument')}</label>{matches.map((match) => <button key={match.id} className="command-row document-match" onClick={() => onMatch(match)}><Search /><span><strong>{match.text}</strong><small>{t('line')} {match.lineNumber}</small></span></button>)}</div>}{!hasResults && <p className="command-empty">{t('noCommandResults')}</p>}</div><footer><span>↑↓ {t('search')}</span><span>↵ {t('open')}</span><span>Esc {t('close')}</span></footer></section></div>;
+  return <div className="command-backdrop" onMouseDown={onClose}><section className="command-palette" role="dialog" aria-modal="true" aria-label={t('commandCenter')} onKeyDown={navigateRows} onMouseDown={(event) => event.stopPropagation()}><div className="command-input"><Search /><input autoFocus value={query} onChange={(event) => onQuery(event.target.value)} placeholder={t('commandPlaceholder')} /><kbd>esc</kbd></div><div className="command-results">{isRemoteUrl(query.trim()) && <div className="command-group"><label>URL</label><button className="command-row active" onClick={() => onTypedUrl(query.trim())}><Globe2 /><span><strong>{t('openUrl')}</strong><small>{query.trim()}</small></span><kbd>↵</kbd></button></div>}{visibleRecent.length > 0 && <div className="command-group"><label>{t('recentlyOpened')}</label>{visibleRecent.map((item, index) => <button key={item.id} className={`command-row ${!needle && index === 0 ? 'active' : ''}`} onClick={() => onRecent(item)}><File /><span><strong>{item.title}</strong><small>{item.kind === 'remote' ? t('fromWeb') : item.kind === 'local-file' ? t('localFile') : t('workspace')}</small></span></button>)}</div>}{workspaceMatches.length > 0 && <div className="command-group"><label>{t('workspaceFiles')}</label>{workspaceMatches.map((file) => <button key={file.id} className="command-row workspace-match" onClick={() => onWorkspaceFile(file)}><File /><span><strong>{file.name}</strong><small>{file.path}</small></span></button>)}</div>}{actions.length > 0 && <div className="command-group"><label>{t('commands')}</label>{actions.map((action) => <button key={action.key} className="command-row" onClick={() => { action.run(); if (action.key !== 'url' && action.key !== 'settings') onClose(); }}>{action.icon}<span><strong>{action.label}</strong><small>{action.detail}</small></span>{action.shortcut && <kbd>{action.shortcut}</kbd>}</button>)}</div>}{matches.length > 0 && <div className="command-group"><label>{t('currentDocument')}</label>{matches.map((match) => <button key={match.id} className="command-row document-match" onClick={() => onMatch(match)}><Search /><span><strong>{match.text}</strong><small>{t('line')} {match.lineNumber}</small></span></button>)}</div>}{!hasResults && <p className="command-empty">{t('noCommandResults')}</p>}</div><footer><span>↑↓ {t('search')}</span><span>↵ {t('open')}</span><span>Esc {t('close')}</span></footer></section></div>;
 }
 
 function UrlDialog({ value, loading, t, onValue, onClose, onCancel, onOpen }: { value: string; loading: boolean; t: Translator; onValue: (value: string) => void; onClose: () => void; onCancel: () => void; onOpen: () => void }) {
