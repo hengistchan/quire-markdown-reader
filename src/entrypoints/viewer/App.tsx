@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle, Check, ChevronDown, ChevronRight, Command, File, FilePlus2, Folder,
-  FolderOpen, Globe2, ListTree, Moon, MoreHorizontal, RotateCw, Search, Settings2,
+  FolderOpen, Globe2, ListTree, LoaderCircle, Moon, MoreHorizontal, RotateCw, Search, Settings2,
   ShieldCheck, StretchHorizontal, Sun, X,
 } from 'lucide-react';
 import {
@@ -76,10 +76,12 @@ export function App() {
   const [activeHeadingId, setActiveHeadingId] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [error, setError] = useState<string>();
+  const [remoteLoading, setRemoteLoading] = useState(false);
   const [recent, setRecent] = useState<RecentItem[]>([]);
   const [collapsedDirectories, setCollapsedDirectories] = useState<Set<string>>(new Set());
   const fileInput = useRef<HTMLInputElement>(null);
   const articleRef = useRef<HTMLElement>(null);
+  const remoteLoadingRef = useRef(false);
   const initialized = useRef(false);
   const progress = useReadingProgress();
 
@@ -390,6 +392,10 @@ export function App() {
 
   const openRemote = useCallback(async (value: string, requestPermission = true) => {
     if (!isRemoteUrl(value)) { setError(t('invalidUrl')); return; }
+    if (remoteLoadingRef.current) return;
+    remoteLoadingRef.current = true;
+    setError(undefined);
+    setRemoteLoading(true);
     try {
       const permission = hostPermissionPattern(value);
       if (requestPermission && typeof browser !== 'undefined') {
@@ -410,6 +416,9 @@ export function App() {
         else if (caught.code === 'too-large') setError(t('remoteTooLarge'));
         else setError(`${t('remoteServerError')} ${caught.status}.`);
       } else setError(t('remoteReadError'));
+    } finally {
+      remoteLoadingRef.current = false;
+      setRemoteLoading(false);
     }
   }, [openImportedDocument, recordRecent, t]);
 
@@ -523,8 +532,9 @@ export function App() {
       </div>
 
       {commandOpen && <CommandPalette query={commandQuery} matches={commandMatches} recent={recent} t={t} onQuery={setCommandQuery} onClose={() => { setCommandOpen(false); setCommandQuery(''); }} onFile={() => void handleOpenFile()} onFolder={() => void handleDirectory()} onUrl={() => { setCommandOpen(false); setUrlOpen(true); }} onTypedUrl={(value) => void openRemote(value)} onWorkspace={() => setWorkspaceOpen((open) => !open)} onOutline={() => setOutlineOpen((open) => !open)} onQuietMode={() => { setWorkspaceOpen(false); setOutlineOpen(false); }} onLightTheme={() => updateSettings({ theme: 'light' })} onDarkTheme={() => updateSettings({ theme: 'dark' })} onSettings={() => { setCommandOpen(false); setSettingsOpen(true); }} onRecent={(item) => void openRecent(item)} />}
-      {urlOpen && <UrlDialog value={urlValue} t={t} onValue={setUrlValue} onClose={() => setUrlOpen(false)} onOpen={() => void openRemote(urlValue)} />}
+      {urlOpen && <UrlDialog value={urlValue} loading={remoteLoading} t={t} onValue={setUrlValue} onClose={() => setUrlOpen(false)} onOpen={() => void openRemote(urlValue)} />}
       {settingsOpen && <SettingsDrawer settings={settings} t={t} onChange={(patch) => { updateSettings(patch.contentWidth === undefined ? patch : { ...patch, wideView: false }); if (patch.showOutline !== undefined) setOutlineOpen(patch.showOutline); }} onReset={() => updateSettings(defaultSettings)} onClose={() => setSettingsOpen(false)} />}
+      {remoteLoading && <div className="remote-loading" role="status" aria-live="polite"><LoaderCircle /><span>{t('loadingRemote')}</span></div>}
       {notice && <div className="toast" role="status">{notice}</div>}
     </div>
   );
@@ -580,8 +590,8 @@ function CommandPalette({ query, matches, recent, t, onQuery, onClose, onFile, o
   return <div className="command-backdrop" onMouseDown={onClose}><section className="command-palette" role="dialog" aria-modal="true" aria-label={t('commandCenter')} onKeyDown={navigateRows} onMouseDown={(event) => event.stopPropagation()}><div className="command-input"><Search /><input autoFocus value={query} onChange={(event) => onQuery(event.target.value)} placeholder={t('commandPlaceholder')} /><kbd>esc</kbd></div><div className="command-results">{isRemoteUrl(query.trim()) && <div className="command-group"><label>URL</label><button className="command-row active" onClick={() => onTypedUrl(query.trim())}><Globe2 /><span><strong>{t('openUrl')}</strong><small>{query.trim()}</small></span><kbd>↵</kbd></button></div>}{visibleRecent.length > 0 && <div className="command-group"><label>{t('recentlyOpened')}</label>{visibleRecent.map((item, index) => <button key={item.id} className={`command-row ${!needle && index === 0 ? 'active' : ''}`} onClick={() => onRecent(item)}><File /><span><strong>{item.title}</strong><small>{item.kind === 'remote' ? t('fromWeb') : t('workspace')}</small></span></button>)}</div>}{actions.length > 0 && <div className="command-group"><label>{t('commands')}</label>{actions.map((action) => <button key={action.key} className="command-row" onClick={() => { action.run(); onClose(); }}>{action.icon}<span><strong>{action.label}</strong><small>{action.detail}</small></span>{action.shortcut && <kbd>{action.shortcut}</kbd>}</button>)}</div>}{matches.length > 0 && <div className="command-group"><label>{t('currentDocument')}</label>{matches.map((line, index) => <button key={`${line}-${index}`} className="command-row document-match" onClick={onClose}><Search /><span><strong>{line.replace(/^#+\s*/, '')}</strong></span></button>)}</div>}{!hasResults && <p className="command-empty">{t('noCommandResults')}</p>}</div><footer><span>↑↓ {t('search')}</span><span>↵ {t('open')}</span><span>⌘K {t('close')}</span></footer></section></div>;
 }
 
-function UrlDialog({ value, t, onValue, onClose, onOpen }: { value: string; t: Translator; onValue: (value: string) => void; onClose: () => void; onOpen: () => void }) {
-  return <div className="modal-backdrop" onMouseDown={onClose}><section className="url-dialog" role="dialog" aria-modal="true" aria-labelledby="url-title" onMouseDown={(event) => event.stopPropagation()}><div className="url-dialog-icon"><Globe2 /></div><h2 id="url-title">{t('urlTitle')}</h2><p>{t('urlDescription')}</p><input autoFocus type="url" value={value} onChange={(event) => onValue(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && onOpen()} placeholder={t('urlPlaceholder')} /><div className="dialog-actions"><button className="quiet-button" onClick={onClose}>{t('cancel')}</button><button className="primary-button" onClick={onOpen}>{t('open')}</button></div></section></div>;
+function UrlDialog({ value, loading, t, onValue, onClose, onOpen }: { value: string; loading: boolean; t: Translator; onValue: (value: string) => void; onClose: () => void; onOpen: () => void }) {
+  return <div className="modal-backdrop" onMouseDown={loading ? undefined : onClose}><section className="url-dialog" role="dialog" aria-modal="true" aria-labelledby="url-title" aria-busy={loading} onMouseDown={(event) => event.stopPropagation()}><div className="url-dialog-icon"><Globe2 /></div><h2 id="url-title">{t('urlTitle')}</h2><p>{t('urlDescription')}</p><input autoFocus disabled={loading} type="url" value={value} onChange={(event) => onValue(event.target.value)} onKeyDown={(event) => !loading && event.key === 'Enter' && onOpen()} placeholder={t('urlPlaceholder')} /><div className="dialog-actions"><button className="quiet-button" disabled={loading} onClick={onClose}>{t('cancel')}</button><button className="primary-button" disabled={loading} onClick={onOpen}>{loading && <LoaderCircle className="loading-spinner" />}<span>{loading ? t('loadingRemote') : t('open')}</span></button></div></section></div>;
 }
 
 function SettingsDrawer({ settings, t, onChange, onReset, onClose }: { settings: ReaderSettings; t: Translator; onChange: (patch: Partial<ReaderSettings>) => void; onReset: () => void; onClose: () => void }) {

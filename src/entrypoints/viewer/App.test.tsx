@@ -58,6 +58,29 @@ describe('Quire viewer experience', () => {
     await waitFor(() => expect(document.querySelector('[role="alert"]')?.textContent).toContain('Access was not granted'));
   });
 
+  it('shows immediate loading feedback while a remote Markdown request is pending', async () => {
+    let finishRequest: (response: Response) => void = () => undefined;
+    const pendingResponse = new Promise<Response>((resolve) => { finishRequest = resolve; });
+    vi.stubGlobal('fetch', vi.fn(() => pendingResponse));
+    installBrowser({ permissions: { request: vi.fn(async () => true) } });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'Open' }));
+    await user.click(screen.getByRole('button', { name: /Open URL/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Open Markdown from the web' });
+    await user.type(within(dialog).getByPlaceholderText('https://example.com/guide.md'), 'https://docs.example.com/guide.md');
+    await user.click(within(dialog).getByRole('button', { name: 'Open' }));
+
+    expect((await screen.findByRole('status')).textContent).toContain('Loading Markdown…');
+    expect(within(dialog).getByRole('button', { name: 'Loading Markdown…' }).hasAttribute('disabled')).toBe(true);
+    expect(dialog.getAttribute('aria-busy')).toBe('true');
+
+    finishRequest(new Response('# Loaded guide\n\nRemote content arrived.', { status: 200 }));
+    await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
+    expect(await screen.findByText('Remote content arrived.')).toBeTruthy();
+  });
+
   it('toggles a persistent wider reading width beside the Open control', async () => {
     const { local } = installBrowser();
     const user = userEvent.setup();

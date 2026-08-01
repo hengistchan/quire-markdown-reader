@@ -157,7 +157,12 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     server = createServer((request, response) => {
       if (request.url === '/remote.md') {
         response.writeHead(200, { 'content-type': 'text/markdown', 'access-control-allow-origin': '*', etag: '"quire-e2e"' });
-        response.end('# Remote Guide\n\nFetched with an origin-scoped permission.');
+        response.end('# Remote Guide\n\nFetched with an origin-scoped permission.\n\n[Next remote document](next.md)');
+      } else if (request.url === '/next.md') {
+        setTimeout(() => {
+          response.writeHead(200, { 'content-type': 'text/markdown', 'access-control-allow-origin': '*' });
+          response.end('# Next Remote Guide\n\nThe linked network document finished loading.');
+        }, 450);
       } else {
         response.writeHead(404);
         response.end('Not found');
@@ -173,6 +178,10 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     await reopened.getByPlaceholder('https://example.com/guide.md').fill(remoteUrl);
     await reopened.getByRole('dialog', { name: 'Open Markdown from the web' }).getByRole('button', { name: 'Open' }).click();
     await expect(reopened.getByText('Fetched with an origin-scoped permission.')).toBeVisible();
+    await reopened.getByRole('link', { name: 'Next remote document' }).click();
+    await expect(reopened.getByRole('status')).toHaveText('Loading Markdown…');
+    await expect(reopened.getByText('The linked network document finished loading.')).toBeVisible();
+    await expect(reopened.getByRole('status')).toHaveCount(0);
 
     await reopened.getByRole('button', { name: 'Reader settings' }).click();
     await reopened.getByRole('combobox', { name: 'Language' }).selectOption('zh-CN');
