@@ -160,16 +160,17 @@ export function App() {
       setSettings(loadedSettings);
       setRecent(recentItems);
       const imported = stored.importedDocument as ImportedDocument | undefined;
-      if (imported && typeof imported.markdown === 'string') {
-        openImportedDocument(imported);
+      const importedDocument = imported && typeof imported.markdown === 'string' ? imported : undefined;
+      if (importedDocument) {
+        openImportedDocument(importedDocument);
         if (typeof browser !== 'undefined') await browser.storage.local.remove('importedDocument');
       }
-      if ('showDirectoryPicker' in window) {
+      if ('showDirectoryPicker' in window && !importedDocument) {
         try {
           const handle = await loadWorkspaceHandle();
           if (!handle) return;
           const permission = await handle.queryPermission({ mode: 'read' });
-          if (permission === 'granted' && !imported) await activateWorkspace(handle);
+          if (permission === 'granted') await activateWorkspace(handle);
           else { setRestorableHandle(handle); setWorkspaceOpen(true); }
         } catch {
           // An old or browser-incompatible handle should not block the reader.

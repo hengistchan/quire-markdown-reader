@@ -69,15 +69,7 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     const id = await extensionId(context);
     const localMarkdownPath = join(profile, 'Address Bar Preview.md');
     await writeFile(localMarkdownPath, '# Address Bar Preview\n\nOpened from a local absolute path.');
-    const localPage = await context.newPage();
     const localMarkdownUrl = pathToFileURL(localMarkdownPath).href;
-    await localPage.goto(localMarkdownUrl);
-    await expect(localPage).toHaveURL(localMarkdownUrl);
-    const embeddedReader = localPage.frameLocator('iframe[data-quire-reader]');
-    await expect(embeddedReader.locator('.document-identity span')).toHaveText('Local file');
-    await expect(embeddedReader.getByRole('heading', { level: 1, name: 'Address Bar Preview' })).toBeVisible();
-    await expect(localPage).toHaveURL(localMarkdownUrl);
-    await localPage.close();
 
     const page = await context.newPage();
     await installWorkspacePicker(page);
@@ -100,6 +92,16 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     const statusBox = await page.locator('.context-foot').boundingBox();
     expect(Math.abs((panelBox!.y + panelBox!.height) - (statusBox!.y + statusBox!.height))).toBeLessThan(2);
     await expect(page.locator('.markdown-body img')).toHaveAttribute('src', /^blob:/);
+
+    const localPage = await context.newPage();
+    await localPage.goto(localMarkdownUrl);
+    await expect(localPage).toHaveURL(localMarkdownUrl);
+    const embeddedReader = localPage.frameLocator('iframe[data-quire-reader]');
+    await expect(embeddedReader.locator('.document-identity span')).toHaveText('Local file');
+    await expect(embeddedReader.getByRole('heading', { level: 1, name: 'Address Bar Preview' })).toBeVisible();
+    await expect(embeddedReader.locator('.context-panel')).toHaveCount(0);
+    await expect(localPage).toHaveURL(localMarkdownUrl);
+    await localPage.close();
 
     await page.getByRole('link', { name: 'Open guide' }).click();
     await expect(page.locator('.document-identity strong')).toHaveText('guide');
