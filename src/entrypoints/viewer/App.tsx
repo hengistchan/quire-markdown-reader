@@ -7,6 +7,7 @@ import {
 import {
   collectWorkspace, getWorkspaceFileHandle, readWorkspaceFileSnapshot,
 } from '../../core/files';
+import { isLocalMarkdownUrl } from '../../core/localMarkdown';
 import { renderMarkdown } from '../../core/markdown';
 import { fetchRemoteMarkdown, RemoteMarkdownError } from '../../core/remote';
 import { hostPermissionPattern, isMarkdownLink, isRelativeUrl, isRemoteUrl, resolveWorkspacePath } from '../../core/paths';
@@ -87,7 +88,10 @@ export function App() {
   const htmlMarkup = useMemo(() => ({ __html: html }), [html]);
   const headings = useMemo(() => extractHeadings(html, t('untitledSection')), [html, t]);
   const resolvedTheme = settings.theme === 'system' ? getSystemTheme() : settings.theme;
-  const workspaceName = workspace?.name ?? (sourceUrl ? t('fromWeb') : sourceKind === 'welcome' ? t('gettingStarted') : t('imported'));
+  const workspaceName = workspace?.name
+    ?? (sourceUrl
+      ? (isLocalMarkdownUrl(sourceUrl) ? t('localFile') : t('fromWeb'))
+      : sourceKind === 'welcome' ? t('gettingStarted') : t('imported'));
 
   const updateSettings = useCallback((patch: Partial<ReaderSettings>) => {
     setSettings((current) => {
