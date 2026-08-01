@@ -1,6 +1,6 @@
 # Quire privacy policy
 
-Effective date: 2026-08-01
+Effective date: 2026-08-02
 
 Quire is a read-only Markdown reader. It does not operate a backend service and does not send user data to the developer, sell it, or share it for advertising or unrelated purposes. Quire processes user-selected documents, website content, and URLs only to provide its reading features, including when that processing remains entirely on the user's device.
 

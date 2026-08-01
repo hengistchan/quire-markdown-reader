@@ -8,6 +8,10 @@ Read local folders, individual files, and web Markdown in Chrome—without an ac
 
 Quire renders user-selected local files, folders, active-page text, and remote Markdown URLs as a focused, read-only reading workspace.
 
+## Data handling disclosure
+
+Quire handles only content and locations that you explicitly choose for its reading features. Local documents, reader settings, recent-item metadata, reading positions, and browser-managed file or folder handles stay on your device. When you import the current page, its title, URL, and visible text are processed locally as a temporary plain-text snapshot. When you open a remote Markdown URL, your browser sends a direct request to that selected website, so that website receives the normal network request. Quire has no developer backend, account, analytics, advertising, tracking, or sale of user data. See the linked privacy policy for retention and deletion details.
+
 ## Full description
 
 Turn Markdown source into a document made for reading.
@@ -23,6 +27,8 @@ Key features:
 - Switch quickly between the folder tree and current document outline
 - Resolve relative images and Markdown links inside the workspace
 - Search the current document and follow reading progress
+- Continue from the last reading position and navigate back or forward between workspace documents
+- Drag in a Markdown file or folder, or paste Markdown text directly into the reader
 - Adjust light or dark theme, font, text size, line height, and page width
 - Render highlighted code, task lists, footnotes, callouts, KaTeX formulas, and Mermaid diagrams
 - Open a web Markdown URL with access limited to the website you choose
@@ -38,6 +44,6 @@ Quire is open source. It has no account, analytics, ads, tracking, or developer 
 
 - Active tab and scripting: import visible page text only after an explicit user action.
 - Context menus: provide “Open in Quire.”
-- Storage: save reader preferences, onboarding state, and recent metadata on this device.
+- Storage: save reader preferences, onboarding state, recent metadata, and reading positions on this device; browser-managed local file and folder handles are stored in on-device IndexedDB.
 - Optional website access: fetch a user-selected remote Markdown document from that origin only.
 - Local file-URL access: after you enable it in Chrome's extension details, detect and read only local .md, .markdown, or .mdx documents you open explicitly in the address bar.
