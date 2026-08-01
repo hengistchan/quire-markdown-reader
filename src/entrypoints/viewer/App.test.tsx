@@ -358,10 +358,15 @@ describe('Quire viewer experience', () => {
       record = [...observers].reverse().find((candidate) => candidate.targets.includes(target));
       expect(record).toBeTruthy();
     });
-    act(() => record!.callback(
-      [{ target, isIntersecting: true } as unknown as IntersectionObserverEntry],
-      {} as IntersectionObserver,
-    ));
+    await import('mermaid');
+    await act(async () => {
+      record!.callback(
+        [{ target, isIntersecting: true } as unknown as IntersectionObserverEntry],
+        {} as IntersectionObserver,
+      );
+      await Promise.resolve();
+    });
+    expect(target.dataset.resourceState).toBe('ready');
     await waitFor(() => expect(mermaidMocks.run).toHaveBeenCalledWith(expect.objectContaining({ nodes: [target] })));
   });
 
