@@ -110,6 +110,73 @@ export async function collectWorkspace(directory: FileSystemDirectoryHandle, opt
   return { id: options.workspaceId, name: directory.name, files, tree, handle: directory };
 }
 
+interface TransientDirectoryNode {
+  name: string;
+  directories: Map<string, TransientDirectoryNode>;
+  files: Map<string, File>;
+}
+
+function transientFileHandle(file: File): FileSystemFileHandle {
+  return { kind: 'file', name: file.name, getFile: async () => file } as FileSystemFileHandle;
+}
+
+function transientDirectoryHandle(node: TransientDirectoryNode): FileSystemDirectoryHandle {
+  const directories = new Map<string, FileSystemDirectoryHandle>();
+  const files = new Map<string, FileSystemFileHandle>();
+  for (const [name, child] of node.directories) directories.set(name, transientDirectoryHandle(child));
+  for (const [name, file] of node.files) files.set(name, transientFileHandle(file));
+  return {
+    kind: 'directory',
+    name: node.name,
+    entries: async function* () {
+      for (const entry of directories) yield entry;
+      for (const entry of files) yield entry;
+    },
+    getDirectoryHandle: async (name: string) => {
+      const child = directories.get(name);
+      if (!child) throw new DOMException('Directory not found.', 'NotFoundError');
+      return child;
+    },
+    getFileHandle: async (name: string) => {
+      const child = files.get(name);
+      if (!child) throw new DOMException('File not found.', 'NotFoundError');
+      return child;
+    },
+    queryPermission: async () => 'granted',
+    requestPermission: async () => 'granted',
+  } as unknown as FileSystemDirectoryHandle;
+}
+
+export function createTransientDirectoryHandle(selectedFiles: Iterable<File>): FileSystemDirectoryHandle | undefined {
+  const entries = [...selectedFiles]
+    .map((file) => ({ file, parts: (file.webkitRelativePath || file.name).split('/').filter((part) => part && part !== '.') }))
+    .filter(({ parts }) => parts.length > 0 && !parts.includes('..'));
+  if (!entries.length) return undefined;
+  const firstEntry = entries[0]!;
+  const firstRoot = firstEntry.parts[0];
+  const sharedRoot = firstRoot && firstEntry.parts.length > 1
+    && entries.every(({ parts }) => parts.length > 1 && parts[0] === firstRoot)
+    ? firstRoot
+    : 'Selected folder';
+  const root: TransientDirectoryNode = { name: sharedRoot, directories: new Map(), files: new Map() };
+  for (const { file, parts: originalParts } of entries) {
+    const parts = sharedRoot === 'Selected folder' ? [...originalParts] : originalParts.slice(1);
+    const filename = parts.pop();
+    if (!filename) continue;
+    let directory = root;
+    for (const part of parts) {
+      let child = directory.directories.get(part);
+      if (!child) {
+        child = { name: part, directories: new Map(), files: new Map() };
+        directory.directories.set(part, child);
+      }
+      directory = child;
+    }
+    directory.files.set(filename, file);
+  }
+  return transientDirectoryHandle(root);
+}
+
 export async function readWorkspaceFile(file: WorkspaceFile): Promise<string> {
   return (await file.handle.getFile()).text();
 }

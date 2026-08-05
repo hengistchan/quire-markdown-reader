@@ -1,6 +1,6 @@
 import { expect, test, chromium, type BrowserContext, type Page } from '@playwright/test';
 import { createServer, type Server } from 'node:http';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -69,8 +69,11 @@ test('runs the complete reader flow as an installed Chromium extension', async (
       args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`, '--lang=en-US'],
     });
     const id = await extensionId(context);
-    const localMarkdownPath = join(profile, 'Address Bar Preview.md');
+    const localWorkspacePath = join(profile, 'mihomo');
+    await mkdir(join(localWorkspacePath, 'docs'), { recursive: true });
+    const localMarkdownPath = join(localWorkspacePath, 'README.md');
     await writeFile(localMarkdownPath, '# Address Bar Preview\n\nOpened from a local absolute path.');
+    await writeFile(join(localWorkspacePath, 'docs', 'guide.md'), '# Embedded workspace guide');
     const localMarkdownUrl = pathToFileURL(localMarkdownPath).href;
 
     const page = await context.newPage();
@@ -138,6 +141,15 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     await expect(embeddedReader.locator('.document-identity span')).toHaveText('Local file');
     await expect(embeddedReader.getByRole('heading', { level: 1, name: 'Address Bar Preview' })).toBeVisible();
     await expect(embeddedReader.locator('.context-panel')).toHaveCount(0);
+    const embeddedFolderChooser = localPage.waitForEvent('filechooser');
+    await embeddedReader.getByRole('button', { name: 'Toggle file workspace' }).click();
+    await (await embeddedFolderChooser).setFiles(localWorkspacePath);
+    await expect(embeddedReader.locator('.workspace-panel')).toBeVisible();
+    await expect(embeddedReader.locator('.context-heading strong')).toHaveText('mihomo');
+    await expect(embeddedReader.getByRole('button', { name: /README\.md/ })).toBeVisible();
+    await expect(embeddedReader.getByRole('button', { name: /guide\.md/ })).toBeVisible();
+    await expect(embeddedReader.getByRole('button', { name: 'Refresh workspace' })).toHaveCount(0);
+    await expect(embeddedReader.locator('.context-foot')).toContainText('Local-only reading');
     await expect(localPage).toHaveURL(localMarkdownUrl);
     await localPage.close();
 

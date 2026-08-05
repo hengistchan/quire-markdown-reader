@@ -30,6 +30,18 @@ export function localMarkdownTitle(value: string): string {
   }
 }
 
+export function localMarkdownPathWithinDirectory(value: string, directoryName: string): string | undefined {
+  if (!isLocalMarkdownUrl(value)) return undefined;
+  try {
+    const segments = new URL(value).pathname.split('/').filter(Boolean).map(decodeURIComponent);
+    const directoryIndex = segments.lastIndexOf(directoryName);
+    if (directoryIndex < 0 || directoryIndex === segments.length - 1) return undefined;
+    return segments.slice(directoryIndex + 1).join('/');
+  } catch {
+    return undefined;
+  }
+}
+
 export function createLocalMarkdownImport(value: string, page: Document): ImportedDocument | undefined {
   if (!isLocalMarkdownUrl(value)) return undefined;
   const solePre = page.body?.childElementCount === 1 ? page.body.querySelector(':scope > pre') : null;

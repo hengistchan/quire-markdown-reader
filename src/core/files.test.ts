@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collectWorkspace, getWorkspaceFileHandle, isMarkdownFile, readWorkspaceFileSnapshot, WorkspaceScanError } from './files';
+import { collectWorkspace, createTransientDirectoryHandle, getWorkspaceFileHandle, isMarkdownFile, readWorkspaceFileSnapshot, WorkspaceScanError } from './files';
 
 function fileHandle(name: string, text = name, lastModified = 1): FileSystemFileHandle {
   return {
@@ -38,6 +38,21 @@ describe('isMarkdownFile', () => {
 });
 
 describe('workspace collection', () => {
+  it('builds a session-only directory handle from a folder input', async () => {
+    const selected = [
+      { name: 'README.md', webkitRelativePath: 'mihomo/README.md', lastModified: 1, text: async () => '# Mihomo' },
+      { name: 'guide.md', webkitRelativePath: 'mihomo/docs/guide.md', lastModified: 2, text: async () => '# Guide' },
+      { name: 'logo.svg', webkitRelativePath: 'mihomo/assets/logo.svg', lastModified: 3, text: async () => '<svg />' },
+    ] as unknown as File[];
+
+    const handle = createTransientDirectoryHandle(selected)!;
+    const workspace = await collectWorkspace(handle);
+
+    expect(workspace.name).toBe('mihomo');
+    expect(workspace.files.map((file) => file.path)).toEqual(['docs/guide.md', 'README.md']);
+    await expect((await getWorkspaceFileHandle(handle, 'assets/logo.svg')).getFile()).resolves.toBe(selected[2]);
+  });
+
   it('builds a sorted nested tree and skips hidden and dependency/build directories', async () => {
     const root = directoryHandle('notes', {
       '10-last.md': fileHandle('10-last.md'),

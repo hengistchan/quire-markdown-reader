@@ -4,9 +4,9 @@ import {
   MoreHorizontal, RotateCw, Search, Settings2, StretchHorizontal, X,
 } from 'lucide-react';
 import {
-  collectWorkspace, getWorkspaceFileHandle, WorkspaceScanError,
+  collectWorkspace, createTransientDirectoryHandle, getWorkspaceFileHandle, WorkspaceScanError,
 } from '../../core/files';
-import { isLocalMarkdownUrl } from '../../core/localMarkdown';
+import { isLocalMarkdownUrl, localMarkdownPathWithinDirectory, localMarkdownTitle } from '../../core/localMarkdown';
 import { renderMarkdown, renderPlainText } from '../../core/markdown';
 import { RemoteMarkdownError } from '../../core/remote';
 import { hostPermissionPattern, isMarkdownLink, isRelativeUrl, isRemoteUrl, linkFragment, resolveWorkspacePath } from '../../core/paths';
@@ -173,6 +173,7 @@ export function App() {
   const [resumeTarget, setResumeTarget] = useState<ResumeTarget>();
   const [dragActive, setDragActive] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const directoryInput = useRef<HTMLInputElement>(null);
   const articleRef = useRef<HTMLElement>(null);
   const remoteLoadingRef = useRef(false);
   const remoteRequestController = useRef<AbortController | undefined>(undefined);
@@ -303,14 +304,15 @@ export function App() {
     scrollTo({ top: 0, behavior: 'smooth' });
   }, [queueDocumentNavigation, recordRecent, session]);
 
-  const activateWorkspace = useCallback(async (handle: FileSystemDirectoryHandle, preferredPath?: string, existingId?: string, navigationMode: 'push' | 'traverse' = 'push'): Promise<boolean> => {
+  const activateWorkspace = useCallback(async (handle: FileSystemDirectoryHandle, preferredPath?: string, existingId?: string, navigationMode: 'push' | 'traverse' = 'push', transient = false): Promise<boolean> => {
     workspaceScanController.current?.abort();
     const controller = new AbortController();
     workspaceScanController.current = controller;
     setWorkspaceScanning(true);
     try {
-      const workspaceId = await saveWorkspaceHandle(handle, existingId);
+      const workspaceId = transient ? undefined : await saveWorkspaceHandle(handle, existingId);
       const snapshot = await collectWorkspace(handle, { signal: controller.signal, workspaceId });
+      snapshot.transient = transient;
       setSidebarMode('files');
       const selected = snapshot.files.find((file) => file.path === preferredPath)
         ?? snapshot.files.find((file) => /^readme\.(md|markdown|mdx)$/i.test(file.path))
@@ -543,6 +545,7 @@ export function App() {
 
   useEffect(() => {
     if (!settings.autoRefresh || !activeFile || (session.kind !== 'workspace' && session.kind !== 'file')) return;
+    if (session.kind === 'workspace' && session.workspace.transient) return;
     let checking = false;
     const check = async () => {
       if (checking || document.hidden) return;
@@ -709,6 +712,11 @@ export function App() {
 
   const handleDirectory = async () => {
     setActiveOverlay(null);
+    if (window.top !== window && sourceUrl && isLocalMarkdownUrl(sourceUrl)) {
+      directoryInput.current?.setAttribute('webkitdirectory', '');
+      directoryInput.current?.click();
+      return;
+    }
     if (!('showDirectoryPicker' in window)) { setError(t('folderUnsupported')); return; }
     try {
       const handle = await window.showDirectoryPicker({ mode: 'read' });
@@ -718,6 +726,16 @@ export function App() {
       if (name === 'NotAllowedError') setError(t('permissionDenied'));
       else if (name !== 'AbortError') setError(t('folderReadError'));
     }
+  };
+
+  const handleTransientDirectory = async (files: FileList | null) => {
+    const handle = files ? createTransientDirectoryHandle(files) : undefined;
+    if (!handle) return;
+    const preferredPath = sourceUrl && isLocalMarkdownUrl(sourceUrl)
+      ? localMarkdownPathWithinDirectory(sourceUrl, handle.name) ?? localMarkdownTitle(sourceUrl)
+      : undefined;
+    await activateWorkspace(handle, preferredPath, undefined, 'push', true);
+    if (directoryInput.current) directoryInput.current.value = '';
   };
 
   const restoreWorkspace = async () => {
@@ -1013,12 +1031,13 @@ export function App() {
             {moreMenuOpen && <MoreMenu t={t} commandShortcut={shortcutLabels.command} onCommand={() => setActiveOverlay('command')} onOutline={toggleOutlinePanel} onSettings={() => setActiveOverlay('settings')} />}
           </div>
           <input ref={fileInput} hidden type="file" accept=".md,.markdown,.mdx,text/markdown" onChange={(event) => event.target.files?.[0] && void handleFile(event.target.files[0])} />
+          <input ref={directoryInput} data-directory-picker hidden type="file" multiple onChange={(event) => void handleTransientDirectory(event.target.files)} />
         </div>
       </header>
 
       <div className={`workspace ${contextOpen ? 'with-context' : ''}`}>
         {contextMode === 'files' && <aside className="context-panel workspace-panel" aria-label={t('workspace')}>
-          <div className="context-heading"><span>{t('workspace')}</span><div><strong>{workspace?.name ?? t('restoreTitle')}</strong>{workspace && <button disabled={workspaceScanning} onClick={() => void refreshWorkspace()} aria-label={t('refreshWorkspace')} title={t('refreshWorkspace')}><RotateCw className={workspaceScanning ? 'loading-spinner' : ''} /></button>}</div></div>
+          <div className="context-heading"><span>{t('workspace')}</span><div><strong>{workspace?.name ?? t('restoreTitle')}</strong>{workspace && !workspace.transient && <button disabled={workspaceScanning} onClick={() => void refreshWorkspace()} aria-label={t('refreshWorkspace')} title={t('refreshWorkspace')}><RotateCw className={workspaceScanning ? 'loading-spinner' : ''} /></button>}</div></div>
           {workspace && <label className="file-filter"><Search /><input value={fileFilter} onChange={(event) => setFileFilter(event.target.value)} placeholder={t('filterFiles')} /></label>}
           {restorableWorkspace && <div className="restore-card"><RotateCw /><strong>{t('restoreTitle')}</strong><p>{t('restoreBody')}</p><button onClick={() => void restoreWorkspace()}>{t('restore')}</button><button className="quiet" onClick={() => setRestorableWorkspace(undefined)}>{t('dismiss')}</button></div>}
           <nav className="context-files">
@@ -1028,7 +1047,7 @@ export function App() {
               <WorkspaceTree nodes={workspace.tree} activeId={activeFile?.id} collapsed={collapsedDirectories} onToggle={toggleDirectory} onOpen={(file) => void openWorkspaceFile(file)} />
             ) : null}
           </nav>
-          <div className="context-foot"><span className="status-dot" /> {settings.autoRefresh && (activeFile || remoteState) ? t('watching') : t('localOnly')}</div>
+          <div className="context-foot"><span className="status-dot" /> {settings.autoRefresh && !workspace?.transient && (activeFile || remoteState) ? t('watching') : t('localOnly')}</div>
         </aside>}
 
         {contextMode === 'outline' && <aside className="context-panel outline-panel" aria-label={t('outline')}>

@@ -52,6 +52,7 @@ export interface WorkspaceSnapshot {
   files: WorkspaceFile[];
   tree: WorkspaceTreeNode[];
   handle: FileSystemDirectoryHandle;
+  transient?: boolean;
 }
 
 export interface HeadingItem {

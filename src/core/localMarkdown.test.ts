@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   createLocalMarkdownImport, isLocalMarkdownUrl, isOpenLocalMarkdownMessage, isOpenLocalMarkdownResponse,
-  localMarkdownTitle, OPEN_LOCAL_MARKDOWN,
+  localMarkdownPathWithinDirectory, localMarkdownTitle, OPEN_LOCAL_MARKDOWN,
 } from './localMarkdown';
 
 describe('local Markdown address handling', () => {
@@ -30,6 +30,13 @@ describe('local Markdown address handling', () => {
       markdown: '# Title\n\nParagraph',
       sourceUrl,
     });
+  });
+
+  it('derives the current file path relative to a selected workspace', () => {
+    const value = 'file:///Users/example/work/mihomo/docs/%E6%8C%87%E5%8D%97.md';
+    expect(localMarkdownPathWithinDirectory(value, 'mihomo')).toBe('docs/指南.md');
+    expect(localMarkdownPathWithinDirectory(value, 'work')).toBe('mihomo/docs/指南.md');
+    expect(localMarkdownPathWithinDirectory(value, 'other')).toBeUndefined();
   });
 
   it('validates messages before the background page imports them', () => {
