@@ -38,7 +38,7 @@ async function installWorkspacePicker(page: Page): Promise<void> {
         const docs = await workspace.getDirectoryHandle('docs', { create: true });
         const assets = await workspace.getDirectoryHandle('assets', { create: true });
         const dependencies = await workspace.getDirectoryHandle('node_modules', { create: true });
-        await write(await workspace.getFileHandle('README.md', { create: true }), '# Workspace Home\n\n![Quire mark](assets/mark.svg)\n\n[Open guide](docs/guide.md#section-16)');
+        await write(await workspace.getFileHandle('README.md', { create: true }), '# Workspace Home\n\n![Quire mark](assets/mark.svg)\n\n```mermaid\nflowchart LR\n  Source --> Reader\n```\n\n```mermaid\nsequenceDiagram\n  Browser->>Quire: Open Markdown\n  Quire-->>Browser: Render SVG\n```\n\n[Open guide](docs/guide.md#section-16)');
         const longOutline = Array.from({ length: 32 }, (_, index) => `## Section ${index + 1}\n\nOutline content ${index + 1}.`).join('\n\n');
         await write(await docs.getFileHandle('guide.md', { create: true }), `# Nested Guide\n\nBefore refresh.\n\n${longOutline}`);
         await write(await assets.getFileHandle('mark.svg', { create: true }), '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" rx="8" fill="#5266d7"/></svg>');
@@ -81,6 +81,10 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     await expect(page.getByRole('img', { name: 'Quire' })).toHaveAttribute('src', '/icon/96.png');
     await expect(page.getByRole('heading', { level: 1, name: 'Welcome to Quire' })).toBeVisible();
     await expect(page.locator('.context-panel')).toHaveCount(0);
+    const welcomeDiagram = page.locator('.mermaid').first();
+    await welcomeDiagram.scrollIntoViewIfNeeded();
+    await expect(welcomeDiagram.locator('svg')).toHaveCount(1, { timeout: 10_000 });
+    await expect(welcomeDiagram).toHaveAttribute('data-resource-state', 'ready');
 
     const openControl = page.getByRole('button', { name: 'Open', exact: true });
     const wideControl = page.getByRole('button', { name: 'Use wider reading width' });
@@ -101,6 +105,12 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     await expect(page.getByRole('button', { name: 'docs' })).toBeVisible();
     await expect(page.getByRole('button', { name: /guide\.md/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /ignored\.md/ })).toHaveCount(0);
+    const workspaceDiagrams = page.locator('.mermaid');
+    await expect(workspaceDiagrams).toHaveCount(2);
+    await workspaceDiagrams.last().scrollIntoViewIfNeeded();
+    await expect(workspaceDiagrams.locator('svg')).toHaveCount(2, { timeout: 10_000 });
+    await expect(workspaceDiagrams.first()).toHaveAttribute('data-resource-state', 'ready');
+    await expect(workspaceDiagrams.last()).toHaveAttribute('data-resource-state', 'ready');
     const folderName = page.getByRole('button', { name: 'docs' }).locator('span');
     await expect(folderName).toHaveText('docs');
     expect((await folderName.boundingBox())?.width).toBeGreaterThan(24);

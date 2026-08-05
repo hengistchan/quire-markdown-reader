@@ -9,10 +9,13 @@ import { App } from './App';
 
 const mermaidMocks = vi.hoisted(() => ({
   initialize: vi.fn(),
-  run: vi.fn(async () => undefined),
+  render: async (options?: { nodes?: HTMLElement[] }) => {
+    for (const node of options?.nodes ?? []) node.innerHTML = '<svg role="img" aria-label="Rendered Mermaid diagram"></svg>';
+  },
+  run: vi.fn(),
 }));
 
-vi.mock('mermaid', () => ({ default: mermaidMocks }));
+vi.mock('mermaid', () => ({ default: { initialize: mermaidMocks.initialize, run: mermaidMocks.run } }));
 
 function installBrowser(overrides: Record<string, unknown> = {}, recentItems: unknown = []) {
   const local = {
@@ -49,7 +52,8 @@ describe('Quire viewer experience', () => {
     vi.stubGlobal('scrollTo', vi.fn());
     Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() });
     mermaidMocks.initialize.mockClear();
-    mermaidMocks.run.mockClear();
+    mermaidMocks.run.mockReset();
+    mermaidMocks.run.mockImplementation(mermaidMocks.render);
   });
 
   afterEach(() => {
@@ -333,7 +337,7 @@ describe('Quire viewer experience', () => {
     await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Dropped body.'));
   });
 
-  it('defers Mermaid until a diagram approaches the viewport', async () => {
+  it('defers Mermaid until a diagram approaches the viewport and retries a transient failure', async () => {
     const observers: Array<{ callback: IntersectionObserverCallback; targets: Element[] }> = [];
     class TestIntersectionObserver {
       readonly root = null;
@@ -364,24 +368,30 @@ describe('Quire viewer experience', () => {
     history.replaceState(null, '', '/viewer.html?handoff=lazy-mermaid');
     render(<App />);
 
-    await waitFor(() => expect(document.querySelector('.mermaid')).toBeTruthy());
+    let target: HTMLElement | undefined;
+    await waitFor(() => {
+      target = [...document.querySelectorAll<HTMLElement>('.mermaid')]
+        .find((node) => decodeURIComponent(node.dataset.mermaidSource ?? '').includes('UniqueLazyNode'));
+      expect(target).toBeTruthy();
+    });
     expect(mermaidMocks.run).not.toHaveBeenCalled();
-    const target = document.querySelector<HTMLElement>('.mermaid')!;
     let record: { callback: IntersectionObserverCallback; targets: Element[] } | undefined;
     await waitFor(() => {
-      record = [...observers].reverse().find((candidate) => candidate.targets.includes(target));
+      record = [...observers].reverse().find((candidate) => candidate.targets.includes(target!));
       expect(record).toBeTruthy();
     });
     await import('mermaid');
+    mermaidMocks.run.mockRejectedValueOnce(new Error('transient Mermaid failure'));
     await act(async () => {
       record!.callback(
-        [{ target, isIntersecting: true } as unknown as IntersectionObserverEntry],
+        [{ target: target!, isIntersecting: true } as unknown as IntersectionObserverEntry],
         {} as IntersectionObserver,
       );
-      await Promise.resolve();
     });
-    expect(target.dataset.resourceState).toBe('ready');
-    await waitFor(() => expect(mermaidMocks.run).toHaveBeenCalledWith(expect.objectContaining({ nodes: [target] })));
+    await waitFor(() => expect(target!.dataset.resourceState).toBe('ready'));
+    expect(target!.querySelector('svg')).toBeTruthy();
+    expect(mermaidMocks.run).toHaveBeenCalledTimes(2);
+    expect(mermaidMocks.run).toHaveBeenCalledWith(expect.objectContaining({ nodes: [target!] }));
   });
 
   it('keeps menus, command center, URL dialog, and settings mutually exclusive', async () => {

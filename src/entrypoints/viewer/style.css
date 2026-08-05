@@ -165,6 +165,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .markdown-body .warning { border-left-color: #d28b34; }
 .markdown-body .footnotes { margin-top: 3em; color: var(--muted); font-size: .82em; }
 .markdown-body .mermaid { display: flex; justify-content: center; margin: 2em 0; padding: 1.5em; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.markdown-body .mermaid[aria-busy='true'] { min-height: 120px; align-items: center; color: var(--muted); white-space: pre-wrap; font: .76em/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; opacity: .72; }
+.markdown-body .mermaid[data-resource-state='error'] { display: block; border-color: color-mix(in srgb, #d75e58 38%, var(--line)); color: var(--muted); white-space: pre-wrap; font: .76em/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.markdown-body .mermaid[data-resource-state='error']::before { content: attr(data-resource-error); display: block; margin-bottom: 12px; color: color-mix(in srgb, #d75e58 78%, var(--ink)); font: 700 10px/1.5 Inter, ui-sans-serif, sans-serif; white-space: normal; }
 body > .mermaidTooltip:empty { display: none !important; }
 .markdown-body .katex-display { overflow-x: auto; overflow-y: hidden; padding: .5em 0; }
 .document-footer { display: flex; align-items: center; gap: 14px; width: min(100%, var(--reader-width)); margin: 72px auto 0; color: var(--faint); font-size: 8px; font-weight: 750; letter-spacing: .15em; text-transform: uppercase; }

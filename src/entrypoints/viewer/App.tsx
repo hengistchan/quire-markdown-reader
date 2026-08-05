@@ -43,6 +43,14 @@ interface ResumeTarget { scrollPosition: number; headingId?: string }
 const WIDE_READER_WIDTH = 980;
 const MERMAID_CACHE_LIMIT = 50;
 const mermaidSvgCache = new Map<string, string>();
+const mermaidRenderTokens = new WeakMap<HTMLElement, symbol>();
+let mermaidRenderQueue: Promise<void> = Promise.resolve();
+
+function enqueueMermaidRender(task: () => Promise<void>): Promise<void> {
+  const next = mermaidRenderQueue.then(task, task);
+  mermaidRenderQueue = next.catch(() => undefined);
+  return next;
+}
 
 function getSystemTheme(): 'light' | 'dark' {
   return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -373,28 +381,70 @@ export function App() {
     if (!settings.enableMermaid || !articleRef.current) return;
     let cancelled = false;
     let observer: IntersectionObserver | undefined;
+    const effectRenders = new Map<HTMLElement, symbol>();
     const theme = resolvedTheme === 'dark' ? 'dark' : 'neutral';
     const renderNode = async (node: HTMLElement) => {
       const encoded = node.dataset.mermaidSource;
-      if (!encoded || node.dataset.resourceState === 'rendering') return;
+      if (!encoded || node.dataset.resourceState === 'ready' && node.querySelector('svg')) return;
+      if (node.dataset.resourceState === 'rendering' && mermaidRenderTokens.has(node)) return;
       const cacheKey = `${theme}:${encoded}`;
       const cached = mermaidSvgCache.get(cacheKey);
-      if (cached) {
+      if (cached?.includes('<svg')) {
         node.innerHTML = cached;
         node.dataset.resourceState = 'ready';
+        node.removeAttribute('aria-busy');
         return;
       }
+      if (cached) mermaidSvgCache.delete(cacheKey);
+      const token = Symbol(cacheKey);
+      mermaidRenderTokens.set(node, token);
+      effectRenders.set(node, token);
       node.dataset.resourceState = 'rendering';
-      node.textContent = decodeURIComponent(encoded);
-      node.removeAttribute('data-processed');
-      const { default: mermaid } = await import('mermaid');
-      if (cancelled) return;
-      mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme, fontFamily: 'ui-sans-serif, system-ui, sans-serif' });
-      await mermaid.run({ nodes: [node], suppressErrors: true });
-      if (cancelled) return;
-      node.dataset.resourceState = 'ready';
-      mermaidSvgCache.set(cacheKey, node.innerHTML);
-      if (mermaidSvgCache.size > MERMAID_CACHE_LIMIT) mermaidSvgCache.delete(mermaidSvgCache.keys().next().value!);
+      node.setAttribute('aria-busy', 'true');
+      node.removeAttribute('data-resource-error');
+      const source = decodeURIComponent(encoded);
+      await enqueueMermaidRender(async () => {
+        let lastError: unknown;
+        try {
+          const { default: mermaid } = await import('mermaid');
+          for (let attempt = 1; attempt <= 2; attempt += 1) {
+            if (cancelled || !node.isConnected || mermaidRenderTokens.get(node) !== token) return;
+            node.textContent = source;
+            node.removeAttribute('data-processed');
+            try {
+              mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme, fontFamily: 'ui-sans-serif, system-ui, sans-serif' });
+              await mermaid.run({ nodes: [node], suppressErrors: true });
+              if (cancelled || !node.isConnected || mermaidRenderTokens.get(node) !== token) return;
+              if (!node.querySelector('svg')) throw new Error('Mermaid completed without producing an SVG.');
+              node.dataset.resourceState = 'ready';
+              node.removeAttribute('data-resource-error');
+              mermaidSvgCache.set(cacheKey, node.innerHTML);
+              if (mermaidSvgCache.size > MERMAID_CACHE_LIMIT) mermaidSvgCache.delete(mermaidSvgCache.keys().next().value!);
+              return;
+            } catch (caught) {
+              lastError = caught;
+            }
+          }
+          if (cancelled || !node.isConnected || mermaidRenderTokens.get(node) !== token) return;
+          node.textContent = source;
+          node.dataset.resourceState = 'error';
+          node.dataset.resourceError = t('diagramRenderError');
+          console.error('[quire:mermaid] render failed', { error: lastError });
+        } catch (caught) {
+          if (cancelled || !node.isConnected || mermaidRenderTokens.get(node) !== token) return;
+          node.textContent = source;
+          node.dataset.resourceState = 'error';
+          node.dataset.resourceError = t('diagramRenderError');
+          console.error('[quire:mermaid] load failed', { error: caught });
+        } finally {
+          if (mermaidRenderTokens.get(node) === token) {
+            if (node.dataset.resourceState === 'rendering') node.dataset.resourceState = 'idle';
+            node.removeAttribute('aria-busy');
+            mermaidRenderTokens.delete(node);
+          }
+          effectRenders.delete(node);
+        }
+      });
     };
     const nodes = [...articleRef.current.querySelectorAll<HTMLElement>('.mermaid')];
     if ('IntersectionObserver' in window) {
@@ -409,8 +459,18 @@ export function App() {
     } else {
       for (const node of nodes) void renderNode(node);
     }
-    return () => { cancelled = true; observer?.disconnect(); };
-  }, [html, resolvedTheme, settings.enableMermaid]);
+    return () => {
+      cancelled = true;
+      observer?.disconnect();
+      for (const [node, token] of effectRenders) {
+        if (mermaidRenderTokens.get(node) !== token) continue;
+        if (node.dataset.resourceState === 'rendering') node.dataset.resourceState = 'idle';
+        node.removeAttribute('aria-busy');
+        mermaidRenderTokens.delete(node);
+      }
+      effectRenders.clear();
+    };
+  }, [html, resolvedTheme, settings.enableMermaid, t]);
 
   useEffect(() => {
     if (!articleRef.current) return;
