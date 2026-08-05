@@ -170,13 +170,14 @@ body > .mermaidTooltip:empty { display: none !important; }
 .document-footer { display: flex; align-items: center; gap: 14px; width: min(100%, var(--reader-width)); margin: 72px auto 0; color: var(--faint); font-size: 8px; font-weight: 750; letter-spacing: .15em; text-transform: uppercase; }
 .document-footer i { flex: 1; height: 1px; background: var(--line); }
 
-.outline-popover { position: fixed; z-index: 35; top: 132px; right: 24px; display: flex; flex-direction: column; width: 212px; max-height: calc(100vh - 156px); padding: 14px 12px 12px; border: 1px solid var(--line); border-radius: 11px; background: color-mix(in srgb, var(--panel) 96%, transparent); box-shadow: 0 12px 32px rgba(0,0,0,.12); }
-.outline-popover > label { display: block; flex: 0 0 auto; padding: 0 5px 10px; color: var(--faint); font-size: 9px; font-weight: 750; }
-.outline-popover nav { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; padding-right: 3px; overflow-y: auto; overscroll-behavior: contain; scrollbar-color: var(--line) transparent; scrollbar-width: thin; gap: 3px; }
-.outline-popover nav button { flex: 0 0 auto; width: 100%; min-height: 30px; padding-block: 8px; overflow: hidden; border: 0; border-radius: 6px; color: var(--muted); background: transparent; cursor: pointer; font-size: 9px; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
-.outline-popover nav button:hover, .outline-popover nav button.active { color: var(--ink); background: var(--accent-soft); }
-.outline-popover nav button.active { font-weight: 700; }
-.outline-progress { display: grid; flex: 0 0 auto; gap: 8px; margin-top: 12px; padding: 11px 5px 2px; border-top: 1px solid var(--line); }
+.outline-panel .context-heading { border-bottom: 1px solid var(--line); }
+.outline-panel .context-heading > div { grid-template-columns: minmax(0, 1fr); }
+.outline-navigation { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; padding: 10px 9px; overflow-y: auto; overscroll-behavior: contain; scrollbar-color: var(--line) transparent; scrollbar-width: thin; gap: 3px; }
+.outline-navigation button { flex: 0 0 auto; width: 100%; min-height: 34px; padding-block: 8px; overflow: hidden; border: 0; border-radius: 7px; color: var(--muted); background: transparent; cursor: pointer; font-size: 10px; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.outline-navigation button:hover, .outline-navigation button.active { color: var(--ink); background: var(--accent-soft); }
+.outline-navigation button.active { font-weight: 700; }
+.outline-empty { margin: 14px 9px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.outline-progress { display: grid; flex: 0 0 auto; gap: 8px; margin: 0; padding: 14px 16px 16px; border-top: 1px solid var(--line); }
 .outline-progress span { color: var(--faint); font-size: 8px; }
 .outline-progress i { height: 4px; overflow: hidden; border-radius: 4px; background: var(--panel-strong); }
 .outline-progress b { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
@@ -291,7 +292,6 @@ body > .mermaidTooltip:empty { display: none !important; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 1040px) {
-  .outline-popover { display: none; }
   .reader-stage, .with-context .reader-stage { padding-inline: max(34px, calc((100vw - 52px - var(--reader-width)) / 2)); }
 }
 
@@ -326,7 +326,7 @@ body > .mermaidTooltip:empty { display: none !important; }
 
 @media print {
   :root, body { color-scheme: light; background: white !important; }
-  .navigation-rail, .topbar, .context-panel, .outline-popover, .reading-progress,
+  .navigation-rail, .topbar, .context-panel, .reading-progress,
   .paper-grain, .error-banner, .remote-loading, .drop-overlay, .resume-prompt, .toast { display: none !important; }
   .workspace { display: block; margin: 0; padding-top: 0; }
   .reader-stage { min-height: auto; padding: 0; background: white !important; }

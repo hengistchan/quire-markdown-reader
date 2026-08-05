@@ -136,10 +136,24 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     await expect(page.getByText('Before refresh.')).toBeVisible();
     await expect(page).toHaveURL(/#section-16$/);
     await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(0);
-    const outline = page.locator('.outline-popover');
+    const outlineToggle = page.getByRole('button', { name: 'Toggle document outline' });
+    await outlineToggle.click();
+    await expect(outlineToggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('.workspace-panel')).toHaveCount(0);
+    const outline = page.locator('.outline-panel');
+    const initialOutlineBox = await outline.boundingBox();
+    const workspaceToggle = page.getByRole('button', { name: 'Toggle file workspace' });
+    await workspaceToggle.click();
+    await expect(workspaceToggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(outline).toHaveCount(0);
+    const workspacePanelBox = await page.locator('.workspace-panel').boundingBox();
+    expect(workspacePanelBox!.x).toBe(initialOutlineBox!.x);
+    expect(workspacePanelBox!.width).toBe(initialOutlineBox!.width);
+    await outlineToggle.click();
+    await expect(page.locator('.workspace-panel')).toHaveCount(0);
     const outlineBox = await outline.boundingBox();
     expect(outlineBox!.y + outlineBox!.height).toBeLessThanOrEqual(800);
-    const outlineNavigation = outline.locator('nav');
+    const outlineNavigation = outline.locator('.outline-navigation');
     expect(await outlineNavigation.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
     await expect(outlineNavigation.locator('button')).toHaveCount(33);
     const outlineRowHeights = await outlineNavigation.locator('button').evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().height));
@@ -147,6 +161,12 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     await outlineNavigation.hover();
     await page.mouse.wheel(0, 480);
     await expect.poll(() => outlineNavigation.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+    await page.setViewportSize({ width: 720, height: 800 });
+    const compactOutlineBox = await outline.boundingBox();
+    expect(compactOutlineBox!.x).toBe(48);
+    expect(compactOutlineBox!.width).toBe(280);
+    expect(compactOutlineBox!.y + compactOutlineBox!.height).toBeLessThanOrEqual(800);
+    await page.setViewportSize({ width: 1280, height: 800 });
 
     await page.evaluate(() => scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
     await expect.poll(() => page.evaluate(() => Math.abs(

@@ -31,11 +31,11 @@ import {
 } from '../../shared/recent';
 import { defaultSettings, loadSettings, saveSettings } from '../../shared/settings';
 import type {
-  DocumentSearchResult, HeadingItem, ImportedDocument, ReaderSettings, WorkspaceFile,
+  DocumentSearchResult, HeadingItem, ImportedDocument, ReaderSettings, SidebarMode, WorkspaceFile,
   WorkspaceSnapshot,
 } from '../../shared/types';
 import {
-  CommandPalette, MoreMenu, OpenMenu, OutlinePopover, SettingsDrawer, UrlDialog, WorkspaceTree,
+  CommandPalette, MoreMenu, OpenMenu, OutlinePanel, SettingsDrawer, UrlDialog, WorkspaceTree,
 } from './components';
 
 type ActiveOverlay = 'open-menu' | 'more-menu' | 'command' | 'settings' | 'url-dialog' | null;
@@ -148,8 +148,7 @@ export function App() {
   );
   const [navigationHistory, dispatchNavigation] = useReducer(workspaceNavigationReducer, initialWorkspaceNavigation);
   const [restorableWorkspace, setRestorableWorkspace] = useState<PersistedWorkspaceHandle>();
-  const [workspaceOpen, setWorkspaceOpen] = useState(false);
-  const [outlineOpen, setOutlineOpen] = useState(true);
+  const [sidebarMode, setSidebarMode] = useState<SidebarMode | null>(null);
   const [activeOverlay, setActiveOverlay] = useState<ActiveOverlay>(null);
   const [urlValue, setUrlValue] = useState('');
   const [commandQuery, setCommandQuery] = useState('');
@@ -255,7 +254,7 @@ export function App() {
 
   const openImportedDocument = useCallback((imported: ImportedDocument, fragment?: string) => {
     dispatchSession({ type: 'replace', session: createImportedSession(imported) });
-    setWorkspaceOpen(false);
+    setSidebarMode((current) => current === 'files' ? null : current);
     setError(undefined);
     queueDocumentNavigation(fragment);
     scrollTo({ top: 0 });
@@ -304,7 +303,7 @@ export function App() {
     try {
       const workspaceId = await saveWorkspaceHandle(handle, existingId);
       const snapshot = await collectWorkspace(handle, { signal: controller.signal, workspaceId });
-      setWorkspaceOpen(true);
+      setSidebarMode('files');
       const selected = snapshot.files.find((file) => file.path === preferredPath)
         ?? snapshot.files.find((file) => /^readme\.(md|markdown|mdx)$/i.test(file.path))
         ?? snapshot.files[0];
@@ -352,7 +351,7 @@ export function App() {
           if (!storedWorkspace) return;
           const permission = await storedWorkspace.handle.queryPermission({ mode: 'read' });
           if (permission === 'granted') await activateWorkspace(storedWorkspace.handle, undefined, storedWorkspace.id);
-          else { setRestorableWorkspace(storedWorkspace); setWorkspaceOpen(true); }
+          else { setRestorableWorkspace(storedWorkspace); setSidebarMode('files'); }
         } catch {
           // An old or browser-incompatible handle should not block the reader.
         }
@@ -628,7 +627,7 @@ export function App() {
     const snapshot = await createFileDocumentSource(file, 'file').load();
     if (snapshot.lastModified === undefined) throw new Error('A local file snapshot requires modification metadata.');
     dispatchSession({ type: 'replace', session: createFileSession(file, snapshot.markdown, snapshot.lastModified) });
-    setWorkspaceOpen(false);
+    setSidebarMode((current) => current === 'files' ? null : current);
     setError(undefined);
     scrollTo({ top: 0 });
     setActiveOverlay(null);
@@ -695,7 +694,7 @@ export function App() {
       const document = { title: snapshot.title, markdown: snapshot.markdown, sourceUrl: snapshot.sourceUrl };
       dispatchSession({ type: 'replace', session: createRemoteSession(document, snapshot.remoteState) });
       queueDocumentNavigation(linkFragment(value));
-      setWorkspaceOpen(false);
+      setSidebarMode((current) => current === 'files' ? null : current);
       scrollTo({ top: 0 });
       setActiveOverlay(null);
       await recordRecent({ id: `remote:${snapshot.remoteState.url}`, title: snapshot.title, kind: 'remote', url: snapshot.remoteState.url });
@@ -777,7 +776,12 @@ export function App() {
     ? workspace.files.filter((file) => file.path.toLowerCase().includes(fileFilter.trim().toLowerCase()))
     : [];
   const readMinutes = Math.max(1, Math.ceil(source.replace(/[`#>*_\-[\]]/g, ' ').trim().split(/\s+/).length / 220));
-  const contextOpen = workspaceOpen && Boolean(workspace || restorableWorkspace);
+  const contextMode = sidebarMode === 'files' && (workspace || restorableWorkspace)
+    ? 'files'
+    : sidebarMode === 'outline' && settings.showOutline
+      ? 'outline'
+      : null;
+  const contextOpen = contextMode !== null;
   const readerWidth = settings.wideView ? WIDE_READER_WIDTH : settings.contentWidth;
 
   const openRecent = async (item: RecentItem) => {
@@ -891,14 +895,29 @@ export function App() {
     void openWorkspaceFile(file);
   };
 
+  const toggleWorkspacePanel = () => {
+    setActiveOverlay(null);
+    if (!workspace && !restorableWorkspace) {
+      void handleDirectory();
+      return;
+    }
+    setSidebarMode((current) => current === 'files' ? null : 'files');
+  };
+
+  const toggleOutlinePanel = () => {
+    setActiveOverlay(null);
+    if (!settings.showOutline) updateSettings({ showOutline: true });
+    setSidebarMode((current) => current === 'outline' ? null : 'outline');
+  };
+
   return (
     <div className={`app-shell ${dragActive ? 'drag-active' : ''}`} style={{ '--reader-width': `${readerWidth}px`, '--reader-size': `${settings.fontSize}px`, '--reader-leading': settings.lineHeight } as React.CSSProperties} onDragEnter={(event) => { event.preventDefault(); setDragActive(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragActive(false); }} onDrop={(event) => void handleDrop(event)} onPaste={handlePaste}>
       {settings.showReadingProgress && <div className="reading-progress" style={{ transform: `scaleX(${progress / 100})` }} />}
       <aside className="navigation-rail" aria-label={t('documentNavigation')}>
         <img className="rail-brand" src="/icon/96.png" alt="Quire" />
         <div className="rail-actions">
-          <button className={contextOpen ? 'active' : ''} onClick={() => workspace ? setWorkspaceOpen((open) => !open) : void handleDirectory()} aria-label={t('toggleWorkspace')} title={t('toggleWorkspace')}><FolderOpen /></button>
-          <button className={outlineOpen ? 'active' : ''} onClick={() => setOutlineOpen((open) => !open)} aria-label={t('toggleOutline')} title={t('toggleOutline')}><ListTree /></button>
+          <button className={contextMode === 'files' ? 'active' : ''} onClick={toggleWorkspacePanel} aria-label={t('toggleWorkspace')} aria-expanded={contextMode === 'files'} title={t('toggleWorkspace')}><FolderOpen /></button>
+          <button className={contextMode === 'outline' ? 'active' : ''} onClick={toggleOutlinePanel} aria-label={t('toggleOutline')} aria-expanded={contextMode === 'outline'} title={t('toggleOutline')}><ListTree /></button>
           <button className={commandOpen ? 'active' : ''} onClick={() => setActiveOverlay('command')} aria-label={t('commandCenter')} title={`${t('commandCenter')} · ${shortcutLabels.command}`}><Search /></button>
         </div>
         <div className="rail-bottom">
@@ -927,14 +946,14 @@ export function App() {
           <button className="topbar-icon" onClick={() => setActiveOverlay('command')} aria-label={t('commandCenter')}><Search /></button>
           <div className="menu-anchor">
             <button className="topbar-icon" onClick={() => setActiveOverlay((current) => current === 'more-menu' ? null : 'more-menu')} aria-label={t('moreActions')} aria-expanded={moreMenuOpen}><MoreHorizontal /></button>
-            {moreMenuOpen && <MoreMenu t={t} commandShortcut={shortcutLabels.command} onCommand={() => setActiveOverlay('command')} onOutline={() => { setActiveOverlay(null); setOutlineOpen((open) => !open); }} onSettings={() => setActiveOverlay('settings')} />}
+            {moreMenuOpen && <MoreMenu t={t} commandShortcut={shortcutLabels.command} onCommand={() => setActiveOverlay('command')} onOutline={toggleOutlinePanel} onSettings={() => setActiveOverlay('settings')} />}
           </div>
           <input ref={fileInput} hidden type="file" accept=".md,.markdown,.mdx,text/markdown" onChange={(event) => event.target.files?.[0] && void handleFile(event.target.files[0])} />
         </div>
       </header>
 
       <div className={`workspace ${contextOpen ? 'with-context' : ''}`}>
-        {contextOpen && <aside className="context-panel" aria-label={t('workspace')}>
+        {contextMode === 'files' && <aside className="context-panel workspace-panel" aria-label={t('workspace')}>
           <div className="context-heading"><span>{t('workspace')}</span><div><strong>{workspace?.name ?? t('restoreTitle')}</strong>{workspace && <button disabled={workspaceScanning} onClick={() => void refreshWorkspace()} aria-label={t('refreshWorkspace')} title={t('refreshWorkspace')}><RotateCw className={workspaceScanning ? 'loading-spinner' : ''} /></button>}</div></div>
           {workspace && <label className="file-filter"><Search /><input value={fileFilter} onChange={(event) => setFileFilter(event.target.value)} placeholder={t('filterFiles')} /></label>}
           {restorableWorkspace && <div className="restore-card"><RotateCw /><strong>{t('restoreTitle')}</strong><p>{t('restoreBody')}</p><button onClick={() => void restoreWorkspace()}>{t('restore')}</button><button className="quiet" onClick={() => setRestorableWorkspace(undefined)}>{t('dismiss')}</button></div>}
@@ -948,6 +967,11 @@ export function App() {
           <div className="context-foot"><span className="status-dot" /> {settings.autoRefresh && (activeFile || remoteState) ? t('watching') : t('localOnly')}</div>
         </aside>}
 
+        {contextMode === 'outline' && <aside className="context-panel outline-panel" aria-label={t('outline')}>
+          <div className="context-heading"><span>{t('onThisPage')}</span><div><strong>{title}</strong></div></div>
+          <OutlinePanel headings={headings} activeId={activeHeadingId} progress={progress} t={t} onJump={jumpToHeading} />
+        </aside>}
+
         <main className="reader-stage">
           <div className="paper-grain" aria-hidden="true" />
           {error && <div className="error-banner" role="alert"><AlertCircle /><span>{error}</span><div className="error-actions">{remoteRetryUrl && <button className="retry-button" onClick={() => void openRemote(remoteRetryUrl, false)}>{t('retry')}</button>}<button onClick={() => { setError(undefined); setRemoteRetryUrl(undefined); }} aria-label={t('dismissNotice')}><X /></button></div></div>}
@@ -955,13 +979,12 @@ export function App() {
           <article ref={articleRef} className={`markdown-body font-${settings.fontFamily}`} onClick={handleArticleClick} dangerouslySetInnerHTML={htmlMarkup} />
           {settings.customCss && <style>{`@scope (.markdown-body) { ${settings.customCss} }`}</style>}
           <footer className="document-footer"><span>{t('endDocument')}</span><i /></footer>
-          {settings.showOutline && outlineOpen && !settingsOpen && headings.length > 0 && <OutlinePopover headings={headings} activeId={activeHeadingId} progress={progress} t={t} onJump={jumpToHeading} />}
         </main>
       </div>
 
-      {commandOpen && <CommandPalette query={commandQuery} matches={commandMatches} workspaceMatches={workspaceMatches} recent={recent} shortcuts={shortcutLabels} t={t} onQuery={setCommandQuery} onClose={() => { setActiveOverlay(null); setCommandQuery(''); }} onFile={() => void handleOpenFile()} onFolder={() => void handleDirectory()} onUrl={() => setActiveOverlay('url-dialog')} onTypedUrl={(value) => void openRemote(value)} onWorkspace={() => setWorkspaceOpen((open) => !open)} onOutline={() => setOutlineOpen((open) => !open)} onQuietMode={() => { setWorkspaceOpen(false); setOutlineOpen(false); }} onLightTheme={() => updateSettings({ theme: 'light' })} onDarkTheme={() => updateSettings({ theme: 'dark' })} onSettings={() => setActiveOverlay('settings')} onRecent={(item) => void openRecent(item)} onMatch={jumpToSearchResult} onWorkspaceFile={openWorkspaceSearchResult} />}
+      {commandOpen && <CommandPalette query={commandQuery} matches={commandMatches} workspaceMatches={workspaceMatches} recent={recent} shortcuts={shortcutLabels} t={t} onQuery={setCommandQuery} onClose={() => { setActiveOverlay(null); setCommandQuery(''); }} onFile={() => void handleOpenFile()} onFolder={() => void handleDirectory()} onUrl={() => setActiveOverlay('url-dialog')} onTypedUrl={(value) => void openRemote(value)} onWorkspace={toggleWorkspacePanel} onOutline={toggleOutlinePanel} onQuietMode={() => setSidebarMode(null)} onLightTheme={() => updateSettings({ theme: 'light' })} onDarkTheme={() => updateSettings({ theme: 'dark' })} onSettings={() => setActiveOverlay('settings')} onRecent={(item) => void openRecent(item)} onMatch={jumpToSearchResult} onWorkspaceFile={openWorkspaceSearchResult} />}
       {urlOpen && <UrlDialog value={urlValue} loading={remoteLoading} t={t} onValue={setUrlValue} onClose={() => setActiveOverlay(null)} onCancel={cancelRemoteLoad} onOpen={() => void openRemote(urlValue)} />}
-      {settingsOpen && <SettingsDrawer settings={settings} t={t} onChange={(patch) => { updateSettings(patch.contentWidth === undefined ? patch : { ...patch, wideView: false }); if (patch.showOutline !== undefined) setOutlineOpen(patch.showOutline); }} onReset={() => updateSettings(defaultSettings)} onClose={() => setActiveOverlay(null)} />}
+      {settingsOpen && <SettingsDrawer settings={settings} t={t} onChange={(patch) => { updateSettings(patch.contentWidth === undefined ? patch : { ...patch, wideView: false }); if (patch.showOutline !== undefined) setSidebarMode((current) => patch.showOutline ? 'outline' : current === 'outline' ? null : current); }} onReset={() => updateSettings(defaultSettings)} onClose={() => setActiveOverlay(null)} />}
       {workspaceScanning && <div className="remote-loading workspace-loading" role="status" aria-live="polite"><LoaderCircle /><span>{t('scanningWorkspace')}</span><button onClick={cancelWorkspaceScan}>{t('cancel')}</button></div>}
       {remoteLoading && <div className="remote-loading" role="status" aria-live="polite"><LoaderCircle /><span>{t('loadingRemote')}</span><button onClick={cancelRemoteLoad}>{t('cancel')}</button></div>}
       {dragActive && <div className="drop-overlay" aria-hidden="true"><FolderOpen /><strong>{t('dropToOpen')}</strong></div>}

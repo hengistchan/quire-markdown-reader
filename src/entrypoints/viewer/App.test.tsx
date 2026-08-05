@@ -67,6 +67,14 @@ describe('Quire viewer experience', () => {
     expect(screen.getByRole('img', { name: 'Quire' }).getAttribute('src')).toBe('/icon/96.png');
     expect(screen.queryByText('Your documents, set for reading.')).toBeNull();
     expect(document.querySelector('.context-panel')).toBeNull();
+    const outlineToggle = screen.getByRole('button', { name: 'Toggle document outline' });
+    expect(outlineToggle.getAttribute('aria-expanded')).toBe('false');
+    await user.click(outlineToggle);
+    expect(document.querySelector('.context-panel.outline-panel')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Welcome to Quire' })).toBeTruthy();
+    expect(outlineToggle.getAttribute('aria-expanded')).toBe('true');
+    await user.click(outlineToggle);
+    expect(document.querySelector('.context-panel')).toBeNull();
     await user.click(document.querySelector<HTMLElement>('.open-trigger')!);
     await user.click(within(document.querySelector<HTMLElement>('.open-menu')!).getByText('Open URL').closest('button')!);
 
