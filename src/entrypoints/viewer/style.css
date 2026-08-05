@@ -138,7 +138,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .markdown-body.font-serif { font-family: Charter, "Iowan Old Style", "Palatino Linotype", Georgia, serif; }
 .markdown-body > :first-child { margin-top: 0; }
 .markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4 { position: relative; color: var(--ink); font-family: Charter, "Iowan Old Style", "Songti SC", "STSong", Georgia, serif; line-height: 1.18; text-wrap: balance; scroll-margin-top: 92px; }
-.markdown-body h1 { max-width: 19ch; margin: 0 0 .55em; font-size: clamp(38px, 5vw, 54px); font-weight: 600; letter-spacing: -.035em; }
+.markdown-body h1 { max-width: 100%; margin: 0 0 .55em; font-size: clamp(38px, 5vw, 54px); font-weight: 600; letter-spacing: -.035em; }
 .markdown-body h1::after { content: ''; display: block; width: 44px; height: 3px; margin-top: 25px; border-radius: 2px; background: var(--accent); }
 .markdown-body h2 { margin: 2.1em 0 .7em; padding-top: .2em; border-top: 1px solid var(--line); font-size: 1.55em; font-weight: 650; letter-spacing: -.02em; }
 .markdown-body h3 { margin: 1.8em 0 .5em; font-size: 1.2em; }
