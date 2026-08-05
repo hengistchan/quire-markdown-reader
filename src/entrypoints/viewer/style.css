@@ -39,13 +39,13 @@
 }
 
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; background: var(--canvas); }
-body { margin: 0; min-width: 320px; min-height: 100vh; color: var(--ink); background: var(--canvas); }
+html { min-height: 100%; scroll-behavior: smooth; overscroll-behavior-y: none; background: var(--paper); }
+body { margin: 0; min-width: 320px; min-height: 100vh; min-height: 100dvh; overscroll-behavior-y: none; color: var(--ink); background: var(--paper); }
 button, input, select, textarea { font: inherit; }
 button { color: inherit; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.app-shell { min-height: 100vh; }
+.app-shell { min-height: 100vh; min-height: 100dvh; background: var(--paper); }
 .reading-progress { position: fixed; z-index: 110; top: 0; left: 52px; width: calc(100% - 52px); height: 2px; transform-origin: left; background: var(--accent); transition: transform 120ms linear; }
 
 .navigation-rail { position: fixed; z-index: 60; inset: 0 auto 0 0; display: flex; flex-direction: column; align-items: center; width: 52px; border-right: 1px solid var(--line); background: var(--rail); }
@@ -93,9 +93,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .more-menu button { min-height: 38px; }
 .more-menu span { display: block; font-size: 11px; }
 
-.workspace { display: grid; grid-template-columns: 1fr; min-height: calc(100vh - 56px); margin: 56px 0 0 52px; }
+.workspace { display: grid; grid-template-columns: 1fr; min-height: 100vh; min-height: 100dvh; margin-left: 52px; padding-top: 56px; }
 .workspace.with-context { grid-template-columns: 280px minmax(0, 1fr); }
-.context-panel { position: sticky; top: 56px; display: flex; flex-direction: column; height: calc(100vh - 56px); border-right: 1px solid var(--line); background: var(--panel); }
+.context-panel { position: sticky; top: 56px; display: flex; flex-direction: column; height: calc(100vh - 56px); height: calc(100dvh - 56px); border-right: 1px solid var(--line); background: var(--panel); }
 .context-heading { display: grid; gap: 7px; padding: 20px 16px 12px; }
 .context-heading span { color: var(--faint); font-size: 9px; }
 .context-heading > div { display: grid; grid-template-columns: minmax(0, 1fr) 28px; align-items: center; gap: 8px; }
@@ -128,7 +128,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .restore-card button { grid-column: 2; width: fit-content; padding: 6px 9px; border: 0; border-radius: 6px; color: white; background: var(--accent); cursor: pointer; font-size: 9px; }
 .restore-card button.quiet { margin: -30px 0 0 98px; color: var(--muted); background: transparent; }
 
-.reader-stage { position: relative; min-width: 0; min-height: calc(100vh - 56px); padding: 72px max(48px, calc((100vw - 52px - var(--reader-width)) / 2)) 90px; overflow: hidden; background: var(--paper); transition: padding 180ms ease; }
+.reader-stage { position: relative; min-width: 0; min-height: calc(100vh - 56px); min-height: calc(100dvh - 56px); padding: 72px max(48px, calc((100vw - 52px - var(--reader-width)) / 2)) 90px; overflow: hidden; background: var(--paper); transition: padding 180ms ease; }
 .with-context .reader-stage { padding-inline: max(48px, calc((100vw - 52px - 280px - var(--reader-width)) / 2)); }
 .paper-grain { pointer-events: none; position: absolute; inset: 0; opacity: .012; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E"); }
 .document-meta { width: min(100%, var(--reader-width)); margin: 0 auto 28px; color: var(--accent-ink); font-size: 10px; font-weight: 750; }
@@ -165,6 +165,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .markdown-body .warning { border-left-color: #d28b34; }
 .markdown-body .footnotes { margin-top: 3em; color: var(--muted); font-size: .82em; }
 .markdown-body .mermaid { display: flex; justify-content: center; margin: 2em 0; padding: 1.5em; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+body > .mermaidTooltip:empty { display: none !important; }
 .markdown-body .katex-display { overflow-x: auto; overflow-y: hidden; padding: .5em 0; }
 .document-footer { display: flex; align-items: center; gap: 14px; width: min(100%, var(--reader-width)); margin: 72px auto 0; color: var(--faint); font-size: 8px; font-weight: 750; letter-spacing: .15em; text-transform: uppercase; }
 .document-footer i { flex: 1; height: 1px; background: var(--line); }
@@ -327,7 +328,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   :root, body { color-scheme: light; background: white !important; }
   .navigation-rail, .topbar, .context-panel, .outline-popover, .reading-progress,
   .paper-grain, .error-banner, .remote-loading, .drop-overlay, .resume-prompt, .toast { display: none !important; }
-  .workspace { display: block; margin: 0; }
+  .workspace { display: block; margin: 0; padding-top: 0; }
   .reader-stage { min-height: auto; padding: 0; background: white !important; }
   .markdown-body { width: 100%; max-width: none; color: black; font-size: 11pt; }
   .markdown-body pre { overflow: visible; white-space: pre-wrap; break-inside: avoid; }

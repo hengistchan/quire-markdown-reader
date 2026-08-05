@@ -148,6 +148,28 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     await page.mouse.wheel(0, 480);
     await expect.poll(() => outlineNavigation.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
 
+    await page.evaluate(() => scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
+    await expect.poll(() => page.evaluate(() => Math.abs(
+      scrollY - (document.documentElement.scrollHeight - innerHeight),
+    ))).toBeLessThanOrEqual(1);
+    const bottomLayout = await page.evaluate(() => {
+      const stage = document.querySelector<HTMLElement>('.reader-stage');
+      const tooltip = document.querySelector<HTMLElement>('body > .mermaidTooltip');
+      if (!stage) throw new Error('Reader stage is missing.');
+      return {
+        viewportHeight: innerHeight,
+        stageBottom: stage.getBoundingClientRect().bottom,
+        rootBackground: getComputedStyle(document.documentElement).backgroundColor,
+        stageBackground: getComputedStyle(stage).backgroundColor,
+        rootOverscroll: getComputedStyle(document.documentElement).overscrollBehaviorY,
+        tooltipDisplay: tooltip ? getComputedStyle(tooltip).display : null,
+      };
+    });
+    expect(bottomLayout.stageBottom).toBeGreaterThanOrEqual(bottomLayout.viewportHeight - 1);
+    expect(bottomLayout.rootBackground).toBe(bottomLayout.stageBackground);
+    expect(bottomLayout.rootOverscroll).toBe('none');
+    expect(bottomLayout.tooltipDisplay).toBe('none');
+
     await page.evaluate(async () => {
       const root = await navigator.storage.getDirectory();
       const workspace = await root.getDirectoryHandle('Quire E2E');
