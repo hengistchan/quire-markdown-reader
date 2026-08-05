@@ -306,7 +306,7 @@ describe('Quire viewer experience', () => {
     await user.click(within(screen.getByRole('dialog', { name: 'Command center' })).getByRole('button', { name: /first.md/ }));
     await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('First workspace'));
     await user.click(screen.getByRole('button', { name: 'Continue reading' }));
-    expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
+    await waitFor(() => expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' }));
 
     fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
     const commandCenter = within(screen.getByRole('dialog', { name: 'Command center' }));
