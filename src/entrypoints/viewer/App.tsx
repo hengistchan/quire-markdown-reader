@@ -936,7 +936,11 @@ export function App() {
   };
 
   const jumpToHeading = (id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const target = document.getElementById(id);
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    target.tabIndex = -1;
+    target.focus({ preventScroll: true });
     setActiveHeadingId(id);
   };
 

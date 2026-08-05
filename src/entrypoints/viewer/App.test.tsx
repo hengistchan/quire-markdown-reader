@@ -75,7 +75,11 @@ describe('Quire viewer experience', () => {
     expect(outlineToggle.getAttribute('aria-expanded')).toBe('false');
     await user.click(outlineToggle);
     expect(document.querySelector('.context-panel.outline-panel')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Welcome to Quire' })).toBeTruthy();
+    const welcomeHeading = document.getElementById('welcome-to-quire')!;
+    await user.click(screen.getByRole('button', { name: 'Welcome to Quire' }));
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+    expect(welcomeHeading.tabIndex).toBe(-1);
+    expect(document.activeElement).toBe(welcomeHeading);
     expect(outlineToggle.getAttribute('aria-expanded')).toBe('true');
     await user.click(outlineToggle);
     expect(document.querySelector('.context-panel')).toBeNull();
