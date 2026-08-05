@@ -170,7 +170,7 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     expect(Math.min(...outlineRowHeights)).toBeGreaterThanOrEqual(30);
     await page.evaluate(() => scrollTo({ top: 0, behavior: 'instant' }));
     await outlineNavigation.getByRole('button', { name: 'Section 24' }).click();
-    await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(500);
+    await expect.poll(() => page.locator('#section-24').evaluate((element) => Math.abs(element.getBoundingClientRect().top - 92))).toBeLessThanOrEqual(2);
     await expect(page.locator('#section-24')).toBeFocused();
     await outlineNavigation.evaluate((element) => { element.scrollTop = element.scrollHeight; });
     const pageScrollBeforeChaining = await page.evaluate(() => scrollY);

@@ -72,7 +72,13 @@ export function OutlinePanel({ headings, activeId, progress, t, onJump }: {
 }) {
   const navRef = useRef<HTMLElement>(null);
   useEffect(() => {
-    navRef.current?.querySelector<HTMLButtonElement>('.active')?.scrollIntoView?.({ block: 'nearest' });
+    const nav = navRef.current;
+    const active = nav?.querySelector<HTMLButtonElement>('.active');
+    if (!nav || !active) return;
+    const navRect = nav.getBoundingClientRect();
+    const activeRect = active.getBoundingClientRect();
+    if (activeRect.top < navRect.top) nav.scrollTop -= navRect.top - activeRect.top;
+    else if (activeRect.bottom > navRect.bottom) nav.scrollTop += activeRect.bottom - navRect.bottom;
   }, [activeId]);
   return <>
     <nav className="outline-navigation" ref={navRef}>{headings.map((heading) => (

@@ -76,7 +76,9 @@ describe('Quire viewer experience', () => {
     await user.click(outlineToggle);
     expect(document.querySelector('.context-panel.outline-panel')).toBeTruthy();
     const welcomeHeading = document.getElementById('welcome-to-quire')!;
+    expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Welcome to Quire' }));
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(1);
     expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
     expect(welcomeHeading.tabIndex).toBe(-1);
     expect(document.activeElement).toBe(welcomeHeading);
