@@ -4,6 +4,25 @@ All notable changes to Quire are documented here. This project follows [Semantic
 
 ## [Unreleased]
 
+## [0.0.4] - 2026-08-06
+
+### Added
+
+- Added an expandable document-outline tree beside workspace folders so long documents remain navigable without a separate floating panel
+- Added a session-only folder chooser for local `file://` previews while preserving the original browser address
+
+### Changed
+
+- Allowed document titles to use the full reading-column width instead of limiting first-level headings to 19 characters
+- Kept the document outline at the same hierarchy as workspace folders and made long outline lists independently scrollable
+
+### Fixed
+
+- Prevented blank space and broken page geometry after scrolling to the end of a document
+- Made deferred Mermaid rendering recover from intermittent failures without leaving diagrams permanently empty
+- Prevented outline navigation from disabling main-document scrolling or requiring repeated clicks to reach a heading
+- Replaced the misleading folder-permission error shown when opening a workspace from an embedded local-file preview
+
 ## [0.0.3] - 2026-08-02
 
 ### Added
@@ -74,7 +93,8 @@ All notable changes to Quire are documented here. This project follows [Semantic
 - First-run guidance, actionable error and permission states, English and Simplified Chinese interfaces
 - Reproducible browser packages, automated tests, community documents, store materials, and release automation
 
-[Unreleased]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.3...HEAD
+[Unreleased]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.4...HEAD
+[0.0.4]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/hengistchan/quire-markdown-reader/releases/tag/v0.0.1

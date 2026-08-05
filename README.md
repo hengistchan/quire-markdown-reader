@@ -60,7 +60,7 @@ npm run store:verify
 npm run test:e2e
 ```
 
-The installed-extension E2E suite covers Chromium and Firefox. See the [v0.0.3 acceptance matrix](docs/acceptance-v0.0.3.md) for the current release boundary; earlier matrices remain as historical evidence.
+The installed-extension E2E suite covers Chromium and Firefox. See the [v0.0.4 acceptance matrix](docs/acceptance-v0.0.4.md) for the current release boundary; earlier matrices remain as historical evidence.
 
 ## Permissions and privacy
 
