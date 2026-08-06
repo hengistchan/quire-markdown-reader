@@ -1,4 +1,5 @@
 import type { DocumentHandoff, ImportedDocument } from '../shared/types';
+import type { HandoffRepository } from '../application/ports/handoffRepository';
 
 const DATABASE = 'quire-document-handoffs';
 const STORE = 'handoffs';
@@ -84,4 +85,10 @@ export async function takeDocumentHandoff(id: string, now = Date.now()): Promise
     transaction.onerror = () => reject(transaction.error ?? new Error('Could not take document handoff.'));
     transaction.onabort = () => reject(transaction.error ?? new Error('Document handoff read was aborted.'));
   });
+}
+
+export class IndexedDBHandoffRepository implements HandoffRepository {
+  take(id: string): Promise<ImportedDocument | undefined> {
+    return takeDocumentHandoff(id);
+  }
 }

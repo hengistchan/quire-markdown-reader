@@ -1,0 +1,11 @@
+.url-dialog { width: min(480px, calc(100vw - 32px)); margin: 14vh auto 0; padding: 28px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); box-shadow: var(--shadow); animation: rise-in 160ms ease both; }
+.url-dialog-icon { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; color: var(--accent-ink); background: var(--accent-soft); }
+.url-dialog-icon svg { width: 18px; }
+.url-dialog h2 { margin: 17px 0 7px; font-size: 22px; }
+.url-dialog > p { margin: 0 0 17px; color: var(--muted); font-size: 10px; line-height: 1.55; }
+.url-dialog > input { width: 100%; height: 40px; padding: 0 11px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--paper); font: 11px ui-monospace, monospace; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 17px; }
+.quiet-button, .primary-button { min-height: 34px; padding: 0 13px; border-radius: 7px; cursor: pointer; font-size: 10px; font-weight: 750; }
+.quiet-button { border: 1px solid var(--line); background: transparent; }
+.primary-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--accent); color: white; background: var(--accent); }
+.quiet-button:disabled, .primary-button:disabled, .url-dialog > input:disabled { cursor: wait; opacity: .72; }

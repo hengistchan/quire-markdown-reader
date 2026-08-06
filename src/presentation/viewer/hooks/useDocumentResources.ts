@@ -6,6 +6,7 @@ export function useDocumentResources(
   documentHtml: string,
   resolver: DocumentResourceResolver,
   unavailableMessage: string,
+  options: { loadRemoteImages: boolean; referrerPolicy: 'no-referrer' | 'origin' },
 ): void {
   useEffect(() => {
     if (!articleRef.current) return;
@@ -15,6 +16,12 @@ export function useDocumentResources(
       if (image.dataset.resourceState) return;
       const raw = image.getAttribute('src');
       if (!raw) return;
+      const remote = /^(?:https?:)?\/\//i.test(raw);
+      if (remote && !options.loadRemoteImages) {
+        image.removeAttribute('src');
+        image.dataset.resourceState = 'blocked';
+        return;
+      }
       image.dataset.resourceState = 'resolving';
       const result = await resolver.resolveAsset(raw);
       if (cancelled) return;
@@ -23,7 +30,7 @@ export function useDocumentResources(
           delete image.dataset.resourceState;
           image.loading = 'lazy';
           image.decoding = 'async';
-          image.referrerPolicy = 'no-referrer';
+          image.referrerPolicy = options.referrerPolicy;
           return;
         }
         image.dataset.resourceError = 'true';
@@ -31,10 +38,15 @@ export function useDocumentResources(
         image.alt = `${image.alt || raw} — ${unavailableMessage}`;
         return;
       }
+      if (result.type === 'url' && !options.loadRemoteImages && /^https?:/i.test(result.url)) {
+        image.removeAttribute('src');
+        image.dataset.resourceState = 'blocked';
+        return;
+      }
       image.src = result.url;
       image.loading = 'lazy';
       image.decoding = 'async';
-      image.referrerPolicy = 'no-referrer';
+      image.referrerPolicy = options.referrerPolicy;
       image.dataset.resourceState = 'ready';
     };
     const images = [...articleRef.current.querySelectorAll<HTMLImageElement>('img[src]')];
@@ -53,7 +65,6 @@ export function useDocumentResources(
     return () => {
       cancelled = true;
       observer?.disconnect();
-      resolver.dispose();
     };
-  }, [articleRef, documentHtml, resolver, unavailableMessage]);
+  }, [articleRef, documentHtml, options.loadRemoteImages, options.referrerPolicy, resolver, unavailableMessage]);
 }

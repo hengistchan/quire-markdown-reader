@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { DocumentSourceAdapter } from '../documentSources';
+import type { DocumentSource } from './documentSource';
 import { DocumentService } from './documentService';
 
-function source(title: string, dispose = vi.fn()): DocumentSourceAdapter {
+function source(title: string, dispose = vi.fn()): DocumentSource {
+  const identity = { sourceKind: 'imported' as const, stableId: title, displayName: title };
   return {
-    kind: 'imported',
-    load: vi.fn(async () => ({ title, markdown: `# ${title}` })),
+    identity,
+    load: vi.fn(async () => ({ identity, title, markdown: `# ${title}`, format: 'markdown' as const, metadata: {} })),
+    refresh: vi.fn(async (snapshot) => ({ changed: false as const, snapshot })),
+    resolveAsset: vi.fn(async () => ({ type: 'unavailable' as const, reason: 'unsupported' })),
+    resolveLink: vi.fn(() => ({ type: 'invalid' as const })),
     dispose,
   };
 }

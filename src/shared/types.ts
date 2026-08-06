@@ -15,6 +15,8 @@ export interface ReaderSettings {
   enableKatex: boolean;
   enableMermaid: boolean;
   enableHtml: boolean;
+  loadRemoteImages: boolean;
+  remoteImageReferrerPolicy: 'no-referrer' | 'origin';
   customCss: string;
 }
 
@@ -59,6 +61,7 @@ export interface HeadingItem {
   id: string;
   text: string;
   level: number;
+  sourceLine?: number;
 }
 
 export interface DocumentSearchResult {

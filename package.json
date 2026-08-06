@@ -31,6 +31,7 @@
     "release:verify": "node scripts/verify-release-version.mjs",
     "store:assets": "node scripts/capture-store-assets.mjs",
     "store:verify": "node scripts/verify-store-assets.mjs",
+    "bundle:verify": "node scripts/verify-bundle-budget.mjs",
     "brand:icons": "node scripts/generate-icons.mjs",
     "compile": "tsc --noEmit",
     "test": "vitest run",

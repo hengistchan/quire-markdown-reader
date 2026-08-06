@@ -1,11 +1,14 @@
-import type { DocumentSnapshot, DocumentSourceAdapter } from '../documentSources';
+import type {
+  DocumentRefreshResult, DocumentSnapshot, DocumentSource, LinkResolution,
+} from './documentSource';
+import type { ResolvedAsset } from './documentResource';
 
 export class DocumentService {
-  private currentSource?: DocumentSourceAdapter;
+  private currentSource?: DocumentSource;
   private currentSnapshot?: DocumentSnapshot;
   private request?: AbortController;
 
-  async open(source: DocumentSourceAdapter, signal?: AbortSignal): Promise<DocumentSnapshot> {
+  async open(source: DocumentSource, signal?: AbortSignal): Promise<DocumentSnapshot> {
     this.releaseCurrentSource();
     const request = new AbortController();
     this.request = request;
@@ -26,11 +29,20 @@ export class DocumentService {
     }
   }
 
-  async refresh(signal?: AbortSignal) {
-    if (!this.currentSource?.refresh || !this.currentSnapshot) return undefined;
+  async refresh(signal?: AbortSignal): Promise<DocumentRefreshResult | undefined> {
+    if (!this.currentSource || !this.currentSnapshot) return undefined;
     const result = await this.currentSource.refresh(this.currentSnapshot, signal);
     this.currentSnapshot = result.snapshot;
     return result;
+  }
+
+  resolveAsset(href: string, signal?: AbortSignal): Promise<ResolvedAsset> {
+    return this.currentSource?.resolveAsset(href, signal)
+      ?? Promise.resolve({ type: 'unavailable', reason: 'missing-source' });
+  }
+
+  resolveLink(href: string): LinkResolution {
+    return this.currentSource?.resolveLink(href) ?? { type: 'invalid' };
   }
 
   dispose(): void {
@@ -40,7 +52,7 @@ export class DocumentService {
   private releaseCurrentSource(): void {
     this.request?.abort();
     this.request = undefined;
-    this.currentSource?.dispose?.();
+    this.currentSource?.dispose();
     this.currentSource = undefined;
     this.currentSnapshot = undefined;
   }

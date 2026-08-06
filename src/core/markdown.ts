@@ -11,8 +11,25 @@ import deflist from 'markdown-it-deflist';
 import { footnote } from '@mdit/plugin-footnote';
 import { tasklist } from '@mdit/plugin-tasklist';
 import type { ReaderSettings } from '../shared/types';
+import type { HeadingItem } from '../shared/types';
 
 export type MarkdownRenderOptions = Pick<ReaderSettings, 'enableKatex' | 'enableMermaid' | 'enableHtml'>;
+
+export interface RenderedDocument {
+  html: string;
+  headings: HeadingItem[];
+  estimatedReadMinutes: number;
+}
+
+const rendererCache = new Map<string, MarkdownIt>();
+
+function rendererKey(options: MarkdownRenderOptions): string {
+  return [
+    options.enableHtml ? 'html' : 'no-html',
+    options.enableKatex ? 'katex' : 'no-katex',
+    options.enableMermaid ? 'mermaid' : 'no-mermaid',
+  ].join(':');
+}
 
 function slugify(value: string): string {
   return value
@@ -79,6 +96,10 @@ export function renderPlainText(source: string): string {
   });
   flush(lines.length);
   return paragraphs.join('\n');
+}
+
+export function renderPlainTextDocument(source: string): RenderedDocument {
+  return { html: renderPlainText(source), headings: [], estimatedReadMinutes: estimateReadMinutes(source) };
 }
 
 export function createMarkdownRenderer(settings: MarkdownRenderOptions): MarkdownIt {
@@ -160,10 +181,59 @@ export function createMarkdownRenderer(settings: MarkdownRenderOptions): Markdow
   return markdown;
 }
 
+export function getMarkdownRenderer(settings: MarkdownRenderOptions): MarkdownIt {
+  const key = rendererKey(settings);
+  const cached = rendererCache.get(key);
+  if (cached) return cached;
+  const renderer = createMarkdownRenderer(settings);
+  rendererCache.set(key, renderer);
+  return renderer;
+}
+
+function inlineText(token: { content: string; children?: Array<{ type: string; content: string }> | null }): string {
+  if (!token.children) return token.content;
+  return token.children.map((child) => {
+    if (child.type === 'softbreak' || child.type === 'hardbreak') return ' ';
+    return child.content;
+  }).join('').replace(/\s+/g, ' ').trim().replace(/\s+#$/u, '');
+}
+
+function collectHeadings(tokens: ReturnType<MarkdownIt['parse']>): HeadingItem[] {
+  const headings: HeadingItem[] = [];
+  for (let index = 0; index < tokens.length; index += 1) {
+    const opening = tokens[index];
+    if (opening?.type !== 'heading_open') continue;
+    const inline = tokens[index + 1];
+    headings.push({
+      id: opening.attrGet('id') ?? '',
+      text: inline ? inlineText(inline) : '',
+      level: Number(opening.tag.slice(1)),
+      sourceLine: opening.map?.[0] === undefined ? undefined : opening.map[0] + 1,
+    });
+  }
+  return headings;
+}
+
+function estimateReadMinutes(source: string): number {
+  const words = source.replace(/[`#>*_\-[\]]/g, ' ').trim().split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.ceil(words / 220));
+}
+
+export function renderMarkdownDocument(source: string, settings: MarkdownRenderOptions): RenderedDocument {
+  const renderer = getMarkdownRenderer(settings);
+  const environment = {};
+  const tokens = renderer.parse(source, environment);
+  const rendered = renderer.renderer.render(tokens, renderer.options, environment);
+  return {
+    html: DOMPurify.sanitize(rendered, {
+      ADD_ATTR: ['target', 'rel', 'loading', 'decoding', 'data-mermaid-source', 'data-source-line-start', 'data-source-line-end'],
+      ADD_TAGS: settings.enableKatex ? ['math', 'semantics', 'annotation', 'mrow', 'mi', 'mo', 'mn'] : [],
+    }),
+    headings: collectHeadings(tokens),
+    estimatedReadMinutes: estimateReadMinutes(source),
+  };
+}
+
 export function renderMarkdown(source: string, settings: MarkdownRenderOptions): string {
-  const rendered = createMarkdownRenderer(settings).render(source);
-  return DOMPurify.sanitize(rendered, {
-    ADD_ATTR: ['target', 'rel', 'loading', 'decoding', 'data-mermaid-source', 'data-source-line-start', 'data-source-line-end'],
-    ADD_TAGS: settings.enableKatex ? ['math', 'semantics', 'annotation', 'mrow', 'mi', 'mo', 'mn'] : [],
-  });
+  return renderMarkdownDocument(source, settings).html;
 }

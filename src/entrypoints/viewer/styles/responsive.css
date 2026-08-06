@@ -1,0 +1,55 @@
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(7px); } }
+@keyframes slide-in { from { transform: translateX(100%); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 1040px) {
+  .reader-stage, .with-context .reader-stage { padding-inline: max(34px, calc((100vw - 52px - var(--reader-width)) / 2)); }
+}
+
+@media (max-width: 760px) {
+  .navigation-rail { width: 48px; }
+  .topbar { left: 48px; padding-inline: 12px; }
+  .reading-progress { left: 48px; width: calc(100% - 48px); }
+  .workspace { margin-left: 48px; }
+  .workspace.with-context { display: block; }
+  .context-panel { position: fixed; z-index: 45; top: 56px; left: 48px; width: min(280px, calc(100vw - 48px)); box-shadow: var(--shadow); }
+  .reader-stage, .with-context .reader-stage { padding: 54px 24px 72px; }
+  .markdown-body h1 { font-size: 38px; }
+  .document-identity span { max-width: 180px; }
+  .document-identity strong { max-width: 180px; }
+}
+
+@media (max-width: 470px) {
+  .history-actions { margin-right: 4px; }
+  .history-actions button { width: 24px; }
+  .document-identity span { display: none; }
+  .document-identity strong { max-width: 130px; margin: 0; }
+  .open-trigger { min-width: 58px; }
+  .reader-stage, .with-context .reader-stage { padding-inline: 18px; }
+  .command-palette { margin-top: 7vh; }
+  .command-palette footer { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 1ms !important; transition-duration: 1ms !important; }
+  .remote-loading svg, .loading-spinner { animation: none !important; }
+}
+
+@media print {
+  :root, body { color-scheme: light; background: white !important; }
+  .navigation-rail, .topbar, .context-panel, .reading-progress, .code-copy, .diagram-toolbar,
+  .paper-grain, .error-banner, .remote-loading, .drop-overlay, .resume-prompt, .toast { display: none !important; }
+  .workspace { display: block; margin: 0; padding-top: 0; }
+  .reader-stage { min-height: auto; padding: 0; background: white !important; }
+  .markdown-body { width: 100%; max-width: none; color: black; font-size: 11pt; }
+  .markdown-body pre { padding: 1.25em 1.35em; overflow: visible; white-space: pre-wrap; break-inside: avoid; }
+  .markdown-body .diagram-shell { overflow: visible; border: 0; background: transparent; }
+  .markdown-body .diagram-shell::before { display: none; }
+  .markdown-body .mermaid { padding: 1em 0; overflow: visible; }
+  .markdown-body table { width: 100%; break-inside: auto; }
+  .markdown-body thead { display: table-header-group; }
+  .markdown-body tr, .markdown-body img, .markdown-body blockquote { break-inside: avoid; }
+  .markdown-body a[href^='http']::after { content: ' (' attr(href) ')'; color: #555; font-size: .8em; overflow-wrap: anywhere; }
+  .document-footer { color: #555; }
+}

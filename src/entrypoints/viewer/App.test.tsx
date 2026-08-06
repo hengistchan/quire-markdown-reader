@@ -2,9 +2,9 @@ import 'fake-indexeddb/auto';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { defaultSettings } from '../../shared/settings';
+import { defaultSettings } from '../../infrastructure/browser/settingsRepository';
 import { createDocumentHandoff, takeDocumentHandoff } from '../../infrastructure/handoffStore';
-import * as workspacePersistence from '../../core/workspacePersistence';
+import { IndexedDBHandleRepository } from '../../infrastructure/indexeddb/handleRepository';
 import { App } from './App';
 
 const mermaidMocks = vi.hoisted(() => ({
@@ -216,7 +216,7 @@ describe('Quire viewer experience', () => {
     render(<App />);
 
     await user.click(await screen.findByRole('button', { name: 'Reader settings' }));
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Language' }), 'zh-CN');
+    await user.selectOptions(await screen.findByRole('combobox', { name: 'Language' }), 'zh-CN');
 
     expect(await screen.findByText('修改后立即应用到当前文档。')).toBeTruthy();
     expect(screen.getByRole('button', { name: '打开' })).toBeTruthy();
@@ -254,7 +254,7 @@ describe('Quire viewer experience', () => {
 
     await screen.findByLabelText('Document navigation');
     fireEvent.keyDown(window, { key: 'k', metaKey: true });
-    const palette = screen.getByRole('dialog', { name: 'Command center' });
+    const palette = await screen.findByRole('dialog', { name: 'Command center' });
     expect(within(palette).getByRole('button', { name: /Open file/ })).toBeTruthy();
     expect(within(palette).getByRole('button', { name: /Open folder/ })).toBeTruthy();
     expect(within(palette).getByRole('button', { name: /Open URL/ })).toBeTruthy();
@@ -286,14 +286,14 @@ describe('Quire viewer experience', () => {
       first: workspaceHandle('first.md', '# First workspace'),
       second: workspaceHandle('second.md', '# Second workspace'),
     };
-    vi.spyOn(workspacePersistence, 'loadWorkspaceRecord').mockImplementation(async (id) => ({
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'getWorkspace').mockImplementation(async (id) => ({
       id,
       kind: 'workspace',
       name: 'docs',
       handle: handles[id as keyof typeof handles],
       savedAt: 1,
     }));
-    vi.spyOn(workspacePersistence, 'saveWorkspaceHandle').mockImplementation(async (_handle, id) => id ?? 'generated');
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'saveWorkspace').mockImplementation(async (_handle, id) => id ?? 'generated');
     installBrowser({}, { version: 2, items: [
       { id: 'workspace-file:first:first.md', title: 'first.md', kind: 'workspace-file', workspaceId: 'first', filePath: 'first.md', openedAt: 2, scrollPosition: 320, headingId: 'first-workspace' },
       { id: 'workspace-file:second:second.md', title: 'second.md', kind: 'workspace-file', workspaceId: 'second', filePath: 'second.md', openedAt: 1 },
@@ -303,13 +303,13 @@ describe('Quire viewer experience', () => {
 
     await screen.findByLabelText('Document navigation');
     fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
-    await user.click(within(screen.getByRole('dialog', { name: 'Command center' })).getByRole('button', { name: /first.md/ }));
+    await user.click(within(await screen.findByRole('dialog', { name: 'Command center' })).getByRole('button', { name: /first.md/ }));
     await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('First workspace'));
     await user.click(screen.getByRole('button', { name: 'Continue reading' }));
     await waitFor(() => expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' }));
 
     fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
-    const commandCenter = within(screen.getByRole('dialog', { name: 'Command center' }));
+    const commandCenter = within(await screen.findByRole('dialog', { name: 'Command center' }));
     const commandInput = commandCenter.getByPlaceholderText('Type a command, filename, or URL…');
     await user.type(commandInput, 'first');
     expect(commandCenter.getAllByRole('button', { name: /first.md/ })).toHaveLength(1);
@@ -409,16 +409,16 @@ describe('Quire viewer experience', () => {
 
     fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
     expect(document.querySelector('.open-menu')).toBeNull();
-    const command = screen.getByRole('dialog', { name: 'Command center' });
+    const command = await screen.findByRole('dialog', { name: 'Command center' });
     await user.click(within(command).getByRole('button', { name: /Open URL/ }));
     expect(screen.queryByRole('dialog', { name: 'Command center' })).toBeNull();
     expect(screen.getByRole('dialog', { name: 'Open Markdown from the web' })).toBeTruthy();
 
     fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
-    const nextCommand = screen.getByRole('dialog', { name: 'Command center' });
+    const nextCommand = await screen.findByRole('dialog', { name: 'Command center' });
     await user.click(within(nextCommand).getByRole('button', { name: /Reader settings/ }));
     expect(screen.queryByRole('dialog', { name: 'Command center' })).toBeNull();
-    expect(document.querySelector('.settings-drawer[aria-label="Reader settings"]')).toBeTruthy();
+    await waitFor(() => expect(document.querySelector('.settings-drawer[aria-label="Reader settings"]')).toBeTruthy());
   });
 
   it('preserves native find and implements the displayed open shortcuts', async () => {
@@ -455,7 +455,7 @@ describe('Quire viewer experience', () => {
 
     await screen.findByText('Find the needle in this paragraph.');
     fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
-    const palette = screen.getByRole('dialog', { name: 'Command center' });
+    const palette = await screen.findByRole('dialog', { name: 'Command center' });
     await user.type(within(palette).getByPlaceholderText('Type a command, filename, or URL…'), 'needle');
     await user.click(within(palette).getByRole('button', { name: /Find the needle in this paragraph/ }));
 

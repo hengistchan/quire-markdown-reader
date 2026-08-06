@@ -1,0 +1,4 @@
+.reader-stage { position: relative; min-width: 0; min-height: calc(100vh - 56px); min-height: calc(100dvh - 56px); padding: 72px max(48px, calc((100vw - 52px - var(--reader-width)) / 2)) 90px; overflow: hidden; background: var(--paper); transition: padding 180ms ease; }
+.with-context .reader-stage { padding-inline: max(48px, calc((100vw - 52px - 280px - var(--reader-width)) / 2)); }
+.paper-grain { pointer-events: none; position: absolute; inset: 0; opacity: .012; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E"); }
+.document-meta { width: min(100%, var(--reader-width)); margin: 0 auto 28px; color: var(--accent-ink); font-size: 10px; font-weight: 750; }

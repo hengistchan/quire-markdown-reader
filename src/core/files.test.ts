@@ -88,6 +88,18 @@ describe('workspace collection', () => {
     });
   });
 
+  it('scans the supported 5000-file workspace boundary', async () => {
+    const children = Object.fromEntries(Array.from(
+      { length: 5_000 },
+      (_, index) => [`note-${String(index).padStart(4, '0')}.md`, fileHandle(`note-${index}.md`)],
+    ));
+
+    const workspace = await collectWorkspace(directoryHandle('large-workspace', children));
+
+    expect(workspace.files).toHaveLength(5_000);
+    expect(workspace.tree).toHaveLength(5_000);
+  }, 10_000);
+
   it.each([
     ['max-files', { maxFiles: 1 }, directoryHandle('notes', { 'a.md': fileHandle('a.md'), 'b.md': fileHandle('b.md') })],
     ['max-directories', { maxDirectories: 1 }, directoryHandle('notes', { docs: directoryHandle('docs', { 'a.md': fileHandle('a.md') }) })],

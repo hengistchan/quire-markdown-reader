@@ -14,11 +14,17 @@ const options = new firefox.Options()
   .setPreference('intl.locale.requested', 'en-US')
   .setPreference('browser.shell.checkDefaultBrowser', false)
   .setPreference('browser.startup.homepage_override.mstone', 'ignore');
+if (process.env.FIREFOX_BINARY) options.setBinary(process.env.FIREFOX_BINARY);
 if (!process.env.FIREFOX_HEADED) options.addArguments('-headless');
 
 let builder = new Builder().forBrowser('firefox').setFirefoxOptions(options);
 if (process.env.FIREFOX_WEBDRIVER_URL) builder = builder.usingServer(process.env.FIREFOX_WEBDRIVER_URL);
-else builder = builder.setFirefoxService(new firefox.ServiceBuilder().addArguments('--allow-system-access'));
+else {
+  const service = process.env.GECKODRIVER_PATH
+    ? new firefox.ServiceBuilder(process.env.GECKODRIVER_PATH)
+    : new firefox.ServiceBuilder();
+  builder = builder.setFirefoxService(service.addArguments('--allow-system-access'));
+}
 const driver = await builder.build();
 const server = createServer((_request, response) => {
   response.writeHead(200, { 'content-type': 'text/html' });

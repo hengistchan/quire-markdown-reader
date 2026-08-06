@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { renderMarkdown, renderPlainText } from './markdown';
-import { defaultSettings } from '../shared/settings';
+import { getMarkdownRenderer, renderMarkdown, renderMarkdownDocument, renderPlainText } from './markdown';
+import { defaultSettings } from '../shared/defaultSettings';
 
 describe('renderMarkdown', () => {
   it('renders headings, task lists, and anchored outline targets', () => {
@@ -10,6 +10,21 @@ describe('renderMarkdown', () => {
     expect(html).toContain('data-source-line-end="1"');
     expect(html).toContain('task-list-item');
     expect(html).toContain('checked');
+  });
+
+  it('collects headings and reading time from Markdown tokens without parsing rendered DOM', () => {
+    const rendered = renderMarkdownDocument('# First *heading*\n\n## Second `heading`', defaultSettings);
+
+    expect(rendered.headings).toEqual([
+      { id: 'first-heading', text: 'First heading', level: 1, sourceLine: 1 },
+      { id: 'second-heading', text: 'Second heading', level: 2, sourceLine: 3 },
+    ]);
+    expect(rendered.estimatedReadMinutes).toBe(1);
+  });
+
+  it('reuses renderer instances for the same feature combination', () => {
+    expect(getMarkdownRenderer(defaultSettings)).toBe(getMarkdownRenderer({ ...defaultSettings }));
+    expect(getMarkdownRenderer(defaultSettings)).not.toBe(getMarkdownRenderer({ ...defaultSettings, enableMermaid: false }));
   });
 
   it('sanitizes scripts even when raw HTML is enabled', () => {

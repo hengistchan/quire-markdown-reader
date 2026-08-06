@@ -1,4 +1,7 @@
 import type { WorkspaceFile, WorkspaceSnapshot, WorkspaceTreeNode } from '../shared/types';
+import { WorkspaceScanError } from '../shared/errors/workspaceScanError';
+export { WorkspaceScanError } from '../shared/errors/workspaceScanError';
+export type { WorkspaceScanLimit } from '../shared/errors/workspaceScanError';
 
 const MARKDOWN_EXTENSIONS = ['.md', '.markdown', '.mdx'];
 
@@ -8,15 +11,6 @@ export const DEFAULT_IGNORED_DIRECTORIES = new Set([
 export const DEFAULT_WORKSPACE_MAX_DEPTH = 20;
 export const DEFAULT_WORKSPACE_MAX_FILES = 5_000;
 export const DEFAULT_WORKSPACE_MAX_DIRECTORIES = 20_000;
-
-export type WorkspaceScanLimit = 'max-depth' | 'max-files' | 'max-directories';
-
-export class WorkspaceScanError extends Error {
-  constructor(public readonly code: 'cancelled' | WorkspaceScanLimit) {
-    super(code);
-    this.name = 'WorkspaceScanError';
-  }
-}
 
 export interface WorkspaceScanOptions {
   workspaceId?: string;
