@@ -173,7 +173,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .markdown-body .diagram-shell::before { content: ''; pointer-events: none; position: absolute; z-index: 0; inset: 0; opacity: .42; background-image: linear-gradient(color-mix(in srgb, var(--line) 45%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--line) 45%, transparent) 1px, transparent 1px); background-size: 20px 20px; mask-image: linear-gradient(to bottom, black, transparent 84%); }
 .markdown-body .mermaid { position: relative; z-index: 1; display: flex; min-height: 120px; margin: 0; padding: 3.25em 1.5em 1.5em; align-items: center; justify-content: center; overflow: hidden; outline-offset: -3px; touch-action: none; }
 .markdown-body .mermaid:focus-visible { outline: 2px solid var(--accent); }
-.markdown-body .mermaid[data-diagram-zoomed='true'] { cursor: grab; }
+.markdown-body .mermaid[data-diagram-ready='true'] { cursor: grab; }
 .markdown-body .mermaid.is-dragging { cursor: grabbing; user-select: none; }
 .markdown-body .mermaid svg { display: block; flex: 0 0 auto; max-width: 100%; transform-origin: center; transition: transform 130ms ease; will-change: transform; }
 .markdown-body .mermaid.is-dragging svg { transition: none; }

@@ -108,10 +108,6 @@ Opened from a local absolute path.`);
 
     const diagramToolbar = page.getByRole('toolbar', { name: 'Diagram controls' });
     await expect(diagramToolbar).toBeVisible();
-    await diagramToolbar.getByRole('button', { name: 'Zoom in' }).click();
-    const resetDiagram = diagramToolbar.getByRole('button', { name: 'Reset zoom: 125%' });
-    await expect(resetDiagram).toBeVisible();
-    await expect(welcomeDiagram.locator('svg')).toHaveCSS('transform', /matrix\(1\.25, 0, 0, 1\.25,/);
     const diagramBox = await welcomeDiagram.boundingBox();
     await page.mouse.move(diagramBox!.x + diagramBox!.width / 2, diagramBox!.y + diagramBox!.height / 2);
     await page.mouse.down();
@@ -119,6 +115,14 @@ Opened from a local absolute path.`);
     await page.mouse.up();
     expect(await welcomeDiagram.getAttribute('data-diagram-pan-x')).not.toBe('0');
     expect(await welcomeDiagram.getAttribute('data-diagram-pan-y')).not.toBe('0');
+    await diagramToolbar.getByRole('button', { name: 'Reset zoom: 100%' }).click();
+    await expect(welcomeDiagram).toHaveAttribute('data-diagram-pan-x', '0');
+    await expect(welcomeDiagram).toHaveAttribute('data-diagram-pan-y', '0');
+
+    await diagramToolbar.getByRole('button', { name: 'Zoom in' }).click();
+    const resetDiagram = diagramToolbar.getByRole('button', { name: 'Reset zoom: 125%' });
+    await expect(resetDiagram).toBeVisible();
+    await expect(welcomeDiagram.locator('svg')).toHaveCSS('transform', /matrix\(1\.25, 0, 0, 1\.25,/);
     await resetDiagram.click();
     await expect(diagramToolbar.getByRole('button', { name: 'Reset zoom: 100%' })).toBeDisabled();
 

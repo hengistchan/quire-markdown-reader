@@ -157,6 +157,7 @@ export function enhanceDocument(
       viewport.dataset.diagramPanX = String(state.panX);
       viewport.dataset.diagramPanY = String(state.panY);
       viewport.dataset.diagramZoomed = state.scale > 1 ? 'true' : 'false';
+      viewport.dataset.diagramReady = svg ? 'true' : 'false';
       const percent = `${Math.round(state.scale * 100)}%`;
       reset!.textContent = percent;
       reset!.setAttribute('aria-label', `${labels.resetZoom}: ${percent}`);
@@ -169,8 +170,8 @@ export function enhanceDocument(
     const update = (scale: number, panX = readDiagramState(viewport).panX, panY = readDiagramState(viewport).panY) => {
       const nextScale = Math.min(MAX_DIAGRAM_SCALE, Math.max(MIN_DIAGRAM_SCALE, scale));
       viewport.dataset.diagramScale = String(nextScale);
-      viewport.dataset.diagramPanX = String(nextScale > 1 ? panX : 0);
-      viewport.dataset.diagramPanY = String(nextScale > 1 ? panY : 0);
+      viewport.dataset.diagramPanX = String(panX);
+      viewport.dataset.diagramPanY = String(panY);
       apply();
     };
     const zoomBy = (delta: number) => update(readDiagramState(viewport).scale + delta);
@@ -183,7 +184,7 @@ export function enhanceDocument(
 
     let dragStart: { clientX: number; clientY: number; panX: number; panY: number; pointerId: number } | undefined;
     const onPointerDown = (event: PointerEvent) => {
-      if (readDiagramState(viewport).scale <= 1 || !(event.target as Element).closest('svg')) return;
+      if (!(event.target as Element).closest('svg')) return;
       const state = readDiagramState(viewport);
       dragStart = { clientX: event.clientX, clientY: event.clientY, panX: state.panX, panY: state.panY, pointerId: event.pointerId };
       viewport.classList.add('is-dragging');
@@ -210,7 +211,7 @@ export function enhanceDocument(
       if (event.key === '+' || event.key === '=') zoomBy(DIAGRAM_SCALE_STEP);
       else if (event.key === '-') zoomBy(-DIAGRAM_SCALE_STEP);
       else if (event.key === '0') resetView();
-      else if (state.scale > 1 && event.key.startsWith('Arrow')) {
+      else if (viewport.querySelector('svg') && event.key.startsWith('Arrow')) {
         const amount = event.shiftKey ? 40 : 16;
         update(state.scale, state.panX + (event.key === 'ArrowLeft' ? amount : event.key === 'ArrowRight' ? -amount : 0), state.panY + (event.key === 'ArrowUp' ? amount : event.key === 'ArrowDown' ? -amount : 0));
       } else return;

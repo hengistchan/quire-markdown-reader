@@ -58,6 +58,13 @@ describe('document enhancements', () => {
     const zoomIn = article.querySelector<HTMLButtonElement>('[data-diagram-action="zoom-in"]')!;
     const reset = article.querySelector<HTMLButtonElement>('[data-diagram-action="reset"]')!;
 
+    svg.dispatchEvent(pointerEvent('pointerdown', 100, 80));
+    viewport.dispatchEvent(pointerEvent('pointermove', 130, 100));
+    viewport.dispatchEvent(pointerEvent('pointerup', 130, 100));
+    expect(svg.style.transform).toBe('translate(30px, 20px) scale(1)');
+    expect(reset.disabled).toBe(false);
+    reset.click();
+
     zoomIn.click();
     zoomIn.click();
     expect(reset.textContent).toBe('150%');
