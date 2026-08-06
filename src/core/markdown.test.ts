@@ -22,6 +22,47 @@ describe('renderMarkdown', () => {
     expect(html).toContain('Safe');
   });
 
+  it('repairs smart-quoted raw HTML attributes and Markdown-wrapped URLs', () => {
+    const html = renderMarkdown(`
+<h1 align=“center”> <img src=“Meta.png” alt=“Meta Kennel” width=“200”> <br>Meta Kernel<br> </h1>
+
+<h3 align=“center”>Another Mihomo Kernel.</h3>
+
+<p align=“center”> <a href=“[Report](https://goreportcard.com/report/github.com/MetaCubeX/mihomo)”> <img src=“[Badge](https://goreportcard.com/badge/github.com/MetaCubeX/mihomo?style=flat-square)”> </a> </p>
+`, {
+      ...defaultSettings,
+      enableHtml: true,
+    });
+
+    expect(html).toContain('<h1 align="center">');
+    expect(html).toContain('src="Meta.png"');
+    expect(html).toContain('alt="Meta Kennel"');
+    expect(html).toContain('width="200"');
+    expect(html).toContain('<h3 align="center">Another Mihomo Kernel.</h3>');
+    expect(html).toContain('href="https://goreportcard.com/report/github.com/MetaCubeX/mihomo"');
+    expect(html).toContain('src="https://goreportcard.com/badge/github.com/MetaCubeX/mihomo?style=flat-square"');
+    expect(html).not.toContain('[Report]');
+    expect(html).not.toContain('[Badge]');
+  });
+
+  it('keeps malformed URL repairs inside the existing sanitizer boundary', () => {
+    const html = renderMarkdown('<a href=“[Unsafe](javascript:alert(1))”>Unsafe</a>', {
+      ...defaultSettings,
+      enableHtml: true,
+    });
+    expect(html).toContain('<a>Unsafe</a>');
+    expect(html).not.toContain('javascript:');
+  });
+
+  it('does not repair HTML examples inside code fences', () => {
+    const html = renderMarkdown('```html\n<img src=“[Badge](https://example.com/badge.svg)”>\n```', {
+      ...defaultSettings,
+      enableHtml: true,
+    });
+    expect(html).toContain('“[Badge]');
+    expect(html).toContain('badge.svg)”');
+  });
+
   it('marks Mermaid fences without exposing their source as HTML', () => {
     const html = renderMarkdown('```mermaid\ngraph TD\nA-->B\n```', defaultSettings);
     expect(html).toContain('class="mermaid"');

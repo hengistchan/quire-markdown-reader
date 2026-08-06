@@ -27,6 +27,33 @@ function opensInNewTab(href: string): boolean {
   return /^(?:https?:)?\/\//i.test(href) || /^mailto:/i.test(href);
 }
 
+function markdownWrappedDestination(value: string): string | undefined {
+  const match = /^!?\[[^\]\r\n]*\]\((.+)\)$/u.exec(value.trim());
+  if (!match) return undefined;
+  const rawDestination = match[1]?.trim();
+  if (!rawDestination) return undefined;
+  if (rawDestination.startsWith('<') && rawDestination.endsWith('>')) {
+    const destination = rawDestination.slice(1, -1);
+    return destination && !/[\u0000-\u001f<>]/u.test(destination) ? destination : undefined;
+  }
+  return /[\u0000-\u0020]/u.test(rawDestination) ? undefined : rawDestination;
+}
+
+function normalizeRawHtmlAttributes(value: string): string {
+  return value.replace(/<[A-Za-z][^<>]*>/gu, (tag) => {
+    const normalizedQuotes = tag
+      .replace(/(\s[\w:-]+\s*=\s*)“([^”]*)”/gu, '$1"$2"')
+      .replace(/(\s[\w:-]+\s*=\s*)‘([^’]*)’/gu, "$1'$2'");
+    return normalizedQuotes.replace(
+      /(\s(?:href|src)\s*=\s*)(["'])(.*?)\2/giu,
+      (attribute, prefix: string, quote: string, rawValue: string) => {
+        const destination = markdownWrappedDestination(rawValue);
+        return destination ? `${prefix}${quote}${destination}${quote}` : attribute;
+      },
+    );
+  });
+}
+
 export function renderPlainText(source: string): string {
   const escapeHtml = (value: string): string => value
     .replaceAll('&', '&amp;')
@@ -77,6 +104,17 @@ export function createMarkdownRenderer(settings: MarkdownRenderOptions): Markdow
   markdown.use(abbr).use(deflist).use(footnote).use(tasklist, { enabled: true, label: true });
   markdown.use(container, { name: 'note' });
   markdown.use(container, { name: 'warning' });
+  markdown.core.ruler.after('inline', 'normalize-raw-html-attributes', (state) => {
+    const normalizeTokens = (tokens: typeof state.tokens) => {
+      for (const token of tokens) {
+        if (token.type === 'html_block' || token.type === 'html_inline') {
+          token.content = normalizeRawHtmlAttributes(token.content);
+        }
+        if (token.children) normalizeTokens(token.children);
+      }
+    };
+    normalizeTokens(state.tokens);
+  });
   markdown.core.ruler.push('source-line-attributes', (state) => {
     for (const token of state.tokens) {
       if (!token.map || token.type === 'inline' || token.type.endsWith('_close')) continue;
