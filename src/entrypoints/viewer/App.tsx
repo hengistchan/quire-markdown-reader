@@ -4,7 +4,7 @@ import {
   MoreHorizontal, RotateCw, Search, Settings2, StretchHorizontal, X,
 } from 'lucide-react';
 import {
-  collectWorkspace, createTransientDirectoryHandle, getWorkspaceFileHandle, WorkspaceScanError,
+  collectWorkspace, createTransientDirectoryHandle, WorkspaceScanError,
 } from '../../core/files';
 import { isLocalMarkdownUrl, localMarkdownPathWithinDirectory, localMarkdownTitle } from '../../core/localMarkdown';
 import { renderMarkdown, renderPlainText } from '../../core/markdown';
@@ -34,28 +34,25 @@ import type {
   DocumentSearchResult, HeadingItem, ImportedDocument, ReaderSettings, SidebarMode, WorkspaceFile,
   WorkspaceSnapshot,
 } from '../../shared/types';
-import {
-  CommandPalette, MoreMenu, OpenMenu, OutlinePanel, SettingsDrawer, UrlDialog, WorkspaceTree,
-} from './components';
+import { useReadingProgress } from '../../presentation/viewer/hooks/useReadingProgress';
+import { useMermaidRuntime } from '../../presentation/viewer/hooks/useMermaidRuntime';
+import { useDocumentNavigation } from '../../presentation/viewer/hooks/useDocumentNavigation';
+import { useDocumentResources } from '../../presentation/viewer/hooks/useDocumentResources';
+import { useSystemTheme } from '../../presentation/viewer/hooks/useSystemTheme';
+import { createDocumentResourceResolver } from '../../infrastructure/filesystem/documentResourceResolver';
+import { CommandPalette } from './components/CommandPalette';
+import { MoreMenu } from './components/MoreMenu';
+import { OpenMenu } from './components/OpenMenu';
+import { OutlinePanel } from './components/OutlinePanel';
+import { SettingsDrawer } from './components/SettingsDrawer';
+import { UrlDialog } from './components/UrlDialog';
+import { WorkspaceTree } from './components/WorkspaceTree';
+import { createViewerComposition } from './composition';
 import { enhanceDocument } from './documentEnhancements';
 
 type ActiveOverlay = 'open-menu' | 'more-menu' | 'command' | 'settings' | 'url-dialog' | null;
 interface ResumeTarget { scrollPosition: number; headingId?: string }
 const WIDE_READER_WIDTH = 980;
-const MERMAID_CACHE_LIMIT = 50;
-const mermaidSvgCache = new Map<string, string>();
-const mermaidRenderTokens = new WeakMap<HTMLElement, symbol>();
-let mermaidRenderQueue: Promise<void> = Promise.resolve();
-
-function enqueueMermaidRender(task: () => Promise<void>): Promise<void> {
-  const next = mermaidRenderQueue.then(task, task);
-  mermaidRenderQueue = next.catch(() => undefined);
-  return next;
-}
-
-function getSystemTheme(): 'light' | 'dark' {
-  return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-}
 
 async function requestReadPermission(handle: FileSystemHandle): Promise<PermissionState> {
   const permissionHandle = handle as FileSystemHandle & {
@@ -65,18 +62,6 @@ async function requestReadPermission(handle: FileSystemHandle): Promise<Permissi
   const current = await permissionHandle.queryPermission?.({ mode: 'read' });
   if (current === 'granted') return current;
   return await permissionHandle.requestPermission?.({ mode: 'read' }) ?? 'granted';
-}
-
-function useSystemTheme(): 'light' | 'dark' {
-  const [theme, setTheme] = useState<'light' | 'dark'>(getSystemTheme);
-  useEffect(() => {
-    const media = matchMedia('(prefers-color-scheme: dark)');
-    const update = () => setTheme(media.matches ? 'dark' : 'light');
-    update();
-    media.addEventListener('change', update);
-    return () => media.removeEventListener('change', update);
-  }, []);
-  return theme;
 }
 
 function extractHeadings(html: string, fallback: string): HeadingItem[] {
@@ -132,22 +117,8 @@ function revealSearchResult(article: HTMLElement, result: DocumentSearchResult, 
   }
 }
 
-function useReadingProgress(): number {
-  const [progress, setProgress] = useState(0);
-  useEffect(() => {
-    const update = () => {
-      const max = document.documentElement.scrollHeight - innerHeight;
-      setProgress(max <= 0 ? 0 : Math.min(100, (scrollY / max) * 100));
-    };
-    update();
-    addEventListener('scroll', update, { passive: true });
-    addEventListener('resize', update);
-    return () => { removeEventListener('scroll', update); removeEventListener('resize', update); };
-  }, []);
-  return progress;
-}
-
 export function App() {
+  const { navigationController } = useMemo(() => createViewerComposition(), []);
   const [settings, setSettings] = useState<ReaderSettings>(defaultSettings);
   const initialTranslator = useMemo(() => createTranslator(resolveLocale(defaultSettings.locale)), []);
   const [session, dispatchSession] = useReducer(
@@ -170,7 +141,6 @@ export function App() {
   const [remoteRetryUrl, setRemoteRetryUrl] = useState<string>();
   const [recent, setRecent] = useState<RecentItem[]>([]);
   const [collapsedDirectories, setCollapsedDirectories] = useState<Set<string>>(new Set());
-  const [documentNavigationVersion, setDocumentNavigationVersion] = useState(0);
   const [resumeTarget, setResumeTarget] = useState<ResumeTarget>();
   const [dragActive, setDragActive] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -179,8 +149,6 @@ export function App() {
   const remoteLoadingRef = useRef(false);
   const remoteRequestController = useRef<AbortController | undefined>(undefined);
   const workspaceScanController = useRef<AbortController | undefined>(undefined);
-  const pendingDocumentFragment = useRef<string | undefined>(undefined);
-  const pendingHashUpdate = useRef(true);
   const currentNavigationKey = useRef<string | undefined>(undefined);
   const activeHeadingRef = useRef<string | undefined>(undefined);
   const lastScrollPositionRef = useRef(0);
@@ -189,6 +157,7 @@ export function App() {
   const initialized = useRef(false);
   const progress = useReadingProgress();
   const systemTheme = useSystemTheme();
+  const queueDocumentNavigation = useDocumentNavigation(setActiveHeadingId);
 
   const openMenuOpen = activeOverlay === 'open-menu';
   const moreMenuOpen = activeOverlay === 'more-menu';
@@ -203,6 +172,7 @@ export function App() {
   const workspace = session.kind === 'workspace' ? session.workspace : undefined;
   const activeFile = session.kind === 'workspace' || session.kind === 'file' ? session.file : undefined;
   const activeModified = session.kind === 'workspace' || session.kind === 'file' ? session.lastModified : undefined;
+  const activeSize = session.kind === 'workspace' || session.kind === 'file' ? session.size : undefined;
   const currentRecentId = session.kind === 'remote'
     ? `remote:${session.state.url}`
     : session.kind === 'workspace' && session.workspace.id
@@ -226,6 +196,17 @@ export function App() {
   const headings = useMemo(() => extractHeadings(html, t('untitledSection')), [html, t]);
   const shortcutLabels = useMemo(() => createShortcutLabels(), []);
   const resolvedTheme = settings.theme === 'system' ? systemTheme : settings.theme;
+  const resourceResolver = useMemo(
+    () => createDocumentResourceResolver({ workspace, activeFile, sourceUrl }),
+    [activeFile, html, sourceUrl, workspace],
+  );
+  useMermaidRuntime(articleRef, {
+    enabled: settings.enableMermaid,
+    documentHtml: html,
+    theme: resolvedTheme,
+    errorMessage: t('diagramRenderError'),
+  });
+  useDocumentResources(articleRef, html, resourceResolver, t('resourceUnavailable'));
   const workspaceName = workspace?.name
     ?? (documentFormat === 'plain-text'
       ? t('plainTextSnapshot')
@@ -256,28 +237,26 @@ export function App() {
     setRecent(await rememberRecentItem(item));
   }, []);
 
-  const queueDocumentNavigation = useCallback((fragment?: string, updateHash = true) => {
-    pendingDocumentFragment.current = fragment;
-    pendingHashUpdate.current = updateHash;
-    setDocumentNavigationVersion((version) => version + 1);
-  }, []);
-
   const openImportedDocument = useCallback((imported: ImportedDocument, fragment?: string) => {
     dispatchSession({ type: 'replace', session: createImportedSession(imported) });
+    navigationController.replace({
+      document: { kind: 'imported', sessionId: imported.sourceUrl ?? imported.title },
+      fragment,
+    });
     setSidebarMode((current) => current === 'files' ? null : current);
     setError(undefined);
     queueDocumentNavigation(fragment);
     scrollTo({ top: 0 });
-  }, [queueDocumentNavigation]);
+  }, [navigationController, queueDocumentNavigation]);
 
   const openWorkspaceFile = useCallback(async (file: WorkspaceFile, currentWorkspace?: WorkspaceSnapshot, fragment?: string, navigationMode: 'push' | 'traverse' = 'push') => {
     const snapshot = await createFileDocumentSource(file, 'workspace').load();
     const targetWorkspace = currentWorkspace ?? (session.kind === 'workspace' ? session.workspace : undefined);
     if (!targetWorkspace) throw new Error('A workspace is required to open a workspace file.');
-    if (snapshot.lastModified === undefined) throw new Error('A local file snapshot requires modification metadata.');
+    if (snapshot.lastModified === undefined || snapshot.size === undefined) throw new Error('A local file snapshot requires modification metadata.');
     dispatchSession({
       type: 'replace',
-      session: createWorkspaceSession(targetWorkspace, file, snapshot.markdown, snapshot.lastModified),
+      session: createWorkspaceSession(targetWorkspace, file, snapshot.markdown, snapshot.lastModified, snapshot.size),
     });
     if (targetWorkspace.id) {
       await recordRecent({
@@ -293,17 +272,17 @@ export function App() {
         if (currentNavigationKey.current !== entryKey) {
           currentNavigationKey.current = entryKey;
           dispatchNavigation({ type: 'push', entry });
-          const nextUrl = fragment
-            ? `${location.pathname}${location.search}#${encodeURIComponent(fragment)}`
-            : `${location.pathname}${location.search}`;
-          history.pushState({ quireWorkspaceNavigation: entry }, '', nextUrl);
+          navigationController.push({
+            document: { kind: 'workspace-file', workspaceId: entry.workspaceId, filePath: entry.filePath },
+            fragment: entry.fragment,
+          });
         }
       }
     }
     setError(undefined);
-    queueDocumentNavigation(fragment, navigationMode !== 'push');
+    queueDocumentNavigation(fragment);
     scrollTo({ top: 0, behavior: 'smooth' });
-  }, [queueDocumentNavigation, recordRecent, session]);
+  }, [navigationController, queueDocumentNavigation, recordRecent, session]);
 
   const activateWorkspace = useCallback(async (handle: FileSystemDirectoryHandle, preferredPath?: string, existingId?: string, navigationMode: 'push' | 'traverse' = 'push', transient = false): Promise<boolean> => {
     workspaceScanController.current?.abort();
@@ -354,7 +333,6 @@ export function App() {
       setRecent(recentItems);
       if (importedDocument) {
         openImportedDocument(importedDocument);
-        history.replaceState(null, '', `${location.pathname}${location.hash}`);
       }
       if ('showDirectoryPicker' in window && !importedDocument) {
         try {
@@ -381,101 +359,6 @@ export function App() {
   }, [session.kind, t]);
 
   useEffect(() => {
-    if (!settings.enableMermaid || !articleRef.current) return;
-    let cancelled = false;
-    let observer: IntersectionObserver | undefined;
-    const effectRenders = new Map<HTMLElement, symbol>();
-    const theme = resolvedTheme === 'dark' ? 'dark' : 'neutral';
-    const renderNode = async (node: HTMLElement) => {
-      const encoded = node.dataset.mermaidSource;
-      if (!encoded || node.dataset.resourceState === 'ready' && node.querySelector('svg')) return;
-      if (node.dataset.resourceState === 'rendering' && mermaidRenderTokens.has(node)) return;
-      const cacheKey = `${theme}:${encoded}`;
-      const cached = mermaidSvgCache.get(cacheKey);
-      if (cached?.includes('<svg')) {
-        node.innerHTML = cached;
-        node.dataset.resourceState = 'ready';
-        node.removeAttribute('aria-busy');
-        return;
-      }
-      if (cached) mermaidSvgCache.delete(cacheKey);
-      const token = Symbol(cacheKey);
-      mermaidRenderTokens.set(node, token);
-      effectRenders.set(node, token);
-      node.dataset.resourceState = 'rendering';
-      node.setAttribute('aria-busy', 'true');
-      node.removeAttribute('data-resource-error');
-      const source = decodeURIComponent(encoded);
-      await enqueueMermaidRender(async () => {
-        let lastError: unknown;
-        try {
-          const { default: mermaid } = await import('mermaid');
-          for (let attempt = 1; attempt <= 2; attempt += 1) {
-            if (cancelled || !node.isConnected || mermaidRenderTokens.get(node) !== token) return;
-            node.textContent = source;
-            node.removeAttribute('data-processed');
-            try {
-              mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme, fontFamily: 'ui-sans-serif, system-ui, sans-serif' });
-              await mermaid.run({ nodes: [node], suppressErrors: true });
-              if (cancelled || !node.isConnected || mermaidRenderTokens.get(node) !== token) return;
-              if (!node.querySelector('svg')) throw new Error('Mermaid completed without producing an SVG.');
-              node.dataset.resourceState = 'ready';
-              node.removeAttribute('data-resource-error');
-              mermaidSvgCache.set(cacheKey, node.innerHTML);
-              if (mermaidSvgCache.size > MERMAID_CACHE_LIMIT) mermaidSvgCache.delete(mermaidSvgCache.keys().next().value!);
-              return;
-            } catch (caught) {
-              lastError = caught;
-            }
-          }
-          if (cancelled || !node.isConnected || mermaidRenderTokens.get(node) !== token) return;
-          node.textContent = source;
-          node.dataset.resourceState = 'error';
-          node.dataset.resourceError = t('diagramRenderError');
-          console.error('[quire:mermaid] render failed', { error: lastError });
-        } catch (caught) {
-          if (cancelled || !node.isConnected || mermaidRenderTokens.get(node) !== token) return;
-          node.textContent = source;
-          node.dataset.resourceState = 'error';
-          node.dataset.resourceError = t('diagramRenderError');
-          console.error('[quire:mermaid] load failed', { error: caught });
-        } finally {
-          if (mermaidRenderTokens.get(node) === token) {
-            if (node.dataset.resourceState === 'rendering') node.dataset.resourceState = 'idle';
-            node.removeAttribute('aria-busy');
-            mermaidRenderTokens.delete(node);
-          }
-          effectRenders.delete(node);
-        }
-      });
-    };
-    const nodes = [...articleRef.current.querySelectorAll<HTMLElement>('.mermaid')];
-    if ('IntersectionObserver' in window) {
-      observer = new IntersectionObserver((entries) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          observer?.unobserve(entry.target);
-          void renderNode(entry.target as HTMLElement);
-        }
-      }, { rootMargin: '500px 0px' });
-      for (const node of nodes) observer.observe(node);
-    } else {
-      for (const node of nodes) void renderNode(node);
-    }
-    return () => {
-      cancelled = true;
-      observer?.disconnect();
-      for (const [node, token] of effectRenders) {
-        if (mermaidRenderTokens.get(node) !== token) continue;
-        if (node.dataset.resourceState === 'rendering') node.dataset.resourceState = 'idle';
-        node.removeAttribute('aria-busy');
-        mermaidRenderTokens.delete(node);
-      }
-      effectRenders.clear();
-    };
-  }, [html, resolvedTheme, settings.enableMermaid, t]);
-
-  useEffect(() => {
     if (!articleRef.current) return;
     return enhanceDocument(articleRef.current, {
       copied: t('copied'),
@@ -490,75 +373,6 @@ export function App() {
   }, [html, t]);
 
   useEffect(() => {
-    if (!articleRef.current) return;
-    let cancelled = false;
-    let observer: IntersectionObserver | undefined;
-    const objectUrls: string[] = [];
-    const resolveImage = async (image: HTMLImageElement) => {
-      if (image.dataset.resourceState) return;
-      const raw = image.getAttribute('src');
-      if (!raw || !isRelativeUrl(raw)) return;
-      image.dataset.resourceState = 'resolving';
-      if (workspace && activeFile) {
-        const path = resolveWorkspacePath(activeFile.path, raw);
-        if (!path) return;
-        try {
-          const handle = await getWorkspaceFileHandle(workspace.handle, path);
-          const url = URL.createObjectURL(await handle.getFile());
-          objectUrls.push(url);
-          if (!cancelled) {
-            image.src = url;
-            image.dataset.resourceState = 'ready';
-          }
-        } catch (caught) {
-          console.warn('Quire could not load a workspace image.', path, caught);
-          image.dataset.resourceError = 'true';
-          image.dataset.resourceState = 'error';
-          image.alt = `${image.alt || raw} — ${t('resourceUnavailable')}`;
-        }
-      } else if (sourceUrl) {
-        image.src = new URL(raw, sourceUrl).href;
-        image.dataset.resourceState = 'ready';
-      }
-    };
-    const images = [...articleRef.current.querySelectorAll<HTMLImageElement>('img[src]')]
-      .filter((image) => isRelativeUrl(image.getAttribute('src') ?? ''));
-    if ('IntersectionObserver' in window) {
-      observer = new IntersectionObserver((entries) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          observer?.unobserve(entry.target);
-          void resolveImage(entry.target as HTMLImageElement);
-        }
-      }, { rootMargin: '500px 0px' });
-      for (const image of images) observer.observe(image);
-    } else {
-      for (const image of images) void resolveImage(image);
-    }
-    return () => {
-      cancelled = true;
-      observer?.disconnect();
-      for (const url of objectUrls) URL.revokeObjectURL(url);
-    };
-  }, [activeFile, html, sourceUrl, t, workspace]);
-
-  useEffect(() => {
-    if (documentNavigationVersion === 0) return;
-    const fragment = pendingDocumentFragment.current;
-    const frame = requestAnimationFrame(() => {
-      if (fragment) {
-        const target = document.getElementById(fragment);
-        target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        if (target) setActiveHeadingId(fragment);
-        if (pendingHashUpdate.current) history.pushState(null, '', `${location.pathname}${location.search}#${encodeURIComponent(fragment)}`);
-      } else if (location.hash) {
-        history.replaceState(null, '', `${location.pathname}${location.search}`);
-      }
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [documentNavigationVersion]);
-
-  useEffect(() => {
     if (!settings.autoRefresh || !activeFile || (session.kind !== 'workspace' && session.kind !== 'file')) return;
     if (session.kind === 'workspace' && session.workspace.transient) return;
     let checking = false;
@@ -567,16 +381,16 @@ export function App() {
       checking = true;
       try {
         const sourceAdapter = createFileDocumentSource(activeFile, session.kind);
-        const result = await sourceAdapter.refresh?.({ title, markdown: source, lastModified: activeModified });
-        if (result?.changed && result.snapshot.lastModified !== undefined) {
-          dispatchSession({ type: 'refresh-local', markdown: result.snapshot.markdown, lastModified: result.snapshot.lastModified });
+        const result = await sourceAdapter.refresh?.({ title, markdown: source, lastModified: activeModified, size: activeSize });
+        if (result?.changed && result.snapshot.lastModified !== undefined && result.snapshot.size !== undefined) {
+          dispatchSession({ type: 'refresh-local', markdown: result.snapshot.markdown, lastModified: result.snapshot.lastModified, size: result.snapshot.size });
           setNotice(t('updated'));
         }
       } finally { checking = false; }
     };
     const timer = setInterval(() => void check(), 1500);
     return () => clearInterval(timer);
-  }, [activeFile, activeModified, session.kind, settings.autoRefresh, source, t, title]);
+  }, [activeFile, activeModified, activeSize, session.kind, settings.autoRefresh, source, t, title]);
 
   useEffect(() => {
     if (!settings.autoRefresh || !remoteState || session.kind !== 'remote') return;
@@ -703,8 +517,9 @@ export function App() {
     const fileId = await saveFileHandle(handle, existingId);
     const file: WorkspaceFile = { id: `file:${fileId}`, name: handle.name, path: handle.name, depth: 0, handle };
     const snapshot = await createFileDocumentSource(file, 'file').load();
-    if (snapshot.lastModified === undefined) throw new Error('A local file snapshot requires modification metadata.');
-    dispatchSession({ type: 'replace', session: createFileSession(file, snapshot.markdown, snapshot.lastModified) });
+    if (snapshot.lastModified === undefined || snapshot.size === undefined) throw new Error('A local file snapshot requires modification metadata.');
+    dispatchSession({ type: 'replace', session: createFileSession(file, snapshot.markdown, snapshot.lastModified, snapshot.size) });
+    navigationController.push({ document: { kind: 'local-file', fileId }, fragment: undefined });
     setSidebarMode((current) => current === 'files' ? null : current);
     setError(undefined);
     scrollTo({ top: 0 });
@@ -786,7 +601,9 @@ export function App() {
       if (!snapshot.remoteState) throw new Error('A remote document snapshot requires refresh state.');
       const document = { title: snapshot.title, markdown: snapshot.markdown, sourceUrl: snapshot.sourceUrl };
       dispatchSession({ type: 'replace', session: createRemoteSession(document, snapshot.remoteState) });
-      queueDocumentNavigation(linkFragment(value));
+      const fragment = linkFragment(value);
+      navigationController.push({ document: { kind: 'remote', url: snapshot.remoteState.url }, fragment });
+      queueDocumentNavigation(fragment);
       setSidebarMode((current) => current === 'files' ? null : current);
       scrollTo({ top: 0 });
       setActiveOverlay(null);
@@ -804,7 +621,7 @@ export function App() {
       remoteLoadingRef.current = false;
       setRemoteLoading(false);
     }
-  }, [queueDocumentNavigation, recordRecent, t]);
+  }, [navigationController, queueDocumentNavigation, recordRecent, t]);
 
   const cancelRemoteLoad = useCallback(() => {
     remoteRequestController.current?.abort();
@@ -838,7 +655,15 @@ export function App() {
     const anchor = (event.target as Element).closest<HTMLAnchorElement>('a[href]');
     if (!anchor) return;
     const raw = anchor.getAttribute('href');
-    if (!raw || raw.startsWith('#')) return;
+    if (!raw) return;
+    if (raw.startsWith('#')) {
+      const fragment = linkFragment(raw);
+      if (!fragment) return;
+      event.preventDefault();
+      navigationController.pushFragment(fragment);
+      queueDocumentNavigation(fragment);
+      return;
+    }
     if (workspace && activeFile && isRelativeUrl(raw) && isMarkdownLink(raw)) {
       event.preventDefault();
       const path = resolveWorkspacePath(activeFile.path, raw);
@@ -916,19 +741,19 @@ export function App() {
       return;
     }
     const opened = await activateWorkspace(stored.handle, entry.filePath, stored.id, 'traverse');
-    if (opened && entry.fragment) queueDocumentNavigation(entry.fragment, false);
+    if (opened && entry.fragment) queueDocumentNavigation(entry.fragment);
   }, [activateWorkspace, openWorkspaceFile, queueDocumentNavigation, t, workspace]);
 
-  useEffect(() => {
-    const handlePopState = (event: PopStateEvent) => {
-      const entry = (event.state as { quireWorkspaceNavigation?: WorkspaceNavigationEntry } | null)?.quireWorkspaceNavigation;
-      if (!entry || typeof entry.workspaceId !== 'string' || typeof entry.filePath !== 'string') return;
-      dispatchNavigation({ type: 'select', entry });
-      void navigateToWorkspaceEntry(entry);
+  useEffect(() => navigationController.subscribe((target) => {
+    if (target.document.kind !== 'workspace-file') return;
+    const entry: WorkspaceNavigationEntry = {
+      workspaceId: target.document.workspaceId,
+      filePath: target.document.filePath,
+      fragment: target.fragment,
     };
-    addEventListener('popstate', handlePopState);
-    return () => removeEventListener('popstate', handlePopState);
-  }, [navigateToWorkspaceEntry]);
+    dispatchNavigation({ type: 'select', entry });
+    void navigateToWorkspaceEntry(entry);
+  }), [navigateToWorkspaceEntry, navigationController]);
 
   const continueReading = () => {
     const target = resumeTarget;
@@ -1026,8 +851,8 @@ export function App() {
       <header className="topbar">
         <div className="identity-cluster">
           <div className="history-actions">
-            <button disabled={navigationHistory.index <= 0} onClick={() => history.back()} aria-label={t('previousDocument')} title={t('previousDocument')}><ArrowLeft /></button>
-            <button disabled={navigationHistory.index < 0 || navigationHistory.index >= navigationHistory.entries.length - 1} onClick={() => history.forward()} aria-label={t('nextDocument')} title={t('nextDocument')}><ArrowRight /></button>
+            <button disabled={navigationHistory.index <= 0} onClick={() => navigationController.back()} aria-label={t('previousDocument')} title={t('previousDocument')}><ArrowLeft /></button>
+            <button disabled={navigationHistory.index < 0 || navigationHistory.index >= navigationHistory.entries.length - 1} onClick={() => navigationController.forward()} aria-label={t('nextDocument')} title={t('nextDocument')}><ArrowRight /></button>
           </div>
           <div className="document-identity">
             <span>{workspaceName}{activeFile?.path ? ` / ${activeFile.path.split('/').slice(0, -1).join('/')}` : ''}</span>

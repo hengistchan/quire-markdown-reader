@@ -273,7 +273,7 @@ describe('Quire viewer experience', () => {
     const workspaceHandle = (fileName: string, markdown: string) => {
       const file = {
         kind: 'file', name: fileName,
-        getFile: vi.fn(async () => ({ name: fileName, lastModified: 1, text: async () => markdown }) as File),
+        getFile: vi.fn(async () => ({ name: fileName, lastModified: 1, size: markdown.length, text: async () => markdown }) as unknown as File),
       } as unknown as FileSystemFileHandle;
       return {
         kind: 'directory', name: 'docs',
