@@ -13,13 +13,14 @@ export const defaultSettings: ReaderSettings = {
   autoRefresh: true,
   enableKatex: true,
   enableMermaid: true,
-  enableHtml: false,
+  enableHtml: true,
   customCss: '',
 };
 
 const STORAGE_KEY = 'reader-settings';
 const BACKUP_KEY = 'reader-settings-backup';
-export const SETTINGS_SCHEMA_VERSION = 2;
+const PREVIOUS_SETTINGS_SCHEMA_VERSION = 2;
+export const SETTINGS_SCHEMA_VERSION = 3;
 
 interface PersistedReaderSettings {
   version: typeof SETTINGS_SCHEMA_VERSION;
@@ -85,10 +86,17 @@ export async function loadSettings(): Promise<ReaderSettings> {
 
   const record = isRecord(raw) ? raw : undefined;
   const envelope = record?.version === SETTINGS_SCHEMA_VERSION && 'settings' in record;
+  const previousSettings = record?.version === PREVIOUS_SETTINGS_SCHEMA_VERSION && isRecord(record.settings)
+    ? record.settings
+    : undefined;
+  const previousEnvelope = previousSettings !== undefined;
   const legacy = record !== undefined && !('version' in record);
-  const normalized = normalizeSettings(envelope ? record.settings : legacy ? record : undefined, !legacy);
-  const needsBackup = !envelope && !legacy || normalized.repaired;
-  const needsMigration = legacy || normalized.repaired;
+  const settingsSource = previousEnvelope
+    ? { ...previousSettings, enableHtml: true }
+    : envelope ? record.settings : legacy ? record : undefined;
+  const normalized = normalizeSettings(settingsSource, !legacy);
+  const needsBackup = previousEnvelope || !envelope && !legacy || normalized.repaired;
+  const needsMigration = previousEnvelope || legacy || normalized.repaired;
 
   if (needsBackup || needsMigration) {
     const update: Record<string, unknown> = {

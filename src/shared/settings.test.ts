@@ -17,6 +17,35 @@ describe('reader settings storage', () => {
     });
   });
 
+  it('enables sanitized HTML once when migrating version 2 settings', async () => {
+    const set = vi.fn(async () => undefined);
+    const raw = {
+      version: 2,
+      settings: { ...defaultSettings, theme: 'dark', fontSize: 22, enableHtml: false },
+    };
+    const get = vi.fn(async () => ({ 'reader-settings': raw }));
+    vi.stubGlobal('browser', { storage: { local: { get, set } } });
+
+    const migrated = { ...defaultSettings, theme: 'dark' as const, fontSize: 22, enableHtml: true };
+    await expect(loadSettings()).resolves.toEqual(migrated);
+    expect(set).toHaveBeenCalledWith({
+      'reader-settings': { version: SETTINGS_SCHEMA_VERSION, settings: migrated },
+      'reader-settings-backup': expect.objectContaining({ value: raw }),
+    });
+  });
+
+  it('preserves an explicit HTML preference after the version 3 migration', async () => {
+    const set = vi.fn(async () => undefined);
+    const settings = { ...defaultSettings, enableHtml: false };
+    const get = vi.fn(async () => ({
+      'reader-settings': { version: SETTINGS_SCHEMA_VERSION, settings },
+    }));
+    vi.stubGlobal('browser', { storage: { local: { get, set } } });
+
+    await expect(loadSettings()).resolves.toEqual(settings);
+    expect(set).not.toHaveBeenCalled();
+  });
+
   it('validates fields, ignores unknown data, and backs up repaired values', async () => {
     const set = vi.fn(async () => undefined);
     const raw = {

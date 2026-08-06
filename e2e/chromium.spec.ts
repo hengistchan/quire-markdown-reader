@@ -72,7 +72,20 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     const localWorkspacePath = join(profile, 'mihomo');
     await mkdir(join(localWorkspacePath, 'docs'), { recursive: true });
     const localMarkdownPath = join(localWorkspacePath, 'README.md');
-    await writeFile(localMarkdownPath, '# Address Bar Preview\n\nOpened from a local absolute path.');
+    await writeFile(localMarkdownPath, `<h1 align="center">
+  <img src="Meta.png" alt="Meta Kennel" width="200">
+  <br>Meta Kernel<br>
+</h1>
+
+<h3 align="center">Another Mihomo Kernel.</h3>
+
+## Address Bar Preview
+
+Opened from a local absolute path.`);
+    await writeFile(join(localWorkspacePath, 'Meta.png'), Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+X8WzAAAAAElFTkSuQmCC',
+      'base64',
+    ));
     await writeFile(join(localWorkspacePath, 'docs', 'guide.md'), '# Embedded workspace guide');
     const localMarkdownUrl = pathToFileURL(localMarkdownPath).href;
 
@@ -139,7 +152,10 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     await expect(localPage).toHaveURL(localMarkdownUrl);
     const embeddedReader = localPage.frameLocator('iframe[data-quire-reader]');
     await expect(embeddedReader.locator('.document-identity span')).toHaveText('Local file');
-    await expect(embeddedReader.getByRole('heading', { level: 1, name: 'Address Bar Preview' })).toBeVisible();
+    await expect(embeddedReader.getByRole('heading', { level: 1, name: 'Meta Kennel Meta Kernel' })).toBeVisible();
+    await expect(embeddedReader.getByRole('img', { name: 'Meta Kennel' })).toHaveAttribute('src', /\/Meta\.png$/);
+    await expect(embeddedReader.getByRole('heading', { level: 3, name: 'Another Mihomo Kernel.' })).toBeVisible();
+    await expect(embeddedReader.getByRole('heading', { level: 2, name: 'Address Bar Preview' })).toBeVisible();
     await expect(embeddedReader.locator('.context-panel')).toHaveCount(0);
     const embeddedFolderChooser = localPage.waitForEvent('filechooser');
     await embeddedReader.getByRole('button', { name: 'Toggle file workspace' }).click();

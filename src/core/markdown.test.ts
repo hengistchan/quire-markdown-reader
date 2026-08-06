@@ -22,6 +22,30 @@ describe('renderMarkdown', () => {
     expect(html).toContain('Safe');
   });
 
+  it('renders sanitized GitHub README HTML with the default settings', () => {
+    const html = renderMarkdown(`
+<h1 align="center">
+  <img src="Meta.png" alt="Meta Kennel" width="200">
+  <br>Meta Kernel<br>
+</h1>
+
+<h3 align="center">Another Mihomo Kernel.</h3>
+`, defaultSettings);
+
+    expect(html).toContain('<h1 align="center">');
+    expect(html).toContain('src="Meta.png"');
+    expect(html).toContain('alt="Meta Kennel"');
+    expect(html).toContain('width="200"');
+    expect(html).toContain('<br>Meta Kernel<br>');
+    expect(html).toContain('<h3 align="center">Another Mihomo Kernel.</h3>');
+  });
+
+  it('respects an explicit preference to display raw HTML as source', () => {
+    const html = renderMarkdown('<h1>Meta Kernel</h1>', { ...defaultSettings, enableHtml: false });
+    expect(html).toContain('&lt;h1&gt;Meta Kernel&lt;/h1&gt;');
+    expect(html).not.toContain('<h1>');
+  });
+
   it('repairs smart-quoted raw HTML attributes and Markdown-wrapped URLs', () => {
     const html = renderMarkdown(`
 <h1 align=“center”> <img src=“Meta.png” alt=“Meta Kennel” width=“200”> <br>Meta Kernel<br> </h1>
