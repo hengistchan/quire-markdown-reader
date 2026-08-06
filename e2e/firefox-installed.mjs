@@ -58,7 +58,10 @@ try {
   assert.equal(await driver.findElement(By.css('.document-identity strong')).getText(), 'guide');
 
   await driver.findElement(By.css('button[aria-label="Reader settings"]')).click();
-  const language = await driver.findElement(By.css('select[aria-label="Language"]'));
+  const language = await driver.wait(
+    until.elementLocated(By.css('select[aria-label="Language"]')),
+    10_000,
+  );
   await driver.executeScript(`arguments[0].value = 'zh-CN'; arguments[0].dispatchEvent(new Event('change', { bubbles: true }))`, language);
   await driver.wait(until.elementLocated(By.xpath("//*[contains(text(), '修改后立即应用到当前文档')]")), 10_000);
 
