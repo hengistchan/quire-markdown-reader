@@ -37,6 +37,7 @@ import type {
 import {
   CommandPalette, MoreMenu, OpenMenu, OutlinePanel, SettingsDrawer, UrlDialog, WorkspaceTree,
 } from './components';
+import { enhanceDocument } from './documentEnhancements';
 
 type ActiveOverlay = 'open-menu' | 'more-menu' | 'command' | 'settings' | 'url-dialog' | null;
 interface ResumeTarget { scrollPosition: number; headingId?: string }
@@ -473,6 +474,20 @@ export function App() {
       effectRenders.clear();
     };
   }, [html, resolvedTheme, settings.enableMermaid, t]);
+
+  useEffect(() => {
+    if (!articleRef.current) return;
+    return enhanceDocument(articleRef.current, {
+      copied: t('copied'),
+      copyCode: t('copyCode'),
+      copyFailed: t('copyFailed'),
+      diagramControls: t('diagramControls'),
+      interactiveDiagram: t('interactiveDiagram'),
+      resetZoom: t('resetZoom'),
+      zoomIn: t('zoomIn'),
+      zoomOut: t('zoomOut'),
+    });
+  }, [html, t]);
 
   useEffect(() => {
     if (!articleRef.current) return;

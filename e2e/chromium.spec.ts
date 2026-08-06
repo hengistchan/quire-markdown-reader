@@ -101,6 +101,26 @@ Opened from a local absolute path.`);
     await welcomeDiagram.scrollIntoViewIfNeeded();
     await expect(welcomeDiagram.locator('svg')).toHaveCount(1, { timeout: 10_000 });
     await expect(welcomeDiagram).toHaveAttribute('data-resource-state', 'ready');
+    const copyCode = page.getByRole('button', { name: 'Copy code' });
+    await expect(copyCode).toHaveCount(1);
+    await copyCode.click();
+    await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible();
+
+    const diagramToolbar = page.getByRole('toolbar', { name: 'Diagram controls' });
+    await expect(diagramToolbar).toBeVisible();
+    await diagramToolbar.getByRole('button', { name: 'Zoom in' }).click();
+    const resetDiagram = diagramToolbar.getByRole('button', { name: 'Reset zoom: 125%' });
+    await expect(resetDiagram).toBeVisible();
+    await expect(welcomeDiagram.locator('svg')).toHaveCSS('transform', /matrix\(1\.25, 0, 0, 1\.25,/);
+    const diagramBox = await welcomeDiagram.boundingBox();
+    await page.mouse.move(diagramBox!.x + diagramBox!.width / 2, diagramBox!.y + diagramBox!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(diagramBox!.x + diagramBox!.width / 2 + 36, diagramBox!.y + diagramBox!.height / 2 + 18);
+    await page.mouse.up();
+    expect(await welcomeDiagram.getAttribute('data-diagram-pan-x')).not.toBe('0');
+    expect(await welcomeDiagram.getAttribute('data-diagram-pan-y')).not.toBe('0');
+    await resetDiagram.click();
+    await expect(diagramToolbar.getByRole('button', { name: 'Reset zoom: 100%' })).toBeDisabled();
 
     const openControl = page.getByRole('button', { name: 'Open', exact: true });
     const wideControl = page.getByRole('button', { name: 'Use wider reading width' });

@@ -15,6 +15,7 @@ const en = {
   recent: 'Recent', fromWeb: 'From the web', localFile: 'Local file', imported: 'Imported document', plainTextSnapshot: 'Page text snapshot', gettingStarted: 'Getting started', untitled: 'Untitled',
   resumeReading: 'Continue where you left off?', continueReading: 'Continue reading', startFromTop: 'Start from top', dropToOpen: 'Drop Markdown or a folder to open', pastedDocument: 'Pasted Markdown',
   previousDocument: 'Previous document', nextDocument: 'Next document',
+  copyCode: 'Copy code', copied: 'Copied', copyFailed: 'Copy failed', diagramControls: 'Diagram controls', interactiveDiagram: 'Interactive diagram. Zoom in, then drag or use the arrow keys to move around.', zoomIn: 'Zoom in', zoomOut: 'Zoom out', resetZoom: 'Reset zoom',
   welcomeDocumentTitle: 'Welcome to Quire',
   welcomeDocument: `# Welcome to Quire
 
@@ -74,6 +75,7 @@ const zh: Record<keyof typeof en, string> = {
   recent: '最近打开', fromWeb: '来自网络', localFile: '本地文件', imported: '导入的文档', plainTextSnapshot: '网页文本快照', gettingStarted: '开始使用', untitled: '未命名',
   resumeReading: '继续上次阅读位置？', continueReading: '继续阅读', startFromTop: '从头开始', dropToOpen: '拖入 Markdown 或文件夹以打开', pastedDocument: '粘贴的 Markdown',
   previousDocument: '上一篇文档', nextDocument: '下一篇文档',
+  copyCode: '复制代码', copied: '已复制', copyFailed: '复制失败', diagramControls: '图表控制', interactiveDiagram: '交互式图表。放大后可拖拽，或使用方向键移动。', zoomIn: '放大', zoomOut: '缩小', resetZoom: '重置缩放',
   welcomeDocumentTitle: '欢迎使用 Quire',
   welcomeDocument: `# 欢迎使用 Quire
 
