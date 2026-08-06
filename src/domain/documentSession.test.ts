@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  createImportedSession, createRemoteSession, createWelcomeSession, documentSessionReducer,
+  createFileSession, createImportedSession, createRemoteSession, createWelcomeSession, documentSessionReducer,
   documentSourceUrl,
 } from './documentSession';
 
@@ -35,5 +35,13 @@ describe('DocumentSession', () => {
       document: { title: 'New.md', markdown: '# New' },
       state: { url: 'https://example.com/doc.md', etag: 'v2' },
     })).toEqual({ kind: 'remote', title: 'New', markdown: '# New', state: { url: 'https://example.com/doc.md', etag: 'v2' } });
+  });
+
+  it('keeps local file metadata with refreshed content', () => {
+    const file = { id: 'guide.md', name: 'guide.md', path: 'guide.md', depth: 0, handle: {} as FileSystemFileHandle };
+    const local = createFileSession(file, '# Old', 1, 5);
+    expect(documentSessionReducer(local, {
+      type: 'refresh-local', markdown: '# Updated', lastModified: 2, size: 9,
+    })).toMatchObject({ markdown: '# Updated', lastModified: 2, size: 9 });
   });
 });

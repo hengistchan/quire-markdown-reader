@@ -1,3 +1,5 @@
+import { openIndexedDatabase, transact as runTransaction } from '../infrastructure/indexeddb/database';
+
 const DATABASE = 'quire-workspaces';
 const STORE = 'handles';
 const LEGACY_ACTIVE_HANDLE = 'active-directory';
@@ -29,25 +31,14 @@ function createId(): string {
 }
 
 function openDatabase(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DATABASE, 2);
-    request.onupgradeneeded = () => {
-      if (!request.result.objectStoreNames.contains(STORE)) request.result.createObjectStore(STORE);
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error('Could not open workspace storage.'));
+  return openIndexedDatabase(DATABASE, 2, (database) => {
+    if (!database.objectStoreNames.contains(STORE)) database.createObjectStore(STORE);
   });
 }
 
 async function transact<T>(mode: IDBTransactionMode, action: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
   const database = await openDatabase();
-  return new Promise((resolve, reject) => {
-    const transaction = database.transaction(STORE, mode);
-    const request = action(transaction.objectStore(STORE));
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error('Workspace storage failed.'));
-    transaction.oncomplete = () => database.close();
-  });
+  return runTransaction(database, STORE, mode, action);
 }
 
 function read<T>(key: IDBValidKey): Promise<T | undefined> {

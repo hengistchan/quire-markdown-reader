@@ -181,9 +181,9 @@ export async function readWorkspaceFile(file: WorkspaceFile): Promise<string> {
   return (await file.handle.getFile()).text();
 }
 
-export async function readWorkspaceFileSnapshot(file: WorkspaceFile): Promise<{ markdown: string; lastModified: number }> {
+export async function readWorkspaceFileSnapshot(file: WorkspaceFile): Promise<{ markdown: string; lastModified: number; size: number }> {
   const snapshot = await file.handle.getFile();
-  return { markdown: await snapshot.text(), lastModified: snapshot.lastModified };
+  return { markdown: await snapshot.text(), lastModified: snapshot.lastModified, size: snapshot.size };
 }
 
 export async function getWorkspaceFileHandle(root: FileSystemDirectoryHandle, path: string): Promise<FileSystemFileHandle> {

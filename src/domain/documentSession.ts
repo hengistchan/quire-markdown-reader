@@ -21,6 +21,7 @@ export interface FileDocumentSession extends DocumentContent {
   kind: 'file';
   file: WorkspaceFile;
   lastModified: number;
+  size: number;
 }
 
 export interface WorkspaceDocumentSession extends DocumentContent {
@@ -28,6 +29,7 @@ export interface WorkspaceDocumentSession extends DocumentContent {
   workspace: WorkspaceSnapshot;
   file: WorkspaceFile;
   lastModified: number;
+  size: number;
 }
 
 export interface RemoteDocumentSession extends DocumentContent {
@@ -45,7 +47,7 @@ export type DocumentSession =
 export type DocumentSessionAction =
   | { type: 'replace'; session: DocumentSession }
   | { type: 'localize-welcome'; title: string; markdown: string }
-  | { type: 'refresh-local'; markdown: string; lastModified: number }
+  | { type: 'refresh-local'; markdown: string; lastModified: number; size: number }
   | { type: 'refresh-remote'; document?: ImportedDocument; state: RemoteDocumentState };
 
 export function displayDocumentTitle(value: string): string {
@@ -66,12 +68,12 @@ export function createImportedSession(document: ImportedDocument): ImportedDocum
   };
 }
 
-export function createFileSession(file: WorkspaceFile, markdown: string, lastModified: number): FileDocumentSession {
-  return { kind: 'file', title: displayDocumentTitle(file.name), markdown, file, lastModified };
+export function createFileSession(file: WorkspaceFile, markdown: string, lastModified: number, size: number): FileDocumentSession {
+  return { kind: 'file', title: displayDocumentTitle(file.name), markdown, file, lastModified, size };
 }
 
-export function createWorkspaceSession(workspace: WorkspaceSnapshot, file: WorkspaceFile, markdown: string, lastModified: number): WorkspaceDocumentSession {
-  return { kind: 'workspace', title: displayDocumentTitle(file.name), markdown, workspace, file, lastModified };
+export function createWorkspaceSession(workspace: WorkspaceSnapshot, file: WorkspaceFile, markdown: string, lastModified: number, size: number): WorkspaceDocumentSession {
+  return { kind: 'workspace', title: displayDocumentTitle(file.name), markdown, workspace, file, lastModified, size };
 }
 
 export function createRemoteSession(document: ImportedDocument, state: RemoteDocumentState): RemoteDocumentSession {
@@ -87,7 +89,7 @@ export function documentSessionReducer(session: DocumentSession, action: Documen
   }
   if (action.type === 'refresh-local') {
     return session.kind === 'file' || session.kind === 'workspace'
-      ? { ...session, markdown: action.markdown, lastModified: action.lastModified }
+      ? { ...session, markdown: action.markdown, lastModified: action.lastModified, size: action.size }
       : session;
   }
   return session.kind === 'remote'

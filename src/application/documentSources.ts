@@ -9,6 +9,7 @@ export interface DocumentSnapshot {
   markdown: string;
   sourceUrl?: string;
   lastModified?: number;
+  size?: number;
   remoteState?: RemoteDocumentState;
 }
 
@@ -44,14 +45,26 @@ export function createFileDocumentSource(file: WorkspaceFile, kind: 'file' | 'wo
     assertNotCancelled(signal);
     const snapshot = await readWorkspaceFileSnapshot(file);
     assertNotCancelled(signal);
-    return { title: file.name, markdown: snapshot.markdown, lastModified: snapshot.lastModified };
+    return { title: file.name, markdown: snapshot.markdown, lastModified: snapshot.lastModified, size: snapshot.size };
   };
   return {
     kind,
     load,
     async refresh(previous, signal) {
-      const snapshot = await load(signal);
-      return { changed: snapshot.lastModified !== previous.lastModified, snapshot };
+      assertNotCancelled(signal);
+      const nextFile = await file.handle.getFile();
+      assertNotCancelled(signal);
+      if (nextFile.lastModified === previous.lastModified && nextFile.size === previous.size) {
+        return { changed: false, snapshot: previous };
+      }
+      const snapshot = {
+        title: file.name,
+        markdown: await nextFile.text(),
+        lastModified: nextFile.lastModified,
+        size: nextFile.size,
+      };
+      assertNotCancelled(signal);
+      return { changed: true, snapshot };
     },
   };
 }

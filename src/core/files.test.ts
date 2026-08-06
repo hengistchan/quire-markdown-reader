@@ -4,7 +4,7 @@ import { collectWorkspace, createTransientDirectoryHandle, getWorkspaceFileHandl
 function fileHandle(name: string, text = name, lastModified = 1): FileSystemFileHandle {
   return {
     kind: 'file', name,
-    getFile: async () => ({ name, lastModified, text: async () => text }) as File,
+    getFile: async () => ({ name, lastModified, size: text.length, text: async () => text }) as unknown as File,
   } as FileSystemFileHandle;
 }
 
@@ -115,6 +115,6 @@ describe('workspace collection', () => {
   it('returns content and last-modified metadata for refresh checks', async () => {
     const handle = fileHandle('guide.md', '# Updated', 42);
     const file = { id: 'guide.md', name: 'guide.md', path: 'guide.md', depth: 0, handle };
-    await expect(readWorkspaceFileSnapshot(file)).resolves.toEqual({ markdown: '# Updated', lastModified: 42 });
+    await expect(readWorkspaceFileSnapshot(file)).resolves.toEqual({ markdown: '# Updated', lastModified: 42, size: 9 });
   });
 });
