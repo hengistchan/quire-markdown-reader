@@ -269,6 +269,40 @@ describe('Quire viewer experience', () => {
     expect(document.activeElement).toBe(within(palette).getByRole('button', { name: /Use dark theme/ }));
   });
 
+  it('resumes the routed workspace file after the browser asks for access again', async () => {
+    const markdown = '# Routed guide\n\n## Tasks\n';
+    const file = {
+      kind: 'file', name: 'guide.md',
+      getFile: vi.fn(async () => ({ name: 'guide.md', lastModified: 1, size: markdown.length, text: async () => markdown }) as unknown as File),
+    } as unknown as FileSystemFileHandle;
+    const docs = {
+      kind: 'directory', name: 'docs',
+      entries: async function* () { yield ['guide.md', file] as [string, FileSystemFileHandle]; },
+    } as unknown as FileSystemDirectoryHandle;
+    const workspace = {
+      kind: 'directory', name: 'notes',
+      queryPermission: vi.fn(async () => 'prompt' as PermissionState),
+      requestPermission: vi.fn(async () => 'granted' as PermissionState),
+      entries: async function* () { yield ['docs', docs] as [string, FileSystemDirectoryHandle]; },
+    } as unknown as FileSystemDirectoryHandle;
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'getWorkspace').mockResolvedValue({
+      id: 'routed', kind: 'workspace', name: 'notes', handle: workspace, savedAt: 1,
+    });
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'saveWorkspace').mockResolvedValue('routed');
+    history.replaceState(null, '', '/viewer.html?workspace=routed&file=docs%2Fguide.md#tasks');
+    vi.stubGlobal('showDirectoryPicker', vi.fn());
+    installBrowser();
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: 'Restore workspace' }));
+
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Routed guide'));
+    expect(workspace.requestPermission).toHaveBeenCalledWith({ mode: 'read' });
+    expect(location.search).toBe('?workspace=routed&file=docs%2Fguide.md');
+    expect(location.hash).toBe('#tasks');
+  });
+
   it('restores separate same-named workspaces from recent documents', async () => {
     const workspaceHandle = (fileName: string, markdown: string) => {
       const file = {

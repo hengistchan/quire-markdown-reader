@@ -4,7 +4,9 @@ import type { BrowserHistoryPort } from './browserHistory';
 export class NavigationController {
   private target?: NavigationTarget;
 
-  constructor(private readonly history: BrowserHistoryPort) {}
+  constructor(private readonly history: BrowserHistoryPort) {
+    this.target = history.current();
+  }
 
   current(): NavigationTarget | undefined {
     return this.target;

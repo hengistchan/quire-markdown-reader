@@ -7,6 +7,29 @@ interface LegacyWorkspaceHistoryState {
   quireWorkspaceNavigation?: { workspaceId?: unknown; filePath?: unknown; fragment?: unknown };
 }
 
+const WORKSPACE_PARAMETER = 'workspace';
+const FILE_PARAMETER = 'file';
+
+function decodedFragment(location: Location): string | undefined {
+  if (!location.hash) return undefined;
+  try {
+    return decodeURIComponent(location.hash.slice(1));
+  } catch {
+    return location.hash.slice(1);
+  }
+}
+
+function targetFromLocation(location: Location): NavigationTarget | undefined {
+  const query = new URLSearchParams(location.search);
+  const workspaceId = query.get(WORKSPACE_PARAMETER);
+  const filePath = query.get(FILE_PARAMETER);
+  if (!workspaceId || !filePath) return undefined;
+  return {
+    document: { kind: 'workspace-file', workspaceId, filePath },
+    fragment: decodedFragment(location),
+  };
+}
+
 function targetFromState(state: unknown): NavigationTarget | undefined {
   if (state && typeof state === 'object') {
     const current = state as Partial<QuireHistoryState>;
@@ -28,6 +51,10 @@ export class BrowserHistoryAdapter implements BrowserHistoryPort {
     private readonly browserHistory: History = browserWindow.history,
     private readonly browserLocation: Location = browserWindow.location,
   ) {}
+
+  current(): NavigationTarget | undefined {
+    return targetFromState(this.browserHistory.state) ?? targetFromLocation(this.browserLocation);
+  }
 
   push(target: NavigationTarget): void {
     this.browserHistory.pushState({ version: 1, target } satisfies QuireHistoryState, '', this.url(target));
@@ -57,6 +84,12 @@ export class BrowserHistoryAdapter implements BrowserHistoryPort {
   private url(target: NavigationTarget): string {
     const query = new URLSearchParams(this.browserLocation.search);
     query.delete('handoff');
+    query.delete(WORKSPACE_PARAMETER);
+    query.delete(FILE_PARAMETER);
+    if (target.document.kind === 'workspace-file') {
+      query.set(WORKSPACE_PARAMETER, target.document.workspaceId);
+      query.set(FILE_PARAMETER, target.document.filePath);
+    }
     const search = query.toString();
     const base = `${this.browserLocation.pathname}${search ? `?${search}` : ''}`;
     return target.fragment ? `${base}#${encodeURIComponent(target.fragment)}` : base;

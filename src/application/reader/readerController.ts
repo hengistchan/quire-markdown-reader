@@ -131,6 +131,7 @@ export class ReaderController {
 
   push(target: NavigationTarget): void { this.dependencies.navigationController.push(target); }
   replace(target: NavigationTarget): void { this.dependencies.navigationController.replace(target); }
+  current(): NavigationTarget | undefined { return this.dependencies.navigationController.current(); }
   pushFragment(fragment?: string): void { this.dependencies.navigationController.pushFragment(fragment); }
   back(): void { this.dependencies.navigationController.back(); }
   forward(): void { this.dependencies.navigationController.forward(); }

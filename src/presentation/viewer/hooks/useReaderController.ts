@@ -92,6 +92,7 @@ export function useReaderController(controller: ReaderController) {
   );
   const [navigationHistory, dispatchNavigation] = useReducer(workspaceNavigationReducer, initialWorkspaceNavigation);
   const [restorableWorkspace, setRestorableWorkspace] = useState<PersistedWorkspaceHandle>();
+  const [restorableWorkspaceTarget, setRestorableWorkspaceTarget] = useState<WorkspaceNavigationEntry>();
   const [sidebarMode, setSidebarMode] = useState<SidebarMode | null>(null);
   const [activeOverlay, setActiveOverlay] = useState<ActiveOverlay>(null);
   const [urlValue, setUrlValue] = useState('');
@@ -250,7 +251,7 @@ export function useReaderController(controller: ReaderController) {
     scrollTo({ top: 0 });
   }, [controller, navigationController, queueDocumentNavigation]);
 
-  const openWorkspaceFile = useCallback(async (file: WorkspaceFile, currentWorkspace?: WorkspaceSnapshot, fragment?: string, navigationMode: 'push' | 'traverse' = 'push') => {
+  const openWorkspaceFile = useCallback(async (file: WorkspaceFile, currentWorkspace?: WorkspaceSnapshot, fragment?: string, navigationMode: 'push' | 'replace' | 'traverse' = 'push') => {
     const targetWorkspace = currentWorkspace ?? (session.kind === 'workspace' ? session.workspace : undefined);
     if (!targetWorkspace) throw new Error('A workspace is required to open a workspace file.');
     const snapshot = await controller.openWorkspaceFile(targetWorkspace, file);
@@ -267,13 +268,13 @@ export function useReaderController(controller: ReaderController) {
         workspaceId: targetWorkspace.id,
         filePath: file.path,
       });
-      if (navigationMode === 'push') {
+      if (navigationMode !== 'traverse') {
         const entry: WorkspaceNavigationEntry = { workspaceId: targetWorkspace.id, filePath: file.path, fragment };
         const entryKey = `${entry.workspaceId}:${entry.filePath}#${entry.fragment ?? ''}`;
         if (currentNavigationKey.current !== entryKey) {
           currentNavigationKey.current = entryKey;
-          dispatchNavigation({ type: 'push', entry });
-          navigationController.push({
+          dispatchNavigation({ type: navigationMode === 'push' ? 'push' : 'select', entry });
+          navigationController[navigationMode]({
             document: { kind: 'workspace-file', workspaceId: entry.workspaceId, filePath: entry.filePath },
             fragment: entry.fragment,
           });
@@ -285,7 +286,7 @@ export function useReaderController(controller: ReaderController) {
     scrollTo({ top: 0, behavior: 'smooth' });
   }, [controller, navigationController, queueDocumentNavigation, recordRecent, session]);
 
-  const activateWorkspace = useCallback(async (handle: FileSystemDirectoryHandle, preferredPath?: string, existingId?: string, navigationMode: 'push' | 'traverse' = 'push', transient = false): Promise<boolean> => {
+  const activateWorkspace = useCallback(async (handle: FileSystemDirectoryHandle, preferredPath?: string, existingId?: string, navigationMode: 'push' | 'replace' | 'traverse' = 'push', transient = false, fragment?: string): Promise<boolean> => {
     workspaceScanController.current?.abort();
     const scanController = new AbortController();
     workspaceScanController.current = scanController;
@@ -302,7 +303,7 @@ export function useReaderController(controller: ReaderController) {
         setError({ code: 'workspace-empty', retryable: false });
         return false;
       }
-      await openWorkspaceFile(selected, snapshot, undefined, navigationMode);
+      await openWorkspaceFile(selected, snapshot, fragment, navigationMode);
       return true;
     } catch (caught) {
       if (caught instanceof WorkspaceScanError) {
@@ -332,11 +333,34 @@ export function useReaderController(controller: ReaderController) {
       }
       if ('showDirectoryPicker' in window && !initializedReader.handoff) {
         try {
-          const storedWorkspace = await controller.getActiveWorkspace();
+          const initialTarget = navigationController.current();
+          const workspaceTarget = initialTarget?.document.kind === 'workspace-file'
+            ? { document: initialTarget.document, fragment: initialTarget.fragment }
+            : undefined;
+          const storedWorkspace = workspaceTarget
+            ? await controller.getWorkspace(workspaceTarget.document.workspaceId)
+            : await controller.getActiveWorkspace();
           if (!storedWorkspace) return;
           const permission = await storedWorkspace.handle.queryPermission({ mode: 'read' });
-          if (permission === 'granted') await activateWorkspace(storedWorkspace.handle, undefined, storedWorkspace.id);
-          else { setRestorableWorkspace(storedWorkspace); setSidebarMode('files'); }
+          if (permission === 'granted') {
+            await activateWorkspace(
+              storedWorkspace.handle,
+              workspaceTarget?.document.filePath,
+              storedWorkspace.id,
+              'replace',
+              false,
+              workspaceTarget?.fragment,
+            );
+          }
+          else {
+            setRestorableWorkspace(storedWorkspace);
+            setRestorableWorkspaceTarget(workspaceTarget ? {
+              workspaceId: workspaceTarget.document.workspaceId,
+              filePath: workspaceTarget.document.filePath,
+              fragment: workspaceTarget.fragment,
+            } : undefined);
+            setSidebarMode('files');
+          }
         } catch {
           // An old or browser-incompatible handle should not block the reader.
         }
@@ -488,8 +512,16 @@ export function useReaderController(controller: ReaderController) {
     if (!restorableWorkspace) return;
     const permission = await restorableWorkspace.handle.requestPermission({ mode: 'read' });
     if (permission !== 'granted') { setError({ code: 'permission-denied', retryable: true }); return; }
-    await activateWorkspace(restorableWorkspace.handle, undefined, restorableWorkspace.id);
+    await activateWorkspace(
+      restorableWorkspace.handle,
+      restorableWorkspaceTarget?.filePath,
+      restorableWorkspace.id,
+      'replace',
+      false,
+      restorableWorkspaceTarget?.fragment,
+    );
     setRestorableWorkspace(undefined);
+    setRestorableWorkspaceTarget(undefined);
   };
 
   const refreshWorkspace = async () => {
@@ -640,8 +672,7 @@ export function useReaderController(controller: ReaderController) {
       setError({ code: 'permission-denied', retryable: true });
       return;
     }
-    const opened = await activateWorkspace(stored.handle, entry.filePath, stored.id, 'traverse');
-    if (opened && entry.fragment) queueDocumentNavigation(entry.fragment);
+    await activateWorkspace(stored.handle, entry.filePath, stored.id, 'traverse', false, entry.fragment);
   }, [activateWorkspace, controller, openWorkspaceFile, queueDocumentNavigation, t, workspace]);
 
   useEffect(() => navigationController.subscribe((target) => {
@@ -733,7 +764,10 @@ export function useReaderController(controller: ReaderController) {
   };
 
   const dismissError = () => { setError(undefined); setRemoteRetryUrl(undefined); };
-  const dismissRestore = () => setRestorableWorkspace(undefined);
+  const dismissRestore = () => {
+    setRestorableWorkspace(undefined);
+    setRestorableWorkspaceTarget(undefined);
+  };
   const startFromTop = () => {
     setResumeTarget(undefined);
     scrollTo({ top: 0, behavior: 'smooth' });

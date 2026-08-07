@@ -6,6 +6,7 @@ import { NavigationController } from './navigationController';
 function fakeHistory() {
   let listener: ((target: NavigationTarget) => void) | undefined;
   const port: BrowserHistoryPort = {
+    current: vi.fn(() => undefined),
     push: vi.fn(),
     replace: vi.fn(),
     back: vi.fn(),
@@ -16,6 +17,14 @@ function fakeHistory() {
 }
 
 describe('NavigationController', () => {
+  it('starts from the route represented by the current history entry', () => {
+    const history = fakeHistory();
+    const target: NavigationTarget = { document: { kind: 'workspace-file', workspaceId: 'docs', filePath: 'Guide.md' } };
+    vi.mocked(history.port.current).mockReturnValue(target);
+
+    expect(new NavigationController(history.port).current()).toEqual(target);
+  });
+
   it('is the only writer for push, replace, back, and forward intents', () => {
     const history = fakeHistory();
     const controller = new NavigationController(history.port);
