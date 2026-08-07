@@ -21,12 +21,14 @@
 .markdown-body hr { height: 1px; margin: 3em 0; border: 0; background: var(--line); }
 .markdown-body code { padding: .13em .34em; border: 1px solid var(--line); border-radius: 5px; background: var(--panel); font: .86em/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .markdown-body .code-shell { position: relative; margin: 1.7em 0; }
-.markdown-body pre { margin: 0; padding: 2.65em 1.35em 1.25em; overflow: auto; border: 1px solid var(--line); border-radius: 10px; color: #dfe5f0; background: var(--code); }
+.markdown-body pre { margin: 0; padding: 1.25em 1.35em; overflow: auto; border: 1px solid var(--line); border-radius: 10px; color: #dfe5f0; background: var(--code); }
 .markdown-body pre code { padding: 0; border: 0; color: inherit; background: transparent; font-size: .77em; }
-.markdown-body .code-copy { position: absolute; z-index: 2; top: 9px; right: 9px; min-width: 58px; height: 27px; padding: 0 9px; border: 1px solid rgba(255,255,255,.13); border-radius: 6px; color: #aeb8c8; background: rgba(255,255,255,.055); cursor: pointer; font: 700 9px/1 ui-sans-serif, system-ui, sans-serif; transition: color 120ms ease, border-color 120ms ease, background 120ms ease; }
+.markdown-body .code-copy { position: absolute; z-index: 2; top: 9px; right: 9px; min-width: 58px; height: 27px; padding: 0 9px; border: 1px solid rgba(255,255,255,.13); border-radius: 6px; color: #aeb8c8; background: color-mix(in srgb, var(--code) 90%, transparent); box-shadow: 0 4px 12px rgba(0,0,0,.18); cursor: pointer; font: 700 9px/1 ui-sans-serif, system-ui, sans-serif; opacity: 0; pointer-events: none; transform: translateY(-3px); transition: opacity 120ms ease, transform 120ms ease, color 120ms ease, border-color 120ms ease, background 120ms ease; }
+.markdown-body .code-shell:hover > .code-copy, .markdown-body .code-shell:focus-within > .code-copy, .markdown-body .code-copy[data-copy-state] { opacity: 1; pointer-events: auto; transform: translateY(0); }
 .markdown-body .code-copy:hover { border-color: rgba(255,255,255,.24); color: #f5f7fb; background: rgba(255,255,255,.1); }
 .markdown-body .code-copy[data-copy-state='copied'] { border-color: color-mix(in srgb, var(--success) 48%, transparent); color: #92e5b9; background: color-mix(in srgb, var(--success) 15%, transparent); }
 .markdown-body .code-copy[data-copy-state='error'] { border-color: rgba(232,112,104,.42); color: #ffb1aa; background: rgba(232,112,104,.1); }
+@media (hover: none) { .markdown-body .code-copy { opacity: 1; pointer-events: auto; transform: none; } }
 .markdown-body table { display: block; width: max-content; max-width: 100%; margin: 1.6em 0; overflow-x: auto; border-collapse: collapse; font-size: .86em; }
 .markdown-body th, .markdown-body td { padding: .62em .85em; border: 1px solid var(--line); text-align: left; }
 .markdown-body th { background: var(--panel); }
