@@ -44,3 +44,11 @@ The gzip values use `gzip -c` and therefore include a small gzip header. They ar
 - The packaged extension may not grow by more than 10% without an explanation.
 
 Large-document and large-workspace timings will be added once deterministic fixtures are introduced. This baseline intentionally records only measurements that the current repository can reproduce in CI.
+
+## Navigation v2 baseline
+
+Recorded on 2026-08-08 after the Navigation v2 architecture closeout.
+
+The viewer entry is 107,571 raw bytes and 33,747 gzip bytes. The intentional increase from the pre-migration baseline contains the unified Workspace, Local, Remote, and Imported history restoration paths, explicit permission-recovery states, and the feature-controller composition boundary. Vendor, stylesheet, and packaged-extension budgets remain anchored to the pre-migration measurements above.
+
+The CI budget uses 33,747 bytes as the new viewer baseline and continues to reject growth above 15%.

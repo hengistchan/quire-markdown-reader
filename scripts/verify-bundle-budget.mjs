@@ -7,7 +7,7 @@ const html = await readFile(resolve(output, 'viewer.html'), 'utf8');
 const paths = [...html.matchAll(/(?:src|href)="([^"]+)"/g)].map((match) => match[1]).filter(Boolean);
 
 const baselines = {
-  viewer: 27_615,
+  viewer: 33_747,
   'react-vendor': 60_299,
   'markdown-vendor': 63_964,
   'katex-vendor': 154_115,

@@ -17,19 +17,42 @@ const SettingsDrawer = lazy(() => import('./components/SettingsDrawer')
 
 export function ReaderView({ view }: { view: ReaderViewModel }) {
   const {
-    activeFile, activeHeadingId, articleRef, cancelRemoteLoad, cancelWorkspaceScan, collapsedDirectories,
-    commandMatches, commandOpen, commandQuery, contextMode, contextOpen, continueReading, directoryInput,
-    dismissError, dismissRestore, dragActive, error, fileFilter, fileInput, filteredFiles,
-    handleArticleClick, handleDirectory, handleDrop, handleFile, handleOpenFile, handlePaste,
-    handleTransientDirectory, headings, htmlMarkup, jumpToHeading, jumpToSearchResult, moreMenuOpen,
-    navigationController, navigationHistory, notice, openImportedSettings, openMenuOpen, openRecent,
-    openRemote, openWorkspaceFile, openWorkspaceSearchResult, progress, readMinutes, recent, refreshWorkspace,
-    remoteLoading, remoteRetryUrl, remoteState, resetSettings, restorableWorkspace, resumeTarget, settings,
-    shortcutLabels, startFromTop, t, title, toggleDirectory, toggleOpenMenu, toggleMoreMenu,
-    toggleOutlinePanel, toggleWorkspacePanel, updateSettings, urlOpen, urlValue, workspace, workspaceMatches,
-    workspaceName, workspaceScanning, readerWidth, session, setActiveOverlay, setCommandQuery, setDragActive,
-    setFileFilter, setSidebarMode, setUrlValue, settingsOpen,
+    document: documentModel, navigation, workspace: workspaceModel, search, settings: settingsModel,
+    overlays, feedback, input, recent: recentModel,
   } = view;
+  const {
+    activeFile, activeHeadingId, articleRef, handleArticleClick, headings, htmlMarkup, jumpToHeading,
+    openRemote, progress, readMinutes, remoteState, session, title, workspaceName,
+  } = documentModel;
+  const {
+    current: workspace, restorable: restorableWorkspace, scanning: workspaceScanning, contextMode,
+    contextOpen, collapsedDirectories, directoryInput, fileFilter, filteredFiles,
+    cancelScan: cancelWorkspaceScan, dismissRestore, openDirectory: handleDirectory,
+    openFile: openWorkspaceFile, openTransient: handleTransientDirectory, refresh: refreshWorkspace,
+    restore: restoreWorkspace, setFileFilter, setSidebarMode, toggleDirectory,
+    togglePanel: toggleWorkspacePanel,
+  } = workspaceModel;
+  const {
+    commandMatches, commandQuery, jumpToSearchResult, openWorkspaceSearchResult,
+    setCommandQuery, workspaceMatches,
+  } = search;
+  const {
+    value: settings, readerWidth, t, openImportedSettings, reset: resetSettings,
+    toggleOutlinePanel, update: updateSettings,
+  } = settingsModel;
+  const {
+    commandOpen, moreMenuOpen, openMenuOpen, settingsOpen, urlOpen, urlValue,
+    setActive: setActiveOverlay, setUrlValue, toggleMoreMenu, toggleOpenMenu,
+  } = overlays;
+  const {
+    cancelRemoteLoad, continueReading, dismissError, error, notice, remoteLoading, remoteRetryUrl,
+    restorableNavigation, resumeTarget, startFromTop,
+  } = feedback;
+  const {
+    dragActive, fileInput, handleDrop, handleFile, handleOpenFile, handlePaste,
+    setDragActive, shortcutLabels,
+  } = input;
+  const { items: recent, open: openRecent } = recentModel;
 
   return (
     <div className={`app-shell ${dragActive ? 'drag-active' : ''}`} style={{ '--reader-width': `${readerWidth}px`, '--reader-size': `${settings.fontSize}px`, '--reader-leading': settings.lineHeight } as CSSProperties} onDragEnter={(event) => { event.preventDefault(); setDragActive(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragActive(false); }} onDrop={(event) => void handleDrop(event)} onPaste={handlePaste}>
@@ -50,8 +73,8 @@ export function ReaderView({ view }: { view: ReaderViewModel }) {
       <header className="topbar">
         <div className="identity-cluster">
           <div className="history-actions">
-            <button disabled={navigationHistory.index <= 0} onClick={() => navigationController.back()} aria-label={t('previousDocument')} title={t('previousDocument')}><ArrowLeft /></button>
-            <button disabled={navigationHistory.index < 0 || navigationHistory.index >= navigationHistory.entries.length - 1} onClick={() => navigationController.forward()} aria-label={t('nextDocument')} title={t('nextDocument')}><ArrowRight /></button>
+            <button disabled={!navigation.canGoBack} onClick={navigation.back} aria-label={t('previousDocument')} title={t('previousDocument')}><ArrowLeft /></button>
+            <button disabled={!navigation.canGoForward} onClick={navigation.forward} aria-label={t('nextDocument')} title={t('nextDocument')}><ArrowRight /></button>
           </div>
           <div className="document-identity">
             <span>{workspaceName}{activeFile?.path ? ` / ${activeFile.path.split('/').slice(0, -1).join('/')}` : ''}</span>
@@ -78,7 +101,7 @@ export function ReaderView({ view }: { view: ReaderViewModel }) {
         {contextMode === 'files' && <aside className="context-panel workspace-panel" aria-label={t('workspace')}>
           <div className="context-heading"><span>{t('workspace')}</span><div><strong>{workspace?.name ?? t('restoreTitle')}</strong>{workspace && !workspace.transient && <button disabled={workspaceScanning} onClick={() => void refreshWorkspace()} aria-label={t('refreshWorkspace')} title={t('refreshWorkspace')}><RotateCw className={workspaceScanning ? 'loading-spinner' : ''} /></button>}</div></div>
           {workspace && <label className="file-filter"><Search /><input value={fileFilter} onChange={(event) => setFileFilter(event.target.value)} placeholder={t('filterFiles')} /></label>}
-          {restorableWorkspace && <div className="restore-card"><RotateCw /><strong>{t('restoreTitle')}</strong><p>{t('restoreBody')}</p><button onClick={() => void view.restoreWorkspace()}>{t('restore')}</button><button className="quiet" onClick={dismissRestore}>{t('dismiss')}</button></div>}
+          {restorableWorkspace && <div className="restore-card"><RotateCw /><strong>{t('restoreTitle')}</strong><p>{t('restoreBody')}</p><button onClick={() => void restoreWorkspace()}>{t('restore')}</button><button className="quiet" onClick={dismissRestore}>{t('dismiss')}</button></div>}
           <nav className="context-files">
             {fileFilter.trim() ? filteredFiles.map((file) => (
               <button key={file.id} className={`file-row filtered ${activeFile?.id === file.id ? 'active' : ''}`} onClick={() => void openWorkspaceFile(file)}><File /><span>{file.path}</span></button>
@@ -96,7 +119,7 @@ export function ReaderView({ view }: { view: ReaderViewModel }) {
 
         <main className="reader-stage">
           <div className="paper-grain" aria-hidden="true" />
-          {error && <div className="error-banner" role="alert"><AlertCircle /><span>{error}</span><div className="error-actions">{remoteRetryUrl && <button className="retry-button" onClick={() => void openRemote(remoteRetryUrl, false)}>{t('retry')}</button>}<button onClick={dismissError} aria-label={t('dismissNotice')}><X /></button></div></div>}
+          {error && <div className="error-banner" role="alert"><AlertCircle /><span>{error}</span><div className="error-actions">{restorableNavigation && <button className="retry-button" onClick={() => void restoreWorkspace()}>{t('restoreDocument')}</button>}{!restorableNavigation && remoteRetryUrl && <button className="retry-button" onClick={() => void openRemote(remoteRetryUrl, false)}>{t('retry')}</button>}<button onClick={dismissError} aria-label={t('dismissNotice')}><X /></button></div></div>}
           {session.kind !== 'welcome' && <div className="document-meta">{readMinutes} {t('minuteRead')}</div>}
           <article ref={articleRef} className={`markdown-body font-${settings.fontFamily}`} onClick={handleArticleClick} dangerouslySetInnerHTML={htmlMarkup} />
           {settings.customCss && <style>{`@scope (.markdown-body) { ${settings.customCss} }`}</style>}

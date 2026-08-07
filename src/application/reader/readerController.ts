@@ -1,8 +1,11 @@
 import type { DocumentRefreshResult, DocumentSourceFactory, LinkResolution } from '../documents/documentSource';
 import type { ResolvedAsset } from '../documents/documentResource';
 import type { DocumentService } from '../documents/documentService';
+import type { ImportedDocumentRegistry } from '../documents/importedDocumentRegistry';
 import type { NavigationTarget } from '../../domain/navigation/navigationTarget';
-import type { NavigationController } from '../navigation/navigationController';
+import type {
+  NavigationController, NavigationListener, NavigationSnapshot,
+} from '../navigation/navigationController';
 import type { PersistedFileHandle, PersistedWorkspaceHandle } from '../ports/handleRepository';
 import type { HandleRepository } from '../ports/handleRepository';
 import type { HandoffRepository } from '../ports/handoffRepository';
@@ -24,6 +27,7 @@ export interface ReaderInitialization {
 export interface ReaderControllerDependencies {
   documentSourceFactory: DocumentSourceFactory;
   documentService: DocumentService;
+  importedDocumentRegistry: ImportedDocumentRegistry;
   settingsRepository: SettingsRepository;
   recentRepository: RecentRepository;
   handleRepository: HandleRepository;
@@ -85,6 +89,14 @@ export class ReaderController {
     return this.dependencies.permissionGateway.requestRemoteOrigin(url);
   }
 
+  hasRemoteOrigin(url: string): Promise<boolean> {
+    return this.dependencies.permissionGateway.hasRemoteOrigin(url);
+  }
+
+  queryRead(handle: FileSystemHandle): Promise<PermissionState> {
+    return this.dependencies.permissionGateway.queryRead(handle);
+  }
+
   requestRead(handle: FileSystemHandle): Promise<PermissionState> {
     return this.dependencies.permissionGateway.requestRead(handle);
   }
@@ -97,8 +109,24 @@ export class ReaderController {
     return this.dependencies.workspaceGateway.createTransient(files);
   }
 
-  openImported(document: ImportedDocument, signal?: AbortSignal) {
-    return this.dependencies.documentService.open(this.dependencies.documentSourceFactory.createImported(document), signal);
+  async openImported(document: ImportedDocument, signal?: AbortSignal, existingSessionId?: string) {
+    const sessionId = this.dependencies.importedDocumentRegistry.put(document, existingSessionId);
+    const snapshot = await this.dependencies.documentService.open(
+      this.dependencies.documentSourceFactory.createImported(document),
+      signal,
+    );
+    return { sessionId, snapshot };
+  }
+
+  async restoreImported(sessionId: string, signal?: AbortSignal) {
+    const document = this.dependencies.importedDocumentRegistry.get(sessionId);
+    if (!document) return undefined;
+    const result = await this.openImported(document, signal, sessionId);
+    return { document, snapshot: result.snapshot };
+  }
+
+  getImported(sessionId: string): ImportedDocument | undefined {
+    return this.dependencies.importedDocumentRegistry.get(sessionId);
   }
 
   openLocalFile(file: WorkspaceFile, signal?: AbortSignal) {
@@ -131,15 +159,16 @@ export class ReaderController {
 
   push(target: NavigationTarget): void { this.dependencies.navigationController.push(target); }
   replace(target: NavigationTarget): void { this.dependencies.navigationController.replace(target); }
-  current(): NavigationTarget | undefined { return this.dependencies.navigationController.current(); }
+  current(): NavigationSnapshot { return this.dependencies.navigationController.current(); }
   pushFragment(fragment?: string): void { this.dependencies.navigationController.pushFragment(fragment); }
   back(): void { this.dependencies.navigationController.back(); }
   forward(): void { this.dependencies.navigationController.forward(); }
-  subscribe(listener: (target: NavigationTarget) => void): () => void {
+  subscribe(listener: NavigationListener): () => void {
     return this.dependencies.navigationController.subscribe(listener);
   }
 
   dispose(): void {
     this.dependencies.documentService.dispose();
+    this.dependencies.importedDocumentRegistry.clear();
   }
 }

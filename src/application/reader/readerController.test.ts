@@ -21,11 +21,17 @@ function dependencies(): ReaderControllerDependencies {
     documentService: {
       open: vi.fn(), refresh: vi.fn(), resolveAsset: vi.fn(), resolveLink: vi.fn(), dispose: vi.fn(),
     } as unknown as ReaderControllerDependencies['documentService'],
+    importedDocumentRegistry: {
+      put: vi.fn((_document, id) => id ?? 'imported'), get: vi.fn(), remove: vi.fn(), clear: vi.fn(),
+    },
     navigationController: {
       push: vi.fn(), replace: vi.fn(), pushFragment: vi.fn(), back: vi.fn(), forward: vi.fn(), subscribe: vi.fn(),
     } as unknown as ReaderControllerDependencies['navigationController'],
     refreshScheduler: { start: vi.fn() },
-    permissionGateway: { requestRemoteOrigin: vi.fn(async () => true), requestRead: vi.fn(async () => 'granted' as const) },
+    permissionGateway: {
+      hasRemoteOrigin: vi.fn(async () => true), requestRemoteOrigin: vi.fn(async () => true),
+      queryRead: vi.fn(async () => 'granted' as const), requestRead: vi.fn(async () => 'granted' as const),
+    },
     initialHandoffId: 'handoff-1',
     workspaceGateway: { scan: vi.fn(), createTransient: vi.fn() },
   };

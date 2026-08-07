@@ -1,10 +1,15 @@
 import type { NavigationTarget } from '../../domain/navigation/navigationTarget';
 
+export interface BrowserHistoryEntry {
+  target?: NavigationTarget;
+  index: number;
+}
+
 export interface BrowserHistoryPort {
-  current(): NavigationTarget | undefined;
-  push(target: NavigationTarget): void;
-  replace(target: NavigationTarget): void;
+  current(): BrowserHistoryEntry;
+  push(entry: BrowserHistoryEntry): void;
+  replace(entry: BrowserHistoryEntry): void;
   back(): void;
   forward(): void;
-  subscribe(listener: (target: NavigationTarget) => void): () => void;
+  subscribe(listener: (entry: BrowserHistoryEntry) => void): () => void;
 }

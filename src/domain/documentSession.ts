@@ -11,6 +11,10 @@ export interface WelcomeDocumentSession extends DocumentContent {
   kind: 'welcome';
 }
 
+export interface UnavailableDocumentSession extends DocumentContent {
+  kind: 'unavailable';
+}
+
 export interface ImportedDocumentSession extends DocumentContent {
   kind: 'imported';
   sourceUrl?: string;
@@ -39,6 +43,7 @@ export interface RemoteDocumentSession extends DocumentContent {
 
 export type DocumentSession =
   | WelcomeDocumentSession
+  | UnavailableDocumentSession
   | ImportedDocumentSession
   | FileDocumentSession
   | WorkspaceDocumentSession
@@ -56,6 +61,10 @@ export function displayDocumentTitle(value: string): string {
 
 export function createWelcomeSession(title: string, markdown: string): WelcomeDocumentSession {
   return { kind: 'welcome', title, markdown };
+}
+
+export function createUnavailableSession(title: string): UnavailableDocumentSession {
+  return { kind: 'unavailable', title, markdown: '' };
 }
 
 export function createImportedSession(document: ImportedDocument): ImportedDocumentSession {

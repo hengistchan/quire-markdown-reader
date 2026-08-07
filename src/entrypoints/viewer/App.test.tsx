@@ -112,7 +112,8 @@ describe('Quire viewer experience', () => {
 
     expect(await screen.findByText('Isolated document.')).toBeTruthy();
     expect(screen.queryByText('Other document.')).toBeNull();
-    expect(location.search).toBe('');
+    expect(new URLSearchParams(location.search).has('handoff')).toBe(false);
+    expect(new URLSearchParams(location.search).get('imported')).toBeTruthy();
     await expect(takeDocumentHandoff('viewer-a')).resolves.toBeUndefined();
     await expect(takeDocumentHandoff('viewer-b')).resolves.toEqual({
       title: 'Session B.md', markdown: '# Session B\n\nOther document.',
@@ -295,7 +296,9 @@ describe('Quire viewer experience', () => {
     const user = userEvent.setup();
 
     render(<App />);
-    await user.click(await screen.findByRole('button', { name: 'Restore workspace' }));
+    const restoreWorkspace = await screen.findByRole('button', { name: 'Restore workspace' });
+    expect(workspace.requestPermission).not.toHaveBeenCalled();
+    await user.click(restoreWorkspace);
 
     await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Routed guide'));
     expect(workspace.requestPermission).toHaveBeenCalledWith({ mode: 'read' });
@@ -360,6 +363,317 @@ describe('Quire viewer experience', () => {
     expect(screen.getByRole('button', { name: 'Next document' }).hasAttribute('disabled')).toBe(false);
   });
 
+  it('keeps mixed workspace, remote, and local navigation aligned with browser history', async () => {
+    const workspaceMarkdown = '# Workspace A\n\nWorkspace body.';
+    const workspaceFile = {
+      kind: 'file', name: 'A.md',
+      getFile: vi.fn(async () => ({
+        name: 'A.md', lastModified: 1, size: workspaceMarkdown.length,
+        text: async () => workspaceMarkdown,
+      }) as unknown as File),
+    } as unknown as FileSystemFileHandle;
+    const workspaceHandle = {
+      kind: 'directory', name: 'mixed-workspace',
+      queryPermission: vi.fn(async () => 'granted' as PermissionState),
+      requestPermission: vi.fn(async () => 'granted' as PermissionState),
+      entries: async function* () { yield ['A.md', workspaceFile] as [string, FileSystemFileHandle]; },
+    } as unknown as FileSystemDirectoryHandle;
+    const localMarkdown = '# Local C\n\nLocal body.';
+    const localHandle = {
+      kind: 'file', name: 'C.md',
+      queryPermission: vi.fn(async () => 'granted' as PermissionState),
+      requestPermission: vi.fn(async () => 'granted' as PermissionState),
+      getFile: vi.fn(async () => ({
+        name: 'C.md', lastModified: 2, size: localMarkdown.length,
+        text: async () => localMarkdown,
+      }) as unknown as File),
+    } as unknown as FileSystemFileHandle;
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'getActiveWorkspace').mockResolvedValue(undefined);
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'saveWorkspace').mockResolvedValue('workspace-a');
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'getWorkspace').mockResolvedValue({
+      id: 'workspace-a', kind: 'workspace', name: 'mixed-workspace', handle: workspaceHandle, savedAt: 1,
+    });
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'saveFile').mockResolvedValue('local-c');
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'getFile').mockResolvedValue({
+      id: 'local-c', kind: 'file', name: 'C.md', handle: localHandle, savedAt: 1,
+    });
+    vi.stubGlobal('showDirectoryPicker', vi.fn(async () => workspaceHandle));
+    vi.stubGlobal('showOpenFilePicker', vi.fn(async () => [localHandle]));
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('# Remote B\n\nRemote body.')));
+    installBrowser({ permissions: {
+      request: vi.fn(async () => true),
+      contains: vi.fn(async () => true),
+    } });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'Open' }));
+    await user.click(screen.getByRole('button', { name: /Open folder/ }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Workspace body.'));
+    expect(document.querySelector('.document-identity strong')?.textContent).toBe('A');
+    expect(location.search).toBe('?workspace=workspace-a&file=A.md');
+
+    await user.click(screen.getByRole('button', { name: 'Open' }));
+    await user.click(screen.getByRole('button', { name: /Open URL/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Open Markdown from the web' });
+    await user.type(within(dialog).getByPlaceholderText('https://example.com/guide.md'), 'https://docs.example.com/B.md');
+    await user.click(within(dialog).getByRole('button', { name: 'Open' }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Remote body.'));
+    expect(document.querySelector('.document-identity strong')?.textContent).toBe('B');
+    expect(new URLSearchParams(location.search).get('remote')).toBe('https://docs.example.com/B.md');
+
+    await user.click(screen.getByRole('button', { name: 'Open' }));
+    await user.click(screen.getByRole('button', { name: /Open file/ }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Local body.'));
+    expect(document.querySelector('.document-identity strong')?.textContent).toBe('C');
+    expect(location.search).toBe('?local=local-c');
+    expect(screen.getByRole('button', { name: 'Previous document' }).hasAttribute('disabled')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Next document' }).hasAttribute('disabled')).toBe(true);
+
+    await user.click(screen.getByRole('button', { name: 'Previous document' }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Remote body.'));
+    expect(document.querySelector('.document-identity strong')?.textContent).toBe('B');
+    expect(new URLSearchParams(location.search).get('remote')).toBe('https://docs.example.com/B.md');
+    expect(screen.getByRole('button', { name: 'Next document' }).hasAttribute('disabled')).toBe(false);
+
+    await user.click(screen.getByRole('button', { name: 'Previous document' }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Workspace body.'));
+    expect(document.querySelector('.document-identity strong')?.textContent).toBe('A');
+    expect(location.search).toBe('?workspace=workspace-a&file=A.md');
+
+    await user.click(screen.getByRole('button', { name: 'Next document' }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Remote body.'));
+    expect(document.querySelector('.document-identity strong')?.textContent).toBe('B');
+    expect(new URLSearchParams(location.search).get('remote')).toBe('https://docs.example.com/B.md');
+  });
+
+  it('restores remote documents and fragments through back and forward', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      return url.includes('/B.md')
+        ? new Response('# Remote B\n\n## Part\n\nSecond remote body.')
+        : new Response('# Remote A\n\n[Open B](https://docs.example.com/B.md#part)');
+    }));
+    installBrowser({ permissions: {
+      request: vi.fn(async () => true),
+      contains: vi.fn(async () => true),
+    } });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'Open' }));
+    await user.click(screen.getByRole('button', { name: /Open URL/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Open Markdown from the web' });
+    await user.type(within(dialog).getByPlaceholderText('https://example.com/guide.md'), 'https://docs.example.com/A.md');
+    await user.click(within(dialog).getByRole('button', { name: 'Open' }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Remote A'));
+
+    await user.click(screen.getByRole('link', { name: 'Open B' }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Second remote body.'));
+    expect(document.querySelector('.document-identity strong')?.textContent).toBe('B');
+    expect(new URLSearchParams(location.search).get('remote')).toBe('https://docs.example.com/B.md');
+    expect(location.hash).toBe('#part');
+
+    await user.click(screen.getByRole('button', { name: 'Previous document' }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Remote A'));
+    expect(document.querySelector('.document-identity strong')?.textContent).toBe('A');
+    expect(new URLSearchParams(location.search).get('remote')).toBe('https://docs.example.com/A.md');
+    expect(location.hash).toBe('');
+
+    await user.click(screen.getByRole('button', { name: 'Next document' }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Second remote body.'));
+    expect(document.querySelector('.document-identity strong')?.textContent).toBe('B');
+    expect(location.hash).toBe('#part');
+  });
+
+  it('restores local files through back and forward', async () => {
+    const createHandle = (name: string, markdown: string) => ({
+      kind: 'file', name,
+      queryPermission: vi.fn(async () => 'granted' as PermissionState),
+      requestPermission: vi.fn(async () => 'granted' as PermissionState),
+      getFile: vi.fn(async () => ({
+        name, lastModified: 1, size: markdown.length, text: async () => markdown,
+      }) as unknown as File),
+    } as unknown as FileSystemFileHandle);
+    const first = createHandle('A.md', '# Local A\n\nFirst local body.');
+    const second = createHandle('B.md', '# Local B\n\nSecond local body.');
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'getActiveWorkspace').mockResolvedValue(undefined);
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'saveFile').mockImplementation(async (handle, existingId) => (
+      existingId ?? (handle === first ? 'local-a' : 'local-b')
+    ));
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'getFile').mockImplementation(async (id) => {
+      const handle = id === 'local-a' ? first : id === 'local-b' ? second : undefined;
+      return handle ? { id, kind: 'file', name: handle.name, handle, savedAt: 1 } : undefined;
+    });
+    vi.stubGlobal('showOpenFilePicker', vi.fn()
+      .mockResolvedValueOnce([first])
+      .mockResolvedValueOnce([second]));
+    installBrowser();
+    const user = userEvent.setup();
+    render(<App />);
+
+    for (const expected of ['First local body.', 'Second local body.']) {
+      await user.click(await screen.findByRole('button', { name: 'Open' }));
+      await user.click(screen.getByRole('button', { name: /Open file/ }));
+      await waitFor(() => expect(document.querySelector('article')?.textContent).toContain(expected));
+    }
+    expect(document.querySelector('.document-identity strong')?.textContent).toBe('B');
+    expect(location.search).toBe('?local=local-b');
+
+    await user.click(screen.getByRole('button', { name: 'Previous document' }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('First local body.'));
+    expect(document.querySelector('.document-identity strong')?.textContent).toBe('A');
+    expect(location.search).toBe('?local=local-a');
+
+    await user.click(screen.getByRole('button', { name: 'Next document' }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Second local body.'));
+    expect(document.querySelector('.document-identity strong')?.textContent).toBe('B');
+    expect(location.search).toBe('?local=local-b');
+  });
+
+  it('shows an unavailable document instead of stale content when a local history handle is lost', async () => {
+    const markdown = '# Local A\n\nLocal history body.';
+    const handle = {
+      kind: 'file', name: 'A.md',
+      queryPermission: vi.fn(async () => 'granted' as PermissionState),
+      requestPermission: vi.fn(async () => 'granted' as PermissionState),
+      getFile: vi.fn(async () => ({
+        name: 'A.md', lastModified: 1, size: markdown.length, text: async () => markdown,
+      }) as unknown as File),
+    } as unknown as FileSystemFileHandle;
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'getActiveWorkspace').mockResolvedValue(undefined);
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'saveFile').mockResolvedValue('local-a');
+    const getFile = vi.spyOn(IndexedDBHandleRepository.prototype, 'getFile').mockResolvedValue({
+      id: 'local-a', kind: 'file', name: 'A.md', handle, savedAt: 1,
+    });
+    vi.stubGlobal('showOpenFilePicker', vi.fn(async () => [handle]));
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('# Remote B\n\nRemote history body.')));
+    installBrowser({ permissions: {
+      request: vi.fn(async () => true),
+      contains: vi.fn(async () => true),
+    } });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'Open' }));
+    await user.click(screen.getByRole('button', { name: /Open file/ }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Local history body.'));
+    await user.click(screen.getByRole('button', { name: 'Open' }));
+    await user.click(screen.getByRole('button', { name: /Open URL/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Open Markdown from the web' });
+    await user.type(within(dialog).getByPlaceholderText('https://example.com/guide.md'), 'https://docs.example.com/B.md');
+    await user.click(within(dialog).getByRole('button', { name: 'Open' }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Remote history body.'));
+
+    getFile.mockResolvedValue(undefined);
+    await user.click(screen.getByRole('button', { name: 'Previous document' }));
+
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('could not read that file'));
+    expect(location.search).toBe('?local=local-a');
+    expect(document.querySelector('article')?.textContent).not.toContain('Remote history body.');
+    expect(document.querySelector('.document-identity strong')?.textContent).toBe('Document unavailable');
+  });
+
+  it('waits for an explicit user action before restoring revoked workspace permission', async () => {
+    const markdown = '# Workspace A\n\nWorkspace permission body.';
+    const file = {
+      kind: 'file', name: 'A.md',
+      getFile: vi.fn(async () => ({
+        name: 'A.md', lastModified: 1, size: markdown.length, text: async () => markdown,
+      }) as unknown as File),
+    } as unknown as FileSystemFileHandle;
+    let permission: PermissionState = 'granted';
+    const requestPermission = vi.fn(async () => {
+      permission = 'granted';
+      return permission;
+    });
+    const handle = {
+      kind: 'directory', name: 'workspace-a',
+      queryPermission: vi.fn(async () => permission),
+      requestPermission,
+      entries: async function* () { yield ['A.md', file] as [string, FileSystemFileHandle]; },
+    } as unknown as FileSystemDirectoryHandle;
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'getActiveWorkspace').mockResolvedValue(undefined);
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'saveWorkspace').mockResolvedValue('workspace-a');
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'getWorkspace').mockResolvedValue({
+      id: 'workspace-a', kind: 'workspace', name: 'workspace-a', handle, savedAt: 1,
+    });
+    vi.stubGlobal('showDirectoryPicker', vi.fn(async () => handle));
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('# Remote B\n\nRemote after workspace.')));
+    installBrowser({ permissions: {
+      request: vi.fn(async () => true),
+      contains: vi.fn(async () => true),
+    } });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'Open' }));
+    await user.click(screen.getByRole('button', { name: /Open folder/ }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Workspace permission body.'));
+    await user.click(screen.getByRole('button', { name: 'Open' }));
+    await user.click(screen.getByRole('button', { name: /Open URL/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Open Markdown from the web' });
+    await user.type(within(dialog).getByPlaceholderText('https://example.com/guide.md'), 'https://docs.example.com/B.md');
+    await user.click(within(dialog).getByRole('button', { name: 'Open' }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Remote after workspace.'));
+
+    permission = 'prompt';
+    await user.click(screen.getByRole('button', { name: 'Previous document' }));
+
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('needs your permission'));
+    expect(requestPermission).not.toHaveBeenCalled();
+    expect(location.search).toBe('?workspace=workspace-a&file=A.md');
+    expect(document.querySelector('article')?.textContent).not.toContain('Remote after workspace.');
+
+    await user.click(within(screen.getByRole('alert')).getByRole('button', { name: 'Restore access' }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Workspace permission body.'));
+    expect(requestPermission).toHaveBeenCalledOnce();
+  });
+
+  it('waits for an explicit user action before restoring revoked remote permission', async () => {
+    const localMarkdown = '# Local B\n\nLocal after remote.';
+    const localHandle = {
+      kind: 'file', name: 'B.md',
+      queryPermission: vi.fn(async () => 'granted' as PermissionState),
+      requestPermission: vi.fn(async () => 'granted' as PermissionState),
+      getFile: vi.fn(async () => ({
+        name: 'B.md', lastModified: 1, size: localMarkdown.length, text: async () => localMarkdown,
+      }) as unknown as File),
+    } as unknown as FileSystemFileHandle;
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'getActiveWorkspace').mockResolvedValue(undefined);
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'saveFile').mockResolvedValue('local-b');
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'getFile').mockResolvedValue({
+      id: 'local-b', kind: 'file', name: 'B.md', handle: localHandle, savedAt: 1,
+    });
+    vi.stubGlobal('showOpenFilePicker', vi.fn(async () => [localHandle]));
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('# Remote A\n\nRemote permission body.')));
+    const request = vi.fn(async () => true);
+    const contains = vi.fn(async () => false);
+    installBrowser({ permissions: { request, contains } });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'Open' }));
+    await user.click(screen.getByRole('button', { name: /Open URL/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Open Markdown from the web' });
+    await user.type(within(dialog).getByPlaceholderText('https://example.com/guide.md'), 'https://docs.example.com/A.md');
+    await user.click(within(dialog).getByRole('button', { name: 'Open' }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Remote permission body.'));
+    expect(request).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole('button', { name: 'Open' }));
+    await user.click(screen.getByRole('button', { name: /Open file/ }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Local after remote.'));
+    await user.click(screen.getByRole('button', { name: 'Previous document' }));
+
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('needs your permission'));
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('article')?.textContent).not.toContain('Local after remote.');
+    await user.click(screen.getByRole('button', { name: 'Restore access' }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Remote permission body.'));
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
   it('opens pasted and dropped Markdown without another dialog', async () => {
     installBrowser();
     render(<App />);
@@ -375,6 +689,30 @@ describe('Quire viewer experience', () => {
     const file = { name: 'dropped.md', text: async () => '# Dropped heading\n\nDropped body.' } as File;
     fireEvent.drop(shell, { dataTransfer: { items: [], files: [file] } });
     await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Dropped body.'));
+  });
+
+  it('restores imported documents from the current tab registry during back and forward', async () => {
+    installBrowser();
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByLabelText('Document navigation');
+    const shell = document.querySelector<HTMLElement>('.app-shell')!;
+
+    fireEvent.paste(shell, { clipboardData: { files: [], getData: () => '# Imported A\n\nFirst import.' } });
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('First import.'));
+    const firstSession = new URLSearchParams(location.search).get('imported');
+    fireEvent.paste(shell, { clipboardData: { files: [], getData: () => '# Imported B\n\nSecond import.' } });
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Second import.'));
+    const secondSession = new URLSearchParams(location.search).get('imported');
+    expect(secondSession).toBeTruthy();
+    expect(secondSession).not.toBe(firstSession);
+
+    await user.click(screen.getByRole('button', { name: 'Previous document' }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('First import.'));
+    expect(new URLSearchParams(location.search).get('imported')).toBe(firstSession);
+    await user.click(screen.getByRole('button', { name: 'Next document' }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Second import.'));
+    expect(new URLSearchParams(location.search).get('imported')).toBe(secondSession);
   });
 
   it('defers Mermaid until a diagram approaches the viewport and retries a transient failure', async () => {

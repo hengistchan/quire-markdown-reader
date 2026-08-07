@@ -24,6 +24,7 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run zip
+      - run: npm run bundle:verify
       - run: npm run package:verify
       - run: npm run source:verify
       - run: npm run store:verify
