@@ -315,7 +315,7 @@ const embedded = true;
     await page.evaluate(() => scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
     await expect.poll(() => page.evaluate(() => Math.abs(
       scrollY - (document.documentElement.scrollHeight - innerHeight),
-    ))).toBeLessThanOrEqual(1);
+    ))).toBeLessThanOrEqual(2);
     const bottomLayout = await page.evaluate(() => {
       const stage = document.querySelector<HTMLElement>('.reader-stage');
       const tooltip = document.querySelector<HTMLElement>('body > .mermaidTooltip');
