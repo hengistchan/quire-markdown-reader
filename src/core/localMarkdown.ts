@@ -1,6 +1,7 @@
 import type { ImportedDocument } from '../shared/types';
 
 export const OPEN_LOCAL_MARKDOWN = 'quire:open-local-markdown';
+export const READ_LOCAL_MARKDOWN_ASSET = 'quire:read-local-markdown-asset';
 
 export interface OpenLocalMarkdownMessage {
   type: typeof OPEN_LOCAL_MARKDOWN;
@@ -9,6 +10,17 @@ export interface OpenLocalMarkdownMessage {
 
 export interface OpenLocalMarkdownResponse {
   viewerUrl: string;
+}
+
+export interface ReadLocalMarkdownAssetMessage {
+  type: typeof READ_LOCAL_MARKDOWN_ASSET;
+  sourceUrl: string;
+  href: string;
+}
+
+export interface ReadLocalMarkdownAssetResponse {
+  dataUrl?: string;
+  error?: string;
 }
 
 export function isLocalMarkdownUrl(value: string): boolean {
@@ -73,4 +85,23 @@ export function isOpenLocalMarkdownResponse(value: unknown): value is OpenLocalM
   } catch {
     return false;
   }
+}
+
+export function isReadLocalMarkdownAssetMessage(value: unknown): value is ReadLocalMarkdownAssetMessage {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<ReadLocalMarkdownAssetMessage>;
+  if (candidate.type !== READ_LOCAL_MARKDOWN_ASSET || typeof candidate.sourceUrl !== 'string' || typeof candidate.href !== 'string') return false;
+  if (!isLocalMarkdownUrl(candidate.sourceUrl) || /^(?:[a-z][a-z\d+.-]*:|\/\/|#)/i.test(candidate.href)) return false;
+  try {
+    const target = new URL(candidate.href, candidate.sourceUrl);
+    return target.protocol === 'file:' && /\.(?:avif|gif|jpe?g|png|svg|webp)$/i.test(target.pathname);
+  } catch {
+    return false;
+  }
+}
+
+export function isReadLocalMarkdownAssetResponse(value: unknown): value is ReadLocalMarkdownAssetResponse & { dataUrl: string } {
+  if (!value || typeof value !== 'object') return false;
+  const dataUrl = (value as ReadLocalMarkdownAssetResponse).dataUrl;
+  return typeof dataUrl === 'string' && /^data:[^,]+;base64,/i.test(dataUrl);
 }

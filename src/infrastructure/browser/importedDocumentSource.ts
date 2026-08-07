@@ -2,13 +2,21 @@ import type {
   DocumentIdentity, DocumentRefreshResult, DocumentSnapshot, DocumentSource, LinkResolution,
 } from '../../application/documents/documentSource';
 import type { ResolvedAsset } from '../../application/documents/documentResource';
+import {
+  isReadLocalMarkdownAssetResponse, READ_LOCAL_MARKDOWN_ASSET,
+} from '../../core/localMarkdown';
 import { isMarkdownLink, isRelativeUrl, isRemoteUrl, linkFragment } from '../../core/paths';
 import type { ImportedDocument } from '../../shared/types';
+
+type RuntimeMessenger = Pick<typeof browser.runtime, 'sendMessage'>;
 
 export class ImportedDocumentSource implements DocumentSource {
   readonly identity: DocumentIdentity;
 
-  constructor(private readonly document: ImportedDocument) {
+  constructor(
+    private readonly document: ImportedDocument,
+    private readonly runtime: RuntimeMessenger | undefined = typeof browser === 'undefined' ? undefined : browser.runtime,
+  ) {
     this.identity = {
       sourceKind: 'imported',
       stableId: document.sourceUrl ?? document.title,
@@ -34,7 +42,19 @@ export class ImportedDocumentSource implements DocumentSource {
   async resolveAsset(href: string): Promise<ResolvedAsset> {
     if (!this.document.sourceUrl || !isRelativeUrl(href)) return { type: 'unavailable', reason: 'unsupported' };
     try {
-      return { type: 'url', url: new URL(href, this.document.sourceUrl).href, disposable: false };
+      const url = new URL(href, this.document.sourceUrl);
+      if (url.protocol === 'file:') {
+        if (!this.runtime) return { type: 'unavailable', reason: 'file-access-unavailable' };
+        const response: unknown = await this.runtime.sendMessage({
+          type: READ_LOCAL_MARKDOWN_ASSET,
+          sourceUrl: this.document.sourceUrl,
+          href,
+        });
+        return isReadLocalMarkdownAssetResponse(response)
+          ? { type: 'url', url: response.dataUrl, disposable: false }
+          : { type: 'unavailable', reason: 'file-access-unavailable' };
+      }
+      return { type: 'url', url: url.href, disposable: false };
     } catch {
       return { type: 'unavailable', reason: 'invalid-url' };
     }

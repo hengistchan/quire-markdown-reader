@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { beforeEach } from 'vitest';
 import { OPEN_LOCAL_MARKDOWN } from '../../core/localMarkdown';
 import { takeDocumentHandoff } from '../handoffStore';
-import { importActiveTab, openViewer, registerBrowserHandlers } from './extensionGateway';
+import { importActiveTab, openViewer, readLocalMarkdownAsset, registerBrowserHandlers } from './extensionGateway';
 
 function event<T extends (...args: never[]) => unknown>() {
   let listener: T | undefined;
@@ -107,6 +107,20 @@ describe('extension entry actions', () => {
     await expect(takeDocumentHandoff(handoffIdFromUrl(viewerUrl))).resolves.toEqual(document);
     expect(harness.api.tabs.update).not.toHaveBeenCalled();
     expect(harness.api.tabs.create).not.toHaveBeenCalled();
+  });
+
+  it('encodes local relative assets for the isolated viewer', async () => {
+    const fetcher = vi.fn(async () => new Response(
+      new Uint8Array([0x89, 0x50]),
+      { headers: { 'content-type': 'image/png' } },
+    ));
+
+    await expect(readLocalMarkdownAsset(
+      'file:///tmp/docs/README.md',
+      'Meta.png',
+      fetcher as typeof fetch,
+    )).resolves.toEqual({ dataUrl: 'data:image/png;base64,iVA=' });
+    expect(fetcher).toHaveBeenCalledWith('file:///tmp/docs/Meta.png');
   });
 
   it('ignores local-import messages without a Markdown file URL or sender tab', async () => {

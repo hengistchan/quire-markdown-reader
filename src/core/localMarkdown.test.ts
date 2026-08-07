@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   createLocalMarkdownImport, isLocalMarkdownUrl, isOpenLocalMarkdownMessage, isOpenLocalMarkdownResponse,
-  localMarkdownPathWithinDirectory, localMarkdownTitle, OPEN_LOCAL_MARKDOWN,
+  isReadLocalMarkdownAssetMessage, localMarkdownPathWithinDirectory, localMarkdownTitle,
+  OPEN_LOCAL_MARKDOWN, READ_LOCAL_MARKDOWN_ASSET,
 } from './localMarkdown';
 
 describe('local Markdown address handling', () => {
@@ -47,6 +48,29 @@ describe('local Markdown address handling', () => {
     expect(isOpenLocalMarkdownMessage({
       type: OPEN_LOCAL_MARKDOWN,
       document: { title: 'Page', markdown: 'text', sourceUrl: 'https://example.com' },
+    })).toBe(false);
+  });
+
+  it('accepts only relative asset requests rooted at a local Markdown source', () => {
+    expect(isReadLocalMarkdownAssetMessage({
+      type: READ_LOCAL_MARKDOWN_ASSET,
+      sourceUrl: 'file:///tmp/docs/README.md',
+      href: '../Meta.png',
+    })).toBe(true);
+    expect(isReadLocalMarkdownAssetMessage({
+      type: READ_LOCAL_MARKDOWN_ASSET,
+      sourceUrl: 'file:///tmp/docs/README.md',
+      href: 'https://example.com/Meta.png',
+    })).toBe(false);
+    expect(isReadLocalMarkdownAssetMessage({
+      type: READ_LOCAL_MARKDOWN_ASSET,
+      sourceUrl: 'https://example.com/README.md',
+      href: 'Meta.png',
+    })).toBe(false);
+    expect(isReadLocalMarkdownAssetMessage({
+      type: READ_LOCAL_MARKDOWN_ASSET,
+      sourceUrl: 'file:///tmp/docs/README.md',
+      href: 'README.md',
     })).toBe(false);
   });
 

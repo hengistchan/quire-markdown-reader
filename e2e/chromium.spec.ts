@@ -185,7 +185,15 @@ const embedded = true;
     await expect(page.getByRole('status')).toHaveText('Workspace refreshed');
 
     const localPage = await context.newPage();
+    const localDevtools = await context.newCDPSession(localPage);
+    await localDevtools.send('Log.enable');
     const policyViolations: string[] = [];
+    const localOriginViolations: string[] = [];
+    localDevtools.on('Log.entryAdded', ({ entry }) => {
+      if (entry.text.includes("'file:' URLs are treated as unique security origins")) {
+        localOriginViolations.push(entry.text);
+      }
+    });
     localPage.on('console', (message) => {
       if (message.text().includes('Permissions policy violation')) policyViolations.push(message.text());
     });
@@ -195,7 +203,9 @@ const embedded = true;
     const embeddedReader = localPage.frameLocator('iframe[data-quire-reader]');
     await expect(embeddedReader.locator('.document-identity span')).toHaveText('Local file');
     await expect(embeddedReader.getByRole('heading', { level: 1, name: 'Meta Kennel Meta Kernel' })).toBeVisible();
-    await expect(embeddedReader.getByRole('img', { name: 'Meta Kennel' })).toHaveAttribute('src', /\/Meta\.png$/);
+    const embeddedLogo = embeddedReader.getByRole('img', { name: 'Meta Kennel' });
+    await expect(embeddedLogo).toHaveAttribute('src', /^data:image\/png;base64,/);
+    await expect.poll(() => embeddedLogo.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
     const embeddedCopyCode = embeddedReader.getByRole('button', { name: 'Copy code' });
     await expect(embeddedCopyCode).toHaveCSS('opacity', '0');
     await embeddedCopyCode.locator('..').hover();
@@ -203,6 +213,7 @@ const embedded = true;
     await embeddedCopyCode.click();
     await expect(embeddedReader.getByRole('button', { name: 'Copied' })).toBeVisible();
     expect(policyViolations).toEqual([]);
+    expect(localOriginViolations).toEqual([]);
     await expect(embeddedReader.getByRole('heading', { level: 3, name: 'Another Mihomo Kernel.' })).toBeVisible();
     await expect(embeddedReader.getByRole('heading', { level: 2, name: 'Address Bar Preview' })).toBeVisible();
     await expect(embeddedReader.locator('.context-panel')).toHaveCount(0);
@@ -217,6 +228,27 @@ const embedded = true;
     await expect(embeddedReader.locator('.context-foot')).toContainText('Local-only reading');
     await expect(localPage).toHaveURL(localMarkdownUrl);
     await localPage.close();
+
+    const sampleLibraryUrl = pathToFileURL(resolve('fixtures/sample-library/README.md')).href;
+    const samplePage = await context.newPage();
+    const sampleDevtools = await context.newCDPSession(samplePage);
+    await sampleDevtools.send('Log.enable');
+    const sampleOriginViolations: string[] = [];
+    sampleDevtools.on('Log.entryAdded', ({ entry }) => {
+      if (entry.text.includes("'file:' URLs are treated as unique security origins")) {
+        sampleOriginViolations.push(entry.text);
+      }
+    });
+    samplePage.on('console', (message) => {
+      if (message.text().includes("'file:' URLs are treated as unique security origins")) {
+        sampleOriginViolations.push(message.text());
+      }
+    });
+    await samplePage.goto(sampleLibraryUrl);
+    const sampleReader = samplePage.frameLocator('iframe[data-quire-reader]');
+    await expect(sampleReader.getByRole('heading', { level: 1, name: 'Quire sample libraries' })).toBeVisible();
+    expect(sampleOriginViolations).toEqual([]);
+    await samplePage.close();
 
     await page.getByRole('link', { name: 'Open guide' }).click();
     await expect(page.locator('.document-identity strong')).toHaveText('guide');
