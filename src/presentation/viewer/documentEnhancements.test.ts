@@ -50,6 +50,31 @@ describe('document enhancements', () => {
     cleanup();
   });
 
+  it('falls back when Clipboard API writes are blocked by an embedding policy', async () => {
+    const writeText = vi.fn(async () => { throw new DOMException('Blocked', 'NotAllowedError'); });
+    const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    const originalExecCommand = Object.getOwnPropertyDescriptor(document, 'execCommand');
+    const execCommand = vi.fn(() => true);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    Object.defineProperty(document, 'execCommand', { configurable: true, value: execCommand });
+
+    try {
+      const article = createArticle('<pre><code>fallback();</code></pre>');
+      const cleanup = enhanceDocument(article, labels);
+      article.querySelector<HTMLButtonElement>('.code-copy')!.click();
+
+      await vi.waitFor(() => expect(execCommand).toHaveBeenCalledWith('copy'));
+      expect(writeText).toHaveBeenCalledWith('fallback();');
+      expect(article.querySelector<HTMLButtonElement>('.code-copy')!.textContent).toBe('Copied');
+      cleanup();
+    } finally {
+      if (originalClipboard) Object.defineProperty(navigator, 'clipboard', originalClipboard);
+      else Reflect.deleteProperty(navigator, 'clipboard');
+      if (originalExecCommand) Object.defineProperty(document, 'execCommand', originalExecCommand);
+      else Reflect.deleteProperty(document, 'execCommand');
+    }
+  });
+
   it('exposes zoom, reset, keyboard pan, and pointer drag controls for Mermaid', () => {
     const article = createArticle('<div class="mermaid"><svg role="img"></svg></div>');
     const cleanup = enhanceDocument(article, labels);

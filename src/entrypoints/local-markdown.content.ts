@@ -6,6 +6,7 @@ function mountReader(viewerUrl: string): void {
   const iframe = document.createElement('iframe');
   iframe.src = viewerUrl;
   iframe.title = 'Quire Markdown Reader';
+  iframe.allow = 'clipboard-write';
   iframe.dataset.quireReader = '';
   Object.assign(iframe.style, {
     position: 'fixed',

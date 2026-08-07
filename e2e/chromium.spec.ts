@@ -81,7 +81,11 @@ test('runs the complete reader flow as an installed Chromium extension', async (
 
 ## Address Bar Preview
 
-Opened from a local absolute path.`);
+Opened from a local absolute path.
+
+~~~ts
+const embedded = true;
+~~~`);
     await writeFile(join(localWorkspacePath, 'Meta.png'), Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+X8WzAAAAAElFTkSuQmCC',
       'base64',
@@ -172,12 +176,20 @@ Opened from a local absolute path.`);
     await expect(page.getByRole('status')).toHaveText('Workspace refreshed');
 
     const localPage = await context.newPage();
+    const policyViolations: string[] = [];
+    localPage.on('console', (message) => {
+      if (message.text().includes('Permissions policy violation')) policyViolations.push(message.text());
+    });
     await localPage.goto(localMarkdownUrl);
     await expect(localPage).toHaveURL(localMarkdownUrl);
+    await expect(localPage.locator('iframe[data-quire-reader]')).toHaveAttribute('allow', 'clipboard-write');
     const embeddedReader = localPage.frameLocator('iframe[data-quire-reader]');
     await expect(embeddedReader.locator('.document-identity span')).toHaveText('Local file');
     await expect(embeddedReader.getByRole('heading', { level: 1, name: 'Meta Kennel Meta Kernel' })).toBeVisible();
     await expect(embeddedReader.getByRole('img', { name: 'Meta Kennel' })).toHaveAttribute('src', /\/Meta\.png$/);
+    await embeddedReader.getByRole('button', { name: 'Copy code' }).click();
+    await expect(embeddedReader.getByRole('button', { name: 'Copied' })).toBeVisible();
+    expect(policyViolations).toEqual([]);
     await expect(embeddedReader.getByRole('heading', { level: 3, name: 'Another Mihomo Kernel.' })).toBeVisible();
     await expect(embeddedReader.getByRole('heading', { level: 2, name: 'Address Bar Preview' })).toBeVisible();
     await expect(embeddedReader.locator('.context-panel')).toHaveCount(0);

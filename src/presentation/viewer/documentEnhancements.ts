@@ -34,8 +34,12 @@ function readDiagramState(viewport: HTMLElement): DiagramState {
 async function writeClipboardText(article: HTMLElement, value: string): Promise<void> {
   const clipboard = article.ownerDocument.defaultView?.navigator.clipboard;
   if (clipboard?.writeText) {
-    await clipboard.writeText(value);
-    return;
+    try {
+      await clipboard.writeText(value);
+      return;
+    } catch {
+      // Permissions Policy can expose the API while rejecting writes in embeds.
+    }
   }
   const textarea = article.ownerDocument.createElement('textarea');
   textarea.value = value;
