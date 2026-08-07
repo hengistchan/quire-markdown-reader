@@ -1,7 +1,10 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { WorkspaceScanError } from '../../../shared/errors/workspaceScanError';
 import { readerErrorMessage, type ReaderError } from '../../../shared/errors/readerError';
-import { isLocalMarkdownUrl, localMarkdownPathWithinDirectory, localMarkdownTitle } from '../../../core/localMarkdown';
+import {
+  isLocalMarkdownUrl, isSelectLocalMarkdownWorkspaceFileMessage, localMarkdownPathWithinDirectory,
+  localMarkdownTitle, NAVIGATE_LOCAL_MARKDOWN_WORKSPACE,
+} from '../../../core/localMarkdown';
 import { renderMarkdownDocument, renderPlainTextDocument } from '../../../core/markdown';
 import { RemoteDocumentError } from '../../../shared/errors/remoteDocumentError';
 import { isRemoteUrl, linkFragment } from '../../../core/paths';
@@ -115,6 +118,7 @@ export function useReaderController(controller: ReaderController) {
   const remoteRequestController = useRef<AbortController | undefined>(undefined);
   const workspaceScanController = useRef<AbortController | undefined>(undefined);
   const currentNavigationKey = useRef<string | undefined>(undefined);
+  const embeddedLocalSourceUrl = useRef<string | undefined>(undefined);
   const settingsSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const pendingSettings = useRef<ReaderSettings | undefined>(undefined);
   const initialized = useRef(false);
@@ -240,6 +244,9 @@ export function useReaderController(controller: ReaderController) {
 
   const openImportedDocument = useCallback(async (imported: ImportedDocument, fragment?: string) => {
     await controller.openImported(imported);
+    if (window.top !== window && imported.sourceUrl && isLocalMarkdownUrl(imported.sourceUrl)) {
+      embeddedLocalSourceUrl.current = imported.sourceUrl;
+    }
     dispatchSession({ type: 'replace', session: createImportedSession(imported) });
     navigationController.replace({
       document: { kind: 'imported', sessionId: imported.sourceUrl ?? imported.title },
@@ -281,10 +288,29 @@ export function useReaderController(controller: ReaderController) {
         }
       }
     }
+    if (targetWorkspace.transient && navigationMode === 'push' && embeddedLocalSourceUrl.current && window.top !== window) {
+      window.parent.postMessage({
+        type: NAVIGATE_LOCAL_MARKDOWN_WORKSPACE,
+        workspaceName: targetWorkspace.name,
+        filePath: file.path,
+      }, '*');
+    }
     setError(undefined);
     queueDocumentNavigation(fragment);
     scrollTo({ top: 0, behavior: 'smooth' });
   }, [controller, navigationController, queueDocumentNavigation, recordRecent, session]);
+
+  useEffect(() => {
+    if (window.top === window || !workspace?.transient) return;
+    const selectFile = (event: MessageEvent<unknown>) => {
+      const message = event.data;
+      if (event.source !== window.parent || !isSelectLocalMarkdownWorkspaceFileMessage(message)) return;
+      const file = workspace.files.find((candidate) => candidate.path === message.filePath);
+      if (file) void openWorkspaceFile(file, workspace, undefined, 'traverse');
+    };
+    window.addEventListener('message', selectFile);
+    return () => window.removeEventListener('message', selectFile);
+  }, [openWorkspaceFile, workspace]);
 
   const activateWorkspace = useCallback(async (handle: FileSystemDirectoryHandle, preferredPath?: string, existingId?: string, navigationMode: 'push' | 'replace' | 'traverse' = 'push', transient = false, fragment?: string): Promise<boolean> => {
     workspaceScanController.current?.abort();

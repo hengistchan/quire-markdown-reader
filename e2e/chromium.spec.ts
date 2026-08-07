@@ -227,6 +227,18 @@ const embedded = true;
     await expect(embeddedReader.getByRole('button', { name: 'Refresh workspace' })).toHaveCount(0);
     await expect(embeddedReader.locator('.context-foot')).toContainText('Local-only reading');
     await expect(localPage).toHaveURL(localMarkdownUrl);
+
+    const embeddedGuideUrl = `${localMarkdownUrl}#quire-workspace=mihomo&quire-file=docs%2Fguide.md`;
+    await embeddedReader.getByRole('button', { name: /guide\.md/ }).click();
+    await expect(embeddedReader.getByRole('heading', { level: 1, name: 'Embedded workspace guide' })).toBeVisible();
+    await expect(localPage).toHaveURL(embeddedGuideUrl);
+    await localPage.goBack();
+    await expect(localPage).toHaveURL(localMarkdownUrl);
+    await expect(embeddedReader.getByRole('heading', { level: 1, name: 'Meta Kennel Meta Kernel' })).toBeVisible();
+    await localPage.goForward();
+    await expect(localPage).toHaveURL(embeddedGuideUrl);
+    await expect(embeddedReader.getByRole('heading', { level: 1, name: 'Embedded workspace guide' })).toBeVisible();
+    expect(localOriginViolations).toEqual([]);
     await localPage.close();
 
     const sampleLibraryUrl = pathToFileURL(resolve('fixtures/sample-library/README.md')).href;

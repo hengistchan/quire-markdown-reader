@@ -2,6 +2,8 @@ import type { ImportedDocument } from '../shared/types';
 
 export const OPEN_LOCAL_MARKDOWN = 'quire:open-local-markdown';
 export const READ_LOCAL_MARKDOWN_ASSET = 'quire:read-local-markdown-asset';
+export const NAVIGATE_LOCAL_MARKDOWN_WORKSPACE = 'quire:navigate-local-markdown-workspace';
+export const SELECT_LOCAL_MARKDOWN_WORKSPACE_FILE = 'quire:select-local-markdown-workspace-file';
 
 export interface OpenLocalMarkdownMessage {
   type: typeof OPEN_LOCAL_MARKDOWN;
@@ -21,6 +23,31 @@ export interface ReadLocalMarkdownAssetMessage {
 export interface ReadLocalMarkdownAssetResponse {
   dataUrl?: string;
   error?: string;
+}
+
+export interface LocalMarkdownWorkspaceRoute {
+  workspaceName: string;
+  filePath: string;
+}
+
+export interface NavigateLocalMarkdownWorkspaceMessage extends LocalMarkdownWorkspaceRoute {
+  type: typeof NAVIGATE_LOCAL_MARKDOWN_WORKSPACE;
+}
+
+export interface SelectLocalMarkdownWorkspaceFileMessage {
+  type: typeof SELECT_LOCAL_MARKDOWN_WORKSPACE_FILE;
+  filePath: string;
+}
+
+function isSafeWorkspaceName(value: string): boolean {
+  return Boolean(value) && value !== '.' && value !== '..' && !/[\\/\0]/.test(value);
+}
+
+function isSafeMarkdownFilePath(value: string): boolean {
+  const segments = value.split('/');
+  return segments.length > 0
+    && segments.every((segment) => Boolean(segment) && segment !== '.' && segment !== '..' && !/[\\\0]/.test(segment))
+    && /\.(?:md|markdown|mdx)$/i.test(value);
 }
 
 export function isLocalMarkdownUrl(value: string): boolean {
@@ -52,6 +79,60 @@ export function localMarkdownPathWithinDirectory(value: string, directoryName: s
   } catch {
     return undefined;
   }
+}
+
+export function localMarkdownWorkspaceFileUrl(value: string, workspaceName: string, filePath: string): string | undefined {
+  if (!isLocalMarkdownUrl(value) || !isSafeWorkspaceName(workspaceName) || !isSafeMarkdownFilePath(filePath)) return undefined;
+  const currentPath = localMarkdownPathWithinDirectory(value, workspaceName);
+  if (!currentPath) return undefined;
+  try {
+    const source = new URL(value);
+    source.search = '';
+    source.hash = '';
+    const sourceDirectory = new URL('.', source);
+    const workspaceRoot = new URL('../'.repeat(Math.max(0, currentPath.split('/').length - 1)), sourceDirectory);
+    const encodedPath = filePath.split('/').map(encodeURIComponent).join('/');
+    const target = new URL(encodedPath, workspaceRoot);
+    return isLocalMarkdownUrl(target.href) ? target.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function localMarkdownWorkspaceHash(route: LocalMarkdownWorkspaceRoute): string {
+  const query = new URLSearchParams();
+  query.set('quire-workspace', route.workspaceName);
+  query.set('quire-file', route.filePath);
+  return query.toString();
+}
+
+export function localMarkdownWorkspaceRoute(value: string): LocalMarkdownWorkspaceRoute | undefined {
+  try {
+    const url = new URL(value);
+    const query = new URLSearchParams(url.hash.slice(1));
+    const workspaceName = query.get('quire-workspace');
+    const filePath = query.get('quire-file');
+    return workspaceName && filePath && isSafeWorkspaceName(workspaceName) && isSafeMarkdownFilePath(filePath)
+      ? { workspaceName, filePath }
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function isNavigateLocalMarkdownWorkspaceMessage(value: unknown): value is NavigateLocalMarkdownWorkspaceMessage {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<NavigateLocalMarkdownWorkspaceMessage>;
+  return candidate.type === NAVIGATE_LOCAL_MARKDOWN_WORKSPACE
+    && typeof candidate.workspaceName === 'string' && isSafeWorkspaceName(candidate.workspaceName)
+    && typeof candidate.filePath === 'string' && isSafeMarkdownFilePath(candidate.filePath);
+}
+
+export function isSelectLocalMarkdownWorkspaceFileMessage(value: unknown): value is SelectLocalMarkdownWorkspaceFileMessage {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<SelectLocalMarkdownWorkspaceFileMessage>;
+  return candidate.type === SELECT_LOCAL_MARKDOWN_WORKSPACE_FILE
+    && typeof candidate.filePath === 'string' && isSafeMarkdownFilePath(candidate.filePath);
 }
 
 export function createLocalMarkdownImport(value: string, page: Document): ImportedDocument | undefined {

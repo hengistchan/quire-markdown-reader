@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
-  createLocalMarkdownImport, isLocalMarkdownUrl, isOpenLocalMarkdownMessage, isOpenLocalMarkdownResponse,
-  isReadLocalMarkdownAssetMessage, localMarkdownPathWithinDirectory, localMarkdownTitle,
-  OPEN_LOCAL_MARKDOWN, READ_LOCAL_MARKDOWN_ASSET,
+  createLocalMarkdownImport, isLocalMarkdownUrl, isNavigateLocalMarkdownWorkspaceMessage,
+  isOpenLocalMarkdownMessage, isOpenLocalMarkdownResponse, isReadLocalMarkdownAssetMessage,
+  isSelectLocalMarkdownWorkspaceFileMessage, localMarkdownPathWithinDirectory, localMarkdownTitle,
+  localMarkdownWorkspaceFileUrl, localMarkdownWorkspaceHash, localMarkdownWorkspaceRoute,
+  NAVIGATE_LOCAL_MARKDOWN_WORKSPACE, OPEN_LOCAL_MARKDOWN, READ_LOCAL_MARKDOWN_ASSET,
+  SELECT_LOCAL_MARKDOWN_WORKSPACE_FILE,
 } from './localMarkdown';
 
 describe('local Markdown address handling', () => {
@@ -38,6 +41,58 @@ describe('local Markdown address handling', () => {
     expect(localMarkdownPathWithinDirectory(value, 'mihomo')).toBe('docs/指南.md');
     expect(localMarkdownPathWithinDirectory(value, 'work')).toBe('mihomo/docs/指南.md');
     expect(localMarkdownPathWithinDirectory(value, 'other')).toBeUndefined();
+  });
+
+  it('resolves iframe workspace routes without crossing the selected local folder', () => {
+    expect(localMarkdownWorkspaceFileUrl(
+      'file:///Users/example/work/mihomo/README.md',
+      'mihomo',
+      'docs/guide.md',
+    )).toBe('file:///Users/example/work/mihomo/docs/guide.md');
+    expect(localMarkdownWorkspaceFileUrl(
+      'file:///Users/example/work/mihomo/docs/current.md',
+      'mihomo',
+      'notes/设计.md',
+    )).toBe('file:///Users/example/work/mihomo/notes/%E8%AE%BE%E8%AE%A1.md');
+    expect(localMarkdownWorkspaceFileUrl(
+      'file:///Users/example/work/mihomo/README.md',
+      'mihomo',
+      '../outside.md',
+    )).toBeUndefined();
+    expect(localMarkdownWorkspaceFileUrl(
+      'file:///Users/example/work/mihomo/README.md',
+      'other',
+      'guide.md',
+    )).toBeUndefined();
+  });
+
+  it('round-trips safe workspace state through the top-page hash route', () => {
+    const route = { workspaceName: '示例库', filePath: 'docs/指南.md' };
+    const hash = localMarkdownWorkspaceHash(route);
+    expect(hash).toBe('quire-workspace=%E7%A4%BA%E4%BE%8B%E5%BA%93&quire-file=docs%2F%E6%8C%87%E5%8D%97.md');
+    expect(localMarkdownWorkspaceRoute(`file:///tmp/README.md#${hash}`)).toEqual(route);
+    expect(localMarkdownWorkspaceRoute('file:///tmp/README.md#quire-workspace=docs&quire-file=../private.md')).toBeUndefined();
+  });
+
+  it('validates workspace navigation messages in both directions', () => {
+    expect(isNavigateLocalMarkdownWorkspaceMessage({
+      type: NAVIGATE_LOCAL_MARKDOWN_WORKSPACE,
+      workspaceName: 'mihomo',
+      filePath: 'docs/guide.md',
+    })).toBe(true);
+    expect(isNavigateLocalMarkdownWorkspaceMessage({
+      type: NAVIGATE_LOCAL_MARKDOWN_WORKSPACE,
+      workspaceName: '../mihomo',
+      filePath: 'docs/guide.md',
+    })).toBe(false);
+    expect(isSelectLocalMarkdownWorkspaceFileMessage({
+      type: SELECT_LOCAL_MARKDOWN_WORKSPACE_FILE,
+      filePath: 'README.md',
+    })).toBe(true);
+    expect(isSelectLocalMarkdownWorkspaceFileMessage({
+      type: SELECT_LOCAL_MARKDOWN_WORKSPACE_FILE,
+      filePath: '../README.md',
+    })).toBe(false);
   });
 
   it('validates messages before the background page imports them', () => {
