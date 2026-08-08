@@ -164,6 +164,63 @@ describe('Quire viewer experience', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
+  it('keeps the latest history target when a delayed remote traversal is superseded', async () => {
+    let bRequestCount = 0;
+    let delayedBAborted = false;
+    let resolveDelayedB: (response: Response) => void = () => undefined;
+    const fetcher = vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/B.md')) {
+        bRequestCount += 1;
+        if (bRequestCount === 2) {
+          return new Promise<Response>((resolve, reject) => {
+            resolveDelayedB = resolve;
+            init?.signal?.addEventListener('abort', () => {
+              delayedBAborted = true;
+              reject(init.signal?.reason);
+            }, { once: true });
+          });
+        }
+        return Promise.resolve(new Response('# Remote B\n\nRemote B body.'));
+      }
+      return Promise.resolve(new Response('# Remote A\n\n[Open B](https://docs.example.com/B.md)'));
+    });
+    vi.stubGlobal('fetch', fetcher);
+    installBrowser({ permissions: {
+      request: vi.fn(async () => true),
+      contains: vi.fn(async () => true),
+    } });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'Open' }));
+    await user.click(screen.getByRole('button', { name: /Open URL/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Open Markdown from the web' });
+    await user.type(within(dialog).getByPlaceholderText('https://example.com/guide.md'), 'https://docs.example.com/A.md');
+    await user.click(within(dialog).getByRole('button', { name: 'Open' }));
+    await user.click(await screen.findByRole('link', { name: 'Open B' }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Remote B body.'));
+
+    await user.click(screen.getByRole('button', { name: 'Previous document' }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Remote A'));
+    await user.click(screen.getByRole('button', { name: 'Next document' }));
+    await screen.findByRole('status');
+    expect(new URLSearchParams(location.search).get('remote')).toBe('https://docs.example.com/B.md');
+
+    await user.click(screen.getByRole('button', { name: 'Previous document' }));
+    await waitFor(() => expect(new URLSearchParams(location.search).get('remote')).toBe('https://docs.example.com/A.md'));
+    await user.click(screen.getByRole('button', { name: 'Previous document' }));
+    await waitFor(() => expect(document.querySelector('.document-identity strong')?.textContent).toBe('Welcome to Quire'));
+    resolveDelayedB(new Response('# Late Remote B\n\nThis response must never win.'));
+
+    await waitFor(() => expect(delayedBAborted).toBe(true));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Welcome to Quire'));
+    expect(screen.queryByText('This response must never win.')).toBeNull();
+    expect(document.querySelector('.document-identity strong')?.textContent).toBe('Welcome to Quire');
+    expect(new URLSearchParams(location.search).has('remote')).toBe(false);
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
   it('offers a retry after a remote network failure', async () => {
     const fetcher = vi.fn()
       .mockRejectedValueOnce(new TypeError('Offline'))

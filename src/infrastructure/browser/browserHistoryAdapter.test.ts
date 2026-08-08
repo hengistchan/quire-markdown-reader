@@ -12,12 +12,12 @@ describe('BrowserHistoryAdapter', () => {
       fragment: 'getting started',
     };
 
-    adapter.push({ target, index: 1 });
+    adapter.push({ target, index: 1, maxIndex: 3 });
 
     expect(location.pathname).toBe('/viewer.html');
     expect(location.search).toBe('?workspace=workspace-1&file=docs%2Fguide.md');
     expect(location.hash).toBe('#getting%20started');
-    expect(adapter.current()).toEqual({ target, index: 1 });
+    expect(adapter.current()).toEqual({ target, index: 1, maxIndex: 3 });
   });
 
   it.each([
@@ -35,10 +35,10 @@ describe('BrowserHistoryAdapter', () => {
     ],
   ])('writes and restores a non-workspace target: %s', (target, search) => {
     const adapter = new BrowserHistoryAdapter(window);
-    adapter.replace({ target, index: 0 });
+    adapter.replace({ target, index: 0, maxIndex: 0 });
 
     expect(location.search).toBe(search);
-    expect(adapter.current()).toEqual({ target, index: 0 });
+    expect(adapter.current()).toEqual({ target, index: 0, maxIndex: 0 });
   });
 
   it('restores a workspace target from a directly opened route', () => {
@@ -50,27 +50,29 @@ describe('BrowserHistoryAdapter', () => {
         fragment: 'tasks',
       },
       index: 0,
+      maxIndex: 0,
     });
   });
 
   it.each([
-    [{ version: 1, target: { document: { kind: 'remote', url: 'https://example.com/legacy.md' } } }],
-    [{ quireWorkspaceNavigation: { workspaceId: 'legacy', filePath: 'README.md', fragment: 'intro' } }],
-  ])('migrates a legacy history state: %s', (state) => {
+    [{ version: 2, index: 4, target: { document: { kind: 'remote', url: 'https://example.com/v2.md' } } }, 4],
+    [{ version: 1, target: { document: { kind: 'remote', url: 'https://example.com/legacy.md' } } }, 0],
+    [{ quireWorkspaceNavigation: { workspaceId: 'legacy', filePath: 'README.md', fragment: 'intro' } }, 0],
+  ])('migrates a legacy history state: %s', (state, index) => {
     history.replaceState(state, '', '/viewer.html');
     const adapter = new BrowserHistoryAdapter(window);
 
-    expect(adapter.current()).toMatchObject({ index: 0, target: expect.any(Object) });
+    expect(adapter.current()).toMatchObject({ index, maxIndex: index, target: expect.any(Object) });
   });
 
   it('reports traversal to the initial targetless entry', () => {
     const adapter = new BrowserHistoryAdapter(window);
     const listener = vi.fn();
     adapter.subscribe(listener);
-    history.replaceState({ version: 2, index: 0 }, '', '/viewer.html');
+    history.replaceState({ version: 3, index: 0, maxIndex: 2 }, '', '/viewer.html');
 
     window.dispatchEvent(new PopStateEvent('popstate', { state: history.state }));
 
-    expect(listener).toHaveBeenCalledWith({ index: 0, target: undefined });
+    expect(listener).toHaveBeenCalledWith({ index: 0, maxIndex: 2, target: undefined });
   });
 });

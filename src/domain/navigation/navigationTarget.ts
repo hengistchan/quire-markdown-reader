@@ -15,9 +15,16 @@ export interface LegacyQuireHistoryState {
   target: NavigationTarget;
 }
 
-export interface QuireHistoryState {
+export interface LegacyIndexedQuireHistoryState {
   version: 2;
   index: number;
+  target?: NavigationTarget;
+}
+
+export interface QuireHistoryState {
+  version: 3;
+  index: number;
+  maxIndex: number;
   target?: NavigationTarget;
 }
 

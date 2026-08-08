@@ -3,6 +3,7 @@ import type { NavigationTarget } from '../../domain/navigation/navigationTarget'
 export interface BrowserHistoryEntry {
   target?: NavigationTarget;
   index: number;
+  maxIndex: number;
 }
 
 export interface BrowserHistoryPort {

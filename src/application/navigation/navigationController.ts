@@ -21,7 +21,7 @@ export class NavigationController {
     const entry = history.current();
     this.target = entry.target;
     this.index = entry.index;
-    this.maxIndex = entry.index;
+    this.maxIndex = entry.maxIndex;
     this.history.replace(entry);
     this.history.subscribe((next) => this.traverse(next));
   }
@@ -35,16 +35,18 @@ export class NavigationController {
       this.replace(target);
       return;
     }
+    const previousTarget = this.target;
     this.index += 1;
     this.maxIndex = this.index;
+    this.history.replace({ target: previousTarget, index: this.index - 1, maxIndex: this.maxIndex });
     this.target = target;
-    this.history.push({ target, index: this.index });
+    this.history.push({ target, index: this.index, maxIndex: this.maxIndex });
     this.notify('push');
   }
 
   replace(target: NavigationTarget): void {
     this.target = target;
-    this.history.replace({ target, index: this.index });
+    this.history.replace({ target, index: this.index, maxIndex: this.maxIndex });
     this.notify('replace');
   }
 
@@ -72,7 +74,7 @@ export class NavigationController {
   private traverse(entry: BrowserHistoryEntry): void {
     this.target = entry.target;
     this.index = entry.index;
-    this.maxIndex = Math.max(this.maxIndex, entry.index);
+    this.maxIndex = Math.max(this.maxIndex, entry.maxIndex);
     this.notify('traverse');
   }
 

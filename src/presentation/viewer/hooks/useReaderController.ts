@@ -5,7 +5,8 @@ import type {
   ReaderSettings, SidebarMode,
 } from '../../../shared/types';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
-import { useNavigationRestoration, useReaderNavigation } from './useReaderNavigation';
+import { useReaderNavigation } from './useReaderNavigation';
+import { useNavigationRestoration } from './useNavigationRestoration';
 import { useReaderFeedback } from './useReaderFeedback';
 import { useReaderOverlay } from './useReaderOverlay';
 import { useReaderSession } from './useReaderSession';
@@ -86,6 +87,7 @@ export function useReaderController(controller: ReaderController) {
     openDroppedFile: handleFile,
     openFilePicker: handleOpenFile,
     openRemote,
+    cancelPendingRemote,
     cancelRemoteLoad,
     handleArticleClick,
     handlePaste,
@@ -137,6 +139,7 @@ export function useReaderController(controller: ReaderController) {
     showError: setError,
     setRestorableWorkspace,
     clearResume,
+    cancelPendingRemote,
     queueDocumentNavigation,
     openWorkspaceFile,
     activateWorkspace,
