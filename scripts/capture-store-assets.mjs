@@ -55,7 +55,7 @@ async function captureLocalizedSet(config) {
     headless: true,
     locale: config.browserLocale,
     viewport: { width: 1280, height: 800 },
-    colorScheme: 'dark',
+    colorScheme: 'light',
     args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`, `--lang=${config.browserLocale}`],
   });
 
@@ -70,7 +70,7 @@ async function captureLocalizedSet(config) {
           version: 4,
           settings: {
             locale: appLocale,
-            theme: 'dark',
+            theme: 'light',
             fontFamily: 'sans',
             fontSize: 18,
             lineHeight: 1.76,
@@ -115,6 +115,23 @@ async function captureLocalizedSet(config) {
       });
     }, { workspaceName: config.workspaceName, files });
 
+    const setTheme = async (theme) => {
+      await worker.evaluate(async ({ theme: nextTheme }) => {
+        const key = 'reader-settings';
+        const stored = await chrome.storage.local.get(key);
+        await chrome.storage.local.set({
+          [key]: {
+            ...stored[key],
+            settings: { ...stored[key].settings, theme: nextTheme },
+          },
+        });
+      }, { theme });
+      await page.reload();
+      await page.waitForFunction((expectedTheme) => document.documentElement.dataset.theme === expectedTheme, theme);
+      await page.getByRole('heading', { level: 1, name: config.readerTitle }).waitFor();
+      await page.evaluate(() => document.fonts.ready);
+    };
+
     await page.goto(`chrome-extension://${extensionId}/viewer.html`);
     await page.getByRole('button', { name: config.labels.open, exact: true }).click();
     await page.getByRole('button', { name: config.labels.openFolder }).click();
@@ -123,11 +140,12 @@ async function captureLocalizedSet(config) {
     await page.evaluate(() => document.fonts.ready);
     await page.screenshot({ path: resolve(output, '01-open-markdown.png'), animations: 'disabled' });
 
-    await page.getByRole('button', { name: config.labels.toggleWorkspace }).click();
+    await setTheme('dark');
     await page.getByRole('button', { name: config.labels.open, exact: true }).click();
     await page.screenshot({ path: resolve(output, '02-focused-reader.png'), animations: 'disabled' });
 
     await page.getByRole('button', { name: config.labels.open, exact: true }).click();
+    await setTheme('light');
     await page.getByRole('button', { name: config.labels.command }).first().click();
     await page.screenshot({ path: resolve(output, '03-local-workspace.png'), animations: 'disabled' });
 
@@ -139,7 +157,7 @@ async function captureLocalizedSet(config) {
     await page.screenshot({ path: resolve(output, '04-technical-markdown.png'), animations: 'disabled' });
 
     await page.getByRole('button', { name: config.labels.settings }).click();
-    await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+    await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
     await page.waitForFunction(() => document.querySelector('.settings-drawer')?.getBoundingClientRect().left < 920);
     await page.screenshot({ path: resolve(output, '05-reading-settings.png'), animations: 'disabled' });
   } finally {
@@ -174,4 +192,4 @@ try {
   await rm(artworkProfile, { recursive: true, force: true });
 }
 
-console.log('Captured five global and five Simplified Chinese store screenshots, promo tile, and padded store icon.');
+console.log('Captured four light and one dark screenshot for each locale, plus the promo tile and padded store icon.');

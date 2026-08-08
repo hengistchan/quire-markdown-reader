@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title">
   <title id="title">Quire Markdown reader icon with M monogram</title>
-  <rect width="1024" height="1024" rx="232" fill="#5266D7"/>
-  <path d="M254 226c-44 15-74 57-74 104v434c0 47 30 89 74 104" fill="none" stroke="#AAB6FF" stroke-width="50" stroke-linecap="round" opacity=".65"/>
-  <path d="M770 226c44 15 74 57 74 104v434c0 47-30 89-74 104" fill="none" stroke="#3044B0" stroke-width="50" stroke-linecap="round" opacity=".7"/>
-  <rect x="250" y="150" width="524" height="724" rx="96" fill="#FCFCFD"/>
-  <path d="M322 694V330h82l108 156 108-156h82v364h-82V470L512 620 404 470v224Z" fill="#303D91"/>
+  <rect width="1024" height="1024" rx="232" fill="#BA6638"/>
+  <path d="M254 226c-44 15-74 57-74 104v434c0 47 30 89 74 104" fill="none" stroke="#F2C7AE" stroke-width="50" stroke-linecap="round" opacity=".6"/>
+  <path d="M770 226c44 15 74 57 74 104v434c0 47-30 89-74 104" fill="none" stroke="#7E3C20" stroke-width="50" stroke-linecap="round" opacity=".66"/>
+  <rect x="250" y="150" width="524" height="724" rx="96" fill="#FFFDF9"/>
+  <path d="M322 694V330h82l108 156 108-156h82v364h-82V470L512 620 404 470v224Z" fill="#2D2925"/>
 </svg>

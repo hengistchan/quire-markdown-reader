@@ -6,14 +6,17 @@ Quire is an open-source, read-only Markdown reader and local document workspace 
 
 - Open `.md` and `.markdown` files with automatic refresh where file handles are supported
 - Preview `.mdx` safely as ordinary Markdown; JSX, imports, and expressions are shown as text and never executed
+- Render raw HTML through a sanitizer by default, with an explicit setting to disable it
 - Preview a local Markdown absolute path entered as a `file://` URL without changing the address bar
 - Connect a local folder, browse its nested tree, and restore it after a browser restart
 - Resolve workspace-relative images and navigate relative Markdown links inside the reader
 - Open a remote Markdown URL after granting access to that website only
 - Read the active page's visible text as a plain-text snapshot from the toolbar action, page context menu, or `Alt/Option + Shift + M`
-- Render task lists, footnotes, definitions, abbreviations, callouts, KaTeX, Mermaid, and highlighted code
+- Copy highlighted code from a hover or keyboard-focus action, with a fallback when direct clipboard access is unavailable
+- Render task lists, footnotes, definitions, abbreviations, callouts, KaTeX, and theme-aware Mermaid diagrams with pan, zoom, reset, and drag controls
 - Search and navigate by document outline
-- Choose light, dark, or system appearance; typography, reading width, and custom document CSS
+- Navigate consistently between workspace, local, remote, and imported documents without stale restores replacing newer choices
+- Choose a warm light, dark, or system appearance; typography, reading width, and custom document CSS
 - Use the interface in English or Simplified Chinese
 
 Local folder access uses the File System Access API. Browsers without that API keep the single-file workflow available.
@@ -54,13 +57,16 @@ npm run compile
 npm test
 npm run build
 npm run zip
+npm run bundle:verify
 npm run package:verify
 npm run source:verify
 npm run store:verify
-npm run test:e2e
+npm run test:e2e:chromium
+npm run test:visual
+npm run test:e2e:firefox:context
 ```
 
-The installed-extension E2E suite covers Chromium and Firefox. See the [v0.0.4 acceptance matrix](docs/acceptance-v0.0.4.md) for the current release boundary; earlier matrices remain as historical evidence.
+The native Firefox shortcut gate runs in a Linux display session with `xvfb-run -a npm run test:e2e:firefox:native`. See the [v0.0.5 acceptance matrix](docs/acceptance-v0.0.5.md) for the current iteration boundary; earlier matrices remain as historical evidence.
 
 ## Permissions and privacy
 

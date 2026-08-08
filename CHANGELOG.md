@@ -4,6 +4,29 @@ All notable changes to Quire are documented here. This project follows [Semantic
 
 ## [Unreleased]
 
+## [0.0.5] - 2026-08-08
+
+### Added
+
+- Added hover- and keyboard-accessible code-copy actions with a fallback for embedded pages where direct Clipboard API access is blocked
+- Added Mermaid pan, zoom, reset, and drag controls while keeping diagrams lazily rendered and responsive to light or dark appearance changes
+- Added a theme gallery, contrast checks, responsive overflow coverage, and twelve light/dark visual-regression baselines
+
+### Changed
+
+- Unified Workspace, Local, Remote, and Imported document navigation behind one cancellable history and restoration flow
+- Enabled sanitized raw HTML by default for new and migrated settings while preserving an explicit opt-out
+- Reworked the reader around semantic warm surfaces, accessible focus states, responsive layouts, and matching Mermaid colors
+- Recolored the reproducible Quire icon and store artwork to the paper-and-terracotta visual system
+
+### Fixed
+
+- Reflected workspace and embedded local-file navigation in the browser address bar without violating `file://` origin restrictions
+- Prevented delayed workspace, local-file, remote, or imported restores from replacing a newer navigation choice
+- Repaired relative local-image loading through the extension bridge and malformed smart-quote or nested raw-HTML attributes
+- Kept the code-copy action floating over the code block instead of reserving a toolbar row
+- Stabilized installed-Firefox shortcut verification by waiting for the imported page identity before asserting navigation completion
+
 ## [0.0.4] - 2026-08-06
 
 ### Added
@@ -93,7 +116,8 @@ All notable changes to Quire are documented here. This project follows [Semantic
 - First-run guidance, actionable error and permission states, English and Simplified Chinese interfaces
 - Reproducible browser packages, automated tests, community documents, store materials, and release automation
 
-[Unreleased]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.4...HEAD
+[Unreleased]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.5...HEAD
+[0.0.5]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.1...v0.0.2

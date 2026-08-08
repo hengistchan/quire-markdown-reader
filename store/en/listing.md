@@ -29,14 +29,16 @@ Key features:
 - Search the current document and follow reading progress
 - Continue from the last reading position and navigate back or forward between workspace documents
 - Drag in a Markdown file or folder, or paste Markdown text directly into the reader
-- Adjust light or dark theme, font, text size, line height, and page width
-- Render highlighted code, task lists, footnotes, callouts, KaTeX formulas, and Mermaid diagrams
+- Adjust a warm light, dark, or system theme, plus font, text size, line height, and page width
+- Copy highlighted code from a floating action that appears on hover or keyboard focus
+- Render task lists, footnotes, callouts, KaTeX formulas, and sanitized raw HTML
+- Pan, zoom, reset, and drag theme-aware Mermaid diagrams
 - Open a web Markdown URL with access limited to the website you choose
 - Read the visible text of the current page as a plain-text snapshot from the toolbar, context menu, or `Alt/Option + Shift + M`
 
 Why install Quire?
 
-Quire separates reading Markdown from editing it. The interface stays quiet, source files remain read-only, and local documents stay on your device. If you regularly read READMEs, technical specifications, research notes, or a local knowledge base, you get clearer navigation and fewer distractions without changing how your files are organized.
+Quire separates reading Markdown from editing it. Its warm, paper-like interface stays quiet, source files remain read-only, and local documents stay on your device. If you regularly read READMEs, technical specifications, research notes, or a local knowledge base, you get clearer navigation and fewer distractions without changing how your files are organized.
 
 Quire is open source. It has no account, analytics, ads, tracking, or developer backend. Local documents are not uploaded, and source files are never modified.
 
