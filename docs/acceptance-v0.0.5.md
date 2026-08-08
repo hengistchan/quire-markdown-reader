@@ -44,8 +44,8 @@ This document is the iteration and release boundary for the 0.0.5 update. Checke
 - [x] Chrome and Firefox builds, ZIPs, bundle budgets, package validation, source reconstruction, and store verification pass.
 - [x] Installed Chromium passes the complete reader, navigation-race, and permission-recovery E2E flows.
 - [x] The light and dark visual-regression suite passes against the committed baselines.
-- [ ] Installed Firefox passes toolbar, context-menu, and native-shortcut flows.
-- [ ] GitHub CI passes on the final 0.0.5 commit.
+- [x] Installed Firefox passes toolbar, context-menu, and native-shortcut flows.
+- [x] GitHub CI passes on the 0.0.5 release candidate.
 - [ ] Create and push the annotated `v0.0.5` tag only after every preceding gate passes and publication is explicitly authorized.
 
-Local evidence on 2026-08-08: TypeScript compilation, 32 files and 213 unit/component tests, Chrome and Firefox packaging, bundle and package validation, byte-for-byte Firefox source reconstruction, all ten store assets, four installed-Chromium E2E flows, and both non-update visual-regression tests passed. Firefox installed-extension and remote CI rows remain open for the final pushed release candidate.
+Release evidence on 2026-08-08: TypeScript compilation, 32 files and 213 unit/component tests, Chrome and Firefox packaging, bundle and package validation, byte-for-byte Firefox source reconstruction, all ten store assets, four installed-Chromium E2E flows, and both non-update visual-regression tests passed locally and in CI. Linux CI run [31247499096](https://github.com/hengistchan/quire-markdown-reader/actions/runs/31247499096) also passed the installed-Firefox toolbar, context-menu, and native-shortcut gates. The local macOS Firefox launch was unavailable at the GeckoDriver/Marionette handshake, so the successful Linux CI run is the Firefox release evidence.
