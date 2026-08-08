@@ -1,18 +1,19 @@
-.outline-panel .context-heading { border-bottom: 1px solid var(--line); }
+.outline-panel .context-heading { border-bottom: 1px solid var(--border-soft); }
 .outline-panel .context-heading > div { grid-template-columns: minmax(0, 1fr); }
-.outline-navigation { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; padding: 10px 9px; overflow-y: auto; overscroll-behavior-y: auto; scrollbar-color: var(--line) transparent; scrollbar-width: thin; gap: 3px; }
-.outline-navigation button { flex: 0 0 auto; width: 100%; min-height: 34px; padding-block: 8px; overflow: hidden; border: 0; border-radius: 7px; color: var(--muted); background: transparent; cursor: pointer; font-size: 10px; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
-.outline-navigation button:hover, .outline-navigation button.active { color: var(--ink); background: var(--accent-soft); }
-.outline-navigation button.active { font-weight: 700; }
-.outline-empty { margin: 14px 9px; color: var(--muted); font-size: 10px; line-height: 1.5; }
-.outline-progress { display: grid; flex: 0 0 auto; gap: 8px; margin: 0; padding: 14px 16px 16px; border-top: 1px solid var(--line); }
-.outline-progress span { color: var(--faint); font-size: 8px; }
-.outline-progress i { height: 4px; overflow: hidden; border-radius: 4px; background: var(--panel-strong); }
+.outline-navigation { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; padding: 10px 9px; overflow-y: auto; overscroll-behavior-y: auto; scrollbar-color: var(--border-strong) transparent; scrollbar-width: thin; gap: 3px; }
+.outline-navigation button { flex: 0 0 auto; width: 100%; min-height: 34px; padding-block: 8px; overflow: hidden; border: 0; border-radius: var(--radius-sm); color: var(--text-secondary); background: transparent; cursor: pointer; font-size: var(--font-xs); text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.outline-navigation button:hover { color: var(--text-strong); background: var(--hover); }
+.outline-navigation button.active { color: var(--text-strong); background: var(--selected); font-weight: 700; }
+.outline-empty { margin: 14px 9px; color: var(--text-secondary); font-size: var(--font-xs); line-height: 1.5; }
+.outline-progress { display: grid; flex: 0 0 auto; gap: 8px; margin: 0; padding: 14px 16px 16px; border-top: 1px solid var(--border-soft); }
+.outline-progress span { color: var(--text-tertiary); font-size: var(--font-xs); }
+.outline-progress i { height: 4px; overflow: hidden; border-radius: 4px; background: var(--active); }
 .outline-progress b { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
 
-.error-banner { display: grid; grid-template-columns: 20px 1fr auto; align-items: center; gap: 9px; width: min(100%, var(--reader-width)); margin: 0 auto 25px; padding: 10px 11px 10px 13px; border: 1px solid color-mix(in srgb, #d75e58 34%, var(--line)); border-radius: 8px; color: color-mix(in srgb, #d75e58 78%, var(--ink)); background: color-mix(in srgb, #d75e58 8%, var(--paper)); font-size: 11px; }
+.error-banner { display: grid; grid-template-columns: 20px 1fr auto; align-items: center; gap: 9px; width: min(100%, var(--reader-width)); margin: 0 auto 25px; padding: 10px 11px 10px 13px; border: 1px solid color-mix(in srgb, var(--danger) 38%, var(--border)); border-radius: var(--radius-md); color: var(--danger); background: var(--danger-soft); font-size: var(--font-sm); }
 .error-banner > svg { width: 16px; }
-.error-banner button { display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 6px; background: transparent; cursor: pointer; }
+.error-banner button { display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; cursor: pointer; }
+.error-banner button:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); }
 .error-banner button svg { width: 14px; }
 .error-actions { display: flex; align-items: center; gap: 5px; }
 .error-banner .retry-button { width: auto; padding: 0 9px; border: 1px solid currentColor; font-weight: 750; }

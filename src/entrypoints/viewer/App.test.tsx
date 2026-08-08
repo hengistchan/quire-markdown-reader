@@ -7,15 +7,25 @@ import { createDocumentHandoff, takeDocumentHandoff } from '../../infrastructure
 import { IndexedDBHandleRepository } from '../../infrastructure/indexeddb/handleRepository';
 import { App } from './App';
 
+interface MermaidConfigMock {
+  theme?: string;
+  themeVariables?: { darkMode?: boolean };
+}
+
 const mermaidMocks = vi.hoisted(() => ({
-  initialize: vi.fn(),
+  state: { darkMode: false },
   render: async (options?: { nodes?: HTMLElement[] }) => {
-    for (const node of options?.nodes ?? []) node.innerHTML = '<svg role="img" aria-label="Rendered Mermaid diagram"></svg>';
+    for (const node of options?.nodes ?? []) node.innerHTML = `<svg role="img" aria-label="Rendered Mermaid diagram" data-dark-mode="${mermaidMocks.state.darkMode}"></svg>`;
   },
   run: vi.fn(),
 }));
 
-vi.mock('mermaid', () => ({ default: { initialize: mermaidMocks.initialize, run: mermaidMocks.run } }));
+vi.mock('mermaid', () => ({ default: {
+  initialize: (config: MermaidConfigMock) => {
+    mermaidMocks.state.darkMode = Boolean(config.themeVariables?.darkMode);
+  },
+  run: (options: unknown) => mermaidMocks.run(options),
+} }));
 
 function installBrowser(overrides: Record<string, unknown> = {}, recentItems: unknown = []) {
   const local = {
@@ -51,7 +61,7 @@ describe('Quire viewer experience', () => {
     vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
     vi.stubGlobal('scrollTo', vi.fn());
     Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() });
-    mermaidMocks.initialize.mockClear();
+    mermaidMocks.state.darkMode = false;
     mermaidMocks.run.mockReset();
     mermaidMocks.run.mockImplementation(mermaidMocks.render);
   });
@@ -827,6 +837,57 @@ describe('Quire viewer experience', () => {
     expect(target!.querySelector('svg')).toBeTruthy();
     expect(mermaidMocks.run).toHaveBeenCalledTimes(2);
     expect(mermaidMocks.run).toHaveBeenCalledWith(expect.objectContaining({ nodes: [target!] }));
+  });
+
+  it('re-renders Mermaid with versioned base-theme variables when appearance changes', async () => {
+    const themeNode = `ThemeNode${Date.now()}`;
+    installBrowser({ storage: { local: {
+      get: vi.fn(async (key: string) => key === 'reader-settings'
+        ? { 'reader-settings': { ...defaultSettings, enableMermaid: true, theme: 'light' } }
+        : { 'recent-documents': [] }),
+      set: vi.fn(async () => undefined),
+      remove: vi.fn(async () => undefined),
+    } } });
+    await createDocumentHandoff({
+      title: 'Theme diagram.md',
+      markdown: `# Theme diagram\n\n\`\`\`mermaid\nflowchart LR\n${themeNode}-->Dark\n\`\`\``,
+    }, { id: 'theme-mermaid', now: Date.now() });
+    history.replaceState(null, '', '/viewer.html?handoff=theme-mermaid');
+    const user = userEvent.setup();
+    render(<App />);
+
+    const target = await waitFor(() => {
+      const node = document.querySelector<HTMLElement>('.mermaid');
+      expect(node?.dataset.resourceState).toBe('ready');
+      expect(node?.dataset.mermaidTheme).toBe('light');
+      return node!;
+    });
+    const lightSvg = target.innerHTML;
+    expect(target.querySelector('svg')?.dataset.darkMode).toBe('false');
+
+    await user.click(screen.getByRole('button', { name: 'Reader settings' }));
+    const drawer = await waitFor(() => {
+      const element = document.querySelector<HTMLElement>('.settings-drawer[aria-label="Reader settings"]');
+      expect(element).toBeTruthy();
+      return element!;
+    });
+    await user.click(within(drawer).getByRole('button', { name: /Dark/ }));
+    const darkTarget = await waitFor(() => {
+      const node = document.querySelector<HTMLElement>('.mermaid');
+      expect(node?.dataset.mermaidTheme).toBe('dark');
+      expect(node?.querySelector('svg')?.dataset.darkMode).toBe('true');
+      return node!;
+    });
+    const darkSvg = darkTarget.innerHTML;
+    expect(darkSvg).not.toBe(lightSvg);
+
+    await user.click(within(drawer).getByRole('button', { name: /Light/ }));
+    await waitFor(() => {
+      const node = document.querySelector<HTMLElement>('.mermaid');
+      expect(node?.dataset.mermaidTheme).toBe('light');
+      expect(node?.innerHTML).toBe(lightSvg);
+    });
+    expect(mermaidMocks.run.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 
   it('keeps menus, command center, URL dialog, and settings mutually exclusive', async () => {

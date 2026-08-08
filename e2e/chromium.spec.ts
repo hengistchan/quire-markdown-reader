@@ -474,17 +474,30 @@ const embedded = true;
       const stage = document.querySelector<HTMLElement>('.reader-stage');
       const tooltip = document.querySelector<HTMLElement>('body > .mermaidTooltip');
       if (!stage) throw new Error('Reader stage is missing.');
+      const resolveColor = (value: string) => {
+        const marker = document.createElement('span');
+        marker.style.color = value;
+        document.body.append(marker);
+        const color = getComputedStyle(marker).color;
+        marker.remove();
+        return color;
+      };
+      const rootStyle = getComputedStyle(document.documentElement);
       return {
         viewportHeight: innerHeight,
         stageBottom: stage.getBoundingClientRect().bottom,
-        rootBackground: getComputedStyle(document.documentElement).backgroundColor,
+        rootBackground: rootStyle.backgroundColor,
         stageBackground: getComputedStyle(stage).backgroundColor,
-        rootOverscroll: getComputedStyle(document.documentElement).overscrollBehaviorY,
+        appSurface: resolveColor(rootStyle.getPropertyValue('--surface-app')),
+        documentSurface: resolveColor(rootStyle.getPropertyValue('--surface-document')),
+        rootOverscroll: rootStyle.overscrollBehaviorY,
         tooltipDisplay: tooltip ? getComputedStyle(tooltip).display : null,
       };
     });
     expect(bottomLayout.stageBottom).toBeGreaterThanOrEqual(bottomLayout.viewportHeight - 1);
-    expect(bottomLayout.rootBackground).toBe(bottomLayout.stageBackground);
+    expect(bottomLayout.rootBackground).toBe(bottomLayout.appSurface);
+    expect(bottomLayout.stageBackground).toBe(bottomLayout.documentSurface);
+    expect(bottomLayout.rootBackground).not.toBe(bottomLayout.stageBackground);
     expect(bottomLayout.rootOverscroll).toBe('none');
     expect(bottomLayout.tooltipDisplay).toBe('none');
 

@@ -1,4 +1,5 @@
 import { useEffect, type RefObject } from 'react';
+import { resolveMermaidTheme } from '../theme/mermaidTheme';
 
 const MERMAID_CACHE_LIMIT = 50;
 const mermaidSvgCache = new Map<string, string>();
@@ -21,16 +22,24 @@ export function useMermaidRuntime(
     let cancelled = false;
     let observer: IntersectionObserver | undefined;
     const effectRenders = new Map<HTMLElement, symbol>();
-    const theme = readerTheme === 'dark' ? 'dark' : 'neutral';
+    const resolvedTheme = resolveMermaidTheme(document.documentElement, readerTheme);
     const renderNode = async (node: HTMLElement) => {
       const encoded = node.dataset.mermaidSource;
-      if (!encoded || node.dataset.resourceState === 'ready' && node.querySelector('svg')) return;
+      if (!encoded) return;
+      if (node.dataset.resourceState === 'ready' && node.querySelector('svg')) {
+        if (node.dataset.mermaidTheme === readerTheme) return;
+        node.replaceChildren();
+        node.dataset.resourceState = 'idle';
+        node.removeAttribute('data-processed');
+        node.removeAttribute('data-mermaid-theme');
+      }
       if (node.dataset.resourceState === 'rendering' && mermaidRenderTokens.has(node)) return;
-      const cacheKey = `${theme}:${encoded}`;
+      const cacheKey = `${resolvedTheme.cacheVersion}:${encoded}`;
       const cached = mermaidSvgCache.get(cacheKey);
       if (cached?.includes('<svg')) {
         node.innerHTML = cached;
         node.dataset.resourceState = 'ready';
+        node.dataset.mermaidTheme = readerTheme;
         node.removeAttribute('aria-busy');
         return;
       }
@@ -51,11 +60,18 @@ export function useMermaidRuntime(
             node.textContent = source;
             node.removeAttribute('data-processed');
             try {
-              mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme, fontFamily: 'ui-sans-serif, system-ui, sans-serif' });
+              mermaid.initialize({
+                startOnLoad: false,
+                securityLevel: 'strict',
+                theme: resolvedTheme.theme,
+                themeVariables: resolvedTheme.themeVariables,
+                fontFamily: resolvedTheme.themeVariables.fontFamily as string,
+              });
               await mermaid.run({ nodes: [node], suppressErrors: true });
               if (cancelled || !node.isConnected || mermaidRenderTokens.get(node) !== token) return;
               if (!node.querySelector('svg')) throw new Error('Mermaid completed without producing an SVG.');
               node.dataset.resourceState = 'ready';
+              node.dataset.mermaidTheme = readerTheme;
               node.removeAttribute('data-resource-error');
               mermaidSvgCache.set(cacheKey, node.innerHTML);
               if (mermaidSvgCache.size > MERMAID_CACHE_LIMIT) mermaidSvgCache.delete(mermaidSvgCache.keys().next().value!);
@@ -94,7 +110,14 @@ export function useMermaidRuntime(
           void renderNode(entry.target as HTMLElement);
         }
       }, { rootMargin: '500px 0px' });
-      for (const node of nodes) observer.observe(node);
+      for (const node of nodes) {
+        if (node.dataset.resourceState === 'ready' && node.querySelector('svg')
+          && node.dataset.mermaidTheme !== readerTheme) {
+          void renderNode(node);
+        } else {
+          observer.observe(node);
+        }
+      }
     } else {
       for (const node of nodes) void renderNode(node);
     }

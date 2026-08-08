@@ -13,14 +13,14 @@
   .reading-progress { left: 48px; width: calc(100% - 48px); }
   .workspace { margin-left: 48px; }
   .workspace.with-context { display: block; }
-  .context-panel { position: fixed; z-index: 45; top: 56px; left: 48px; width: min(280px, calc(100vw - 48px)); box-shadow: var(--shadow); }
+  .context-panel { position: fixed; z-index: 45; top: 56px; left: 48px; width: min(280px, calc(100vw - 48px)); box-shadow: var(--shadow-md); }
   .reader-stage, .with-context .reader-stage { padding: 54px 24px 72px; }
-  .markdown-body h1 { font-size: 38px; }
+  .markdown-body h1 { font-size: 34px; }
   .document-identity span { max-width: 180px; }
   .document-identity strong { max-width: 180px; }
 }
 
-@media (max-width: 470px) {
+@media (max-width: 520px) {
   .history-actions { margin-right: 4px; }
   .history-actions button { width: 24px; }
   .document-identity span { display: none; }
@@ -45,7 +45,6 @@
   .markdown-body { width: 100%; max-width: none; color: black; font-size: 11pt; }
   .markdown-body pre { padding: 1.25em 1.35em; overflow: visible; white-space: pre-wrap; break-inside: avoid; }
   .markdown-body .diagram-shell { overflow: visible; border: 0; background: transparent; }
-  .markdown-body .diagram-shell::before { display: none; }
   .markdown-body .mermaid { padding: 1em 0; overflow: visible; }
   .markdown-body table { width: 100%; break-inside: auto; }
   .markdown-body thead { display: table-header-group; }

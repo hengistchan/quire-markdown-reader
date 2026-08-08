@@ -1,50 +1,56 @@
-.drawer-backdrop { display: flex; justify-content: flex-end; background: rgba(3, 6, 11, .14); }
-.settings-drawer { width: min(370px, 100vw); height: 100%; overflow-y: auto; border-left: 1px solid var(--line); background: var(--panel); box-shadow: -16px 0 50px rgba(0,0,0,.18); animation: slide-in 190ms cubic-bezier(.2,.7,.2,1) both; }
-.drawer-title { position: sticky; z-index: 2; top: 0; display: flex; align-items: flex-start; justify-content: space-between; padding: 24px 22px 18px; border-bottom: 1px solid var(--line); background: var(--panel); }
-.drawer-title h2 { margin: 0; font-size: 18px; }
-.drawer-title p { margin: 5px 0 0; color: var(--muted); font-size: 9px; }
-.icon-button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 8px; background: var(--panel-strong); cursor: pointer; }
+.drawer-backdrop { display: flex; justify-content: flex-end; background: color-mix(in srgb, var(--overlay-scrim) 28%, transparent); }
+.settings-drawer { width: min(370px, 100vw); height: 100%; overflow-y: auto; border-left: 1px solid var(--border); background: var(--surface-sidebar); box-shadow: var(--shadow-elevated); animation: slide-in 190ms cubic-bezier(.2,.7,.2,1) both; scrollbar-color: var(--border-strong) transparent; scrollbar-width: thin; }
+.drawer-title { position: sticky; z-index: 2; top: 0; display: flex; align-items: flex-start; justify-content: space-between; padding: 24px 22px 18px; border-bottom: 1px solid var(--border-soft); background: color-mix(in srgb, var(--surface-sidebar) 95%, transparent); backdrop-filter: blur(12px); }
+.drawer-title h2 { margin: 0; color: var(--text-strong); font-size: 18px; }
+.drawer-title p { margin: 5px 0 0; color: var(--text-secondary); font-size: var(--font-xs); }
+.icon-button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: var(--radius-md); color: var(--icon-secondary); background: var(--surface-muted); cursor: pointer; }
+.icon-button:hover { color: var(--icon-primary); background: var(--hover); }
 .icon-button svg { width: 14px; }
-.settings-drawer section { padding: 20px 22px; border-bottom: 1px solid var(--line); }
-.section-label { display: block; margin-bottom: 13px; color: var(--faint); font-size: 8px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
-.control-label { display: block; margin-bottom: 8px; font-size: 10px; }
-.segmented { display: grid; grid-template-columns: repeat(3, 1fr); padding: 3px; border-radius: 9px; background: var(--paper); }
-.segmented button { display: flex; align-items: center; justify-content: center; gap: 5px; height: 33px; border: 0; border-radius: 7px; color: var(--muted); background: transparent; cursor: pointer; font-size: 9px; }
-.segmented button.active { color: var(--ink); background: var(--accent-soft); }
+.settings-drawer section { padding: 20px 22px; border-bottom: 1px solid var(--border-soft); }
+.section-label { display: block; margin-bottom: 13px; color: var(--text-tertiary); font-size: var(--font-xs); font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.control-label { display: block; margin-bottom: 8px; color: var(--text-primary); font-size: var(--font-xs); }
+.segmented { display: grid; grid-template-columns: repeat(3, 1fr); padding: 3px; border: 1px solid var(--border-soft); border-radius: 9px; background: var(--surface-muted); }
+.segmented button { display: flex; align-items: center; justify-content: center; gap: 5px; height: 33px; border: 0; border-radius: 7px; color: var(--text-secondary); background: transparent; cursor: pointer; font-size: var(--font-xs); }
+.segmented button:hover { color: var(--text-primary); background: var(--hover); }
+.segmented button.active { color: var(--text-strong); background: var(--surface-elevated); box-shadow: var(--shadow-sm); }
 .segmented svg { width: 12px; }
 .system-icon { width: 12px; height: 12px; border: 1px solid currentColor; border-radius: 50%; background: linear-gradient(90deg, currentColor 50%, transparent 50%); }
 .font-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
-.font-choice button { display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; cursor: pointer; }
+.font-choice button { display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--text-primary); background: transparent; cursor: pointer; }
+.font-choice button:hover { border-color: var(--border-strong); background: var(--hover); }
 .font-choice button.active { border-color: var(--accent); background: var(--accent-soft); }
-.font-choice strong { font-size: 9px; }
-.font-choice span { font-family: Charter, Georgia, serif; font-size: 17px; }
+.font-choice strong { font-size: var(--font-xs); }
+.font-choice span { font-family: var(--font-reading-serif); font-size: 17px; }
 .setting-row, .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 0 2px; }
 .setting-row > div, .toggle-row > div { display: grid; gap: 3px; }
-.setting-row strong, .toggle-row strong, .range-setting strong { font-size: 10px; }
-.setting-row span, .toggle-row span { color: var(--muted); font-size: 8px; }
-.setting-row select { min-width: 92px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); background: var(--paper); font-size: 9px; }
+.setting-row strong, .toggle-row strong, .range-setting strong { color: var(--text-primary); font-size: var(--font-xs); }
+.setting-row span, .toggle-row span { color: var(--text-secondary); font-size: var(--font-xs); }
+.setting-row select { min-width: 92px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 7px; color: var(--text-primary); background: var(--surface-elevated); font-size: var(--font-xs); }
 .range-setting { padding-top: 16px; }
 .range-setting > div { display: flex; justify-content: space-between; margin-bottom: 8px; }
-.range-setting output { color: var(--accent-ink); font: 9px ui-monospace, monospace; }
+.range-setting output { color: var(--accent-strong); font: var(--font-xs) var(--font-mono); }
 .range-setting input { width: 100%; accent-color: var(--accent); }
 .toggle-row { position: relative; cursor: pointer; }
 .toggle-row input { position: absolute; opacity: 0; }
-.toggle-row i { position: relative; flex: 0 0 auto; width: 31px; height: 18px; border-radius: 20px; background: var(--panel-strong); transition: background 140ms ease; }
-.toggle-row i::after { content: ''; position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; border-radius: 50%; background: white; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform 140ms ease; }
-.toggle-row input:checked + i { background: var(--accent); }
+.toggle-row i { position: relative; flex: 0 0 auto; width: 31px; height: 18px; border: 1px solid var(--border); border-radius: 20px; background: var(--active); transition: background 140ms ease, border-color 140ms ease; }
+.toggle-row i::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--surface-elevated); box-shadow: var(--shadow-sm); transition: transform 140ms ease; }
+.toggle-row input:focus-visible + i { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.toggle-row input:checked + i { border-color: var(--accent); background: var(--accent); }
 .toggle-row input:checked + i::after { transform: translateX(13px); }
-.settings-group { border-bottom: 1px solid var(--line); }
+.settings-group { border-bottom: 1px solid var(--border-soft); }
 .settings-group summary { display: flex; align-items: center; justify-content: space-between; padding: 17px 22px; cursor: pointer; list-style: none; }
+.settings-group summary:hover { background: var(--hover); }
 .settings-group summary::-webkit-details-marker { display: none; }
 .settings-group summary > span { display: grid; gap: 4px; }
-.settings-group summary strong { font-size: 10px; }
-.settings-group summary small { color: var(--muted); font-size: 8px; }
-.settings-group summary svg { width: 14px; transition: transform 140ms ease; }
+.settings-group summary strong { color: var(--text-primary); font-size: var(--font-xs); }
+.settings-group summary small { color: var(--text-secondary); font-size: var(--font-xs); }
+.settings-group summary svg { width: 14px; color: var(--icon-secondary); transition: transform 140ms ease; }
 .settings-group[open] summary svg { transform: rotate(90deg); }
 .settings-group > div { padding: 0 22px 18px; }
-.settings-drawer textarea { width: 100%; min-height: 110px; resize: vertical; padding: 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--paper); font: 10px/1.6 ui-monospace, monospace; }
-.setting-note { margin: 7px 0 0; color: var(--muted); font-size: 8px; }
+.settings-drawer textarea { width: 100%; min-height: 110px; resize: vertical; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--text-primary); background: var(--surface-document); font: var(--font-xs)/1.6 var(--font-mono); }
+.setting-note { margin: 7px 0 0; color: var(--text-secondary); font-size: var(--font-xs); }
 .settings-footer { display: grid; gap: 18px; padding: 20px 22px 26px; }
-.settings-footer button { width: 100%; min-height: 34px; border: 1px solid var(--line); border-radius: 8px; background: transparent; cursor: pointer; font-size: 9px; }
-.settings-footer span { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 8px; }
+.settings-footer button { width: 100%; min-height: 34px; border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--text-primary); background: transparent; cursor: pointer; font-size: var(--font-xs); }
+.settings-footer button:hover { border-color: var(--border-strong); background: var(--hover); }
+.settings-footer span { display: flex; align-items: center; gap: 7px; color: var(--text-secondary); font-size: var(--font-xs); }
 .settings-footer svg { width: 14px; color: var(--success); }

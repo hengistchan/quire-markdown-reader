@@ -1,2 +1,2 @@
-.app-shell { min-height: 100vh; min-height: 100dvh; background: var(--paper); }
+.app-shell { min-height: 100vh; min-height: 100dvh; background: var(--surface-app); }
 .reading-progress { position: fixed; z-index: 110; top: 0; left: 52px; width: calc(100% - 52px); height: 2px; transform-origin: left; background: var(--accent); transition: transform 120ms linear; }

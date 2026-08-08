@@ -1,12 +1,13 @@
-.toast { position: fixed; z-index: 120; right: 20px; bottom: 20px; max-width: 340px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); box-shadow: var(--shadow); font-size: 10px; animation: rise-in 150ms ease both; }
-.remote-loading { position: fixed; z-index: 120; top: 68px; right: 20px; display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px; border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line)); border-radius: 9px; color: var(--ink); background: var(--panel); box-shadow: var(--shadow); font-size: 10px; font-weight: 700; animation: rise-in 150ms ease both; }
+.toast { position: fixed; z-index: 120; right: 20px; bottom: 20px; max-width: 340px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--text-primary); background: var(--surface-elevated); box-shadow: var(--shadow-md); font-size: var(--font-xs); animation: rise-in 150ms ease both; }
+.remote-loading { position: fixed; z-index: 120; top: 68px; right: 20px; display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px; border: 1px solid color-mix(in srgb, var(--accent) 36%, var(--border)); border-radius: 9px; color: var(--text-primary); background: var(--surface-elevated); box-shadow: var(--shadow-md); font-size: var(--font-xs); font-weight: 700; animation: rise-in 150ms ease both; }
 .remote-loading svg, .loading-spinner { width: 14px; animation: spin 760ms linear infinite; }
-.remote-loading button { padding: 4px 7px; border: 0; border-radius: 5px; color: var(--accent-ink); background: var(--accent-soft); cursor: pointer; font: inherit; }
+.remote-loading button { padding: 4px 7px; border: 0; border-radius: 5px; color: var(--accent-strong); background: var(--accent-soft); cursor: pointer; font: inherit; }
 .workspace-loading { top: 112px; }
-.drop-overlay { position: fixed; z-index: 200; inset: 14px; display: grid; place-content: center; justify-items: center; gap: 12px; border: 2px dashed var(--accent); border-radius: 16px; color: var(--accent-ink); background: color-mix(in srgb, var(--paper) 90%, transparent); backdrop-filter: blur(12px); pointer-events: none; }
+.drop-overlay { position: fixed; z-index: 200; inset: 14px; display: grid; place-content: center; justify-items: center; gap: 12px; border: 2px dashed var(--accent); border-radius: 16px; color: var(--accent-strong); background: color-mix(in srgb, var(--surface-document) 90%, transparent); backdrop-filter: blur(12px); pointer-events: none; }
 .drop-overlay svg { width: 34px; height: 34px; }
-.drop-overlay strong { font-size: 13px; }
-.resume-prompt { position: fixed; z-index: 125; right: 20px; bottom: 20px; display: flex; align-items: center; gap: 8px; max-width: min(520px, calc(100vw - 40px)); padding: 9px 10px 9px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: var(--shadow); font-size: 10px; animation: rise-in 150ms ease both; }
+.drop-overlay strong { font-size: var(--font-md); }
+.resume-prompt { position: fixed; z-index: 125; right: 20px; bottom: 20px; display: flex; align-items: center; gap: 8px; max-width: min(520px, calc(100vw - 40px)); padding: 9px 10px 9px 14px; border: 1px solid var(--border); border-radius: 10px; color: var(--text-primary); background: var(--surface-elevated); box-shadow: var(--shadow-md); font-size: var(--font-xs); animation: rise-in 150ms ease both; }
 .resume-prompt span { margin-right: 4px; font-weight: 750; }
-.resume-prompt button { min-height: 28px; padding: 0 9px; border: 0; border-radius: 6px; color: white; background: var(--accent); cursor: pointer; font-size: 9px; font-weight: 750; }
-.resume-prompt button.quiet { color: var(--muted); background: var(--panel-strong); }
+.resume-prompt button { min-height: 28px; padding: 0 9px; border: 0; border-radius: var(--radius-sm); color: var(--text-on-accent); background: var(--accent-strong); cursor: pointer; font-size: var(--font-xs); font-weight: 750; }
+.resume-prompt button:hover { background: var(--accent-hover); }
+.resume-prompt button.quiet { color: var(--text-secondary); background: var(--surface-muted); }

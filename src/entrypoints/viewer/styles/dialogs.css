@@ -1,11 +1,13 @@
-.url-dialog { width: min(480px, calc(100vw - 32px)); margin: 14vh auto 0; padding: 28px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); box-shadow: var(--shadow); animation: rise-in 160ms ease both; }
-.url-dialog-icon { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; color: var(--accent-ink); background: var(--accent-soft); }
+.url-dialog { width: min(480px, calc(100vw - 32px)); margin: 14vh auto 0; padding: 28px; border: 1px solid var(--border-strong); border-radius: var(--radius-xl); background: var(--surface-elevated); box-shadow: var(--shadow-elevated); animation: rise-in 160ms ease both; }
+.url-dialog-icon { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; color: var(--accent-strong); background: var(--accent-soft); }
 .url-dialog-icon svg { width: 18px; }
-.url-dialog h2 { margin: 17px 0 7px; font-size: 22px; }
-.url-dialog > p { margin: 0 0 17px; color: var(--muted); font-size: 10px; line-height: 1.55; }
-.url-dialog > input { width: 100%; height: 40px; padding: 0 11px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--paper); font: 11px ui-monospace, monospace; }
+.url-dialog h2 { margin: 17px 0 7px; color: var(--text-strong); font-size: 22px; }
+.url-dialog > p { margin: 0 0 17px; color: var(--text-secondary); font-size: var(--font-xs); line-height: 1.55; }
+.url-dialog > input { width: 100%; height: 40px; padding: 0 11px; border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--text-primary); background: var(--surface-document); font: var(--font-sm) var(--font-mono); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 17px; }
-.quiet-button, .primary-button { min-height: 34px; padding: 0 13px; border-radius: 7px; cursor: pointer; font-size: 10px; font-weight: 750; }
-.quiet-button { border: 1px solid var(--line); background: transparent; }
-.primary-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--accent); color: white; background: var(--accent); }
+.quiet-button, .primary-button { min-height: 34px; padding: 0 13px; border-radius: 7px; cursor: pointer; font-size: var(--font-xs); font-weight: 750; }
+.quiet-button { border: 1px solid var(--border); color: var(--text-primary); background: transparent; }
+.quiet-button:hover { border-color: var(--border-strong); background: var(--hover); }
+.primary-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--accent-strong); color: var(--text-on-accent); background: var(--accent-strong); }
+.primary-button:hover { border-color: var(--accent-hover); background: var(--accent-hover); }
 .quiet-button:disabled, .primary-button:disabled, .url-dialog > input:disabled { cursor: wait; opacity: .72; }

@@ -67,7 +67,7 @@ async function captureLocalizedSet(config) {
       await chrome.storage.local.clear();
       await chrome.storage.local.set({
         'reader-settings': {
-          version: 2,
+          version: 4,
           settings: {
             locale: appLocale,
             theme: 'dark',
@@ -82,6 +82,8 @@ async function captureLocalizedSet(config) {
             enableKatex: true,
             enableMermaid: true,
             enableHtml: false,
+            loadRemoteImages: true,
+            remoteImageReferrerPolicy: 'no-referrer',
             customCss: '',
           },
         },
@@ -155,10 +157,10 @@ try {
   await promo.setViewportSize({ width: 440, height: 280 });
   await promo.setContent(`<!doctype html><style>
     *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden}
-    body{display:grid;place-items:center;background:radial-gradient(circle at 74% 12%,#91a0ff 0 3%,transparent 30%),linear-gradient(145deg,#eef0ff,#dfe4ff 48%,#f7f5ef)}
-    .paper{position:absolute;width:210px;height:154px;border:1px solid #ffffffcc;border-radius:17px;background:#ffffffbf;box-shadow:0 24px 70px #293b8b33;transform:rotate(-7deg)}
-    .paper:before,.paper:after{content:"";position:absolute;left:38px;right:25px;height:8px;border-radius:8px;background:#5266d72b}.paper:before{top:42px;box-shadow:0 28px #5266d71c,0 56px #5266d713}.paper:after{top:18px;right:92px;background:#5266d7}
-    .mark{position:relative;display:grid;place-items:center;width:98px;height:98px;border-radius:26px 26px 26px 10px;color:white;background:#5266d7;box-shadow:0 18px 38px #3549a74d;font:850 51px/1 ui-sans-serif,system-ui,sans-serif;letter-spacing:-.04em;transform:translate(88px,34px)}
+    body{display:grid;place-items:center;background:radial-gradient(circle at 74% 12%,#f2e2d8 0 3%,transparent 30%),linear-gradient(145deg,#f1efe9,#e9e6df 48%,#fbfaf7)}
+    .paper{position:absolute;width:210px;height:154px;border:1px solid #fffdf9cc;border-radius:17px;background:#fffdf9d9;box-shadow:0 24px 70px #5c342333;transform:rotate(-7deg)}
+    .paper:before,.paper:after{content:"";position:absolute;left:38px;right:25px;height:8px;border-radius:8px;background:#ba66382b}.paper:before{top:42px;box-shadow:0 28px #ba66381c,0 56px #ba663813}.paper:after{top:18px;right:92px;background:#ba6638}
+    .mark{position:relative;display:grid;place-items:center;width:98px;height:98px;border-radius:26px 26px 26px 10px;color:#fffaf5;background:#ba6638;box-shadow:0 18px 38px #9145214d;font:850 51px/1 ui-sans-serif,system-ui,sans-serif;letter-spacing:-.04em;transform:translate(88px,34px)}
   </style><div class="paper"></div><div class="mark">M</div>`);
   await promo.screenshot({ path: resolve(assets, 'promo-small.png') });
 

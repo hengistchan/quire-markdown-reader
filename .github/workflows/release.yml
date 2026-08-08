@@ -29,6 +29,7 @@ jobs:
       - run: npm run source:verify
       - run: npm run store:verify
       - run: npm run test:e2e:chromium
+      - run: npm run test:visual
       - name: Test Firefox action and context menu
         run: npm run test:e2e:firefox:context
       - name: Test the native Firefox shortcut
