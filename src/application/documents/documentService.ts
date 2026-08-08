@@ -18,6 +18,9 @@ export class DocumentService {
     signal?.addEventListener('abort', abort, { once: true });
     try {
       const snapshot = await source.load(request.signal);
+      if (request.signal.aborted) {
+        throw request.signal.reason ?? new DOMException('The document load was cancelled.', 'AbortError');
+      }
       if (this.currentSource === source) this.currentSnapshot = snapshot;
       return snapshot;
     } catch (error) {
@@ -31,7 +34,9 @@ export class DocumentService {
 
   async refresh(signal?: AbortSignal): Promise<DocumentRefreshResult | undefined> {
     if (!this.currentSource || !this.currentSnapshot) return undefined;
-    const result = await this.currentSource.refresh(this.currentSnapshot, signal);
+    const source = this.currentSource;
+    const result = await source.refresh(this.currentSnapshot, signal);
+    if (signal?.aborted || this.currentSource !== source) return undefined;
     this.currentSnapshot = result.snapshot;
     return result;
   }

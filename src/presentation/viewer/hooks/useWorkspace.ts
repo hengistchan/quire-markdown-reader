@@ -2,6 +2,7 @@ import { useCallback, useRef, useState, type Dispatch, type SetStateAction } fro
 import type { PersistedWorkspaceHandle } from '../../../application/ports/handleRepository';
 import type { ReaderController } from '../../../application/reader/readerController';
 import type { NavigationIntent } from '../../../application/navigation/navigationController';
+import type { NavigationOperationController } from '../../../application/navigation/navigationOperationController';
 import {
   isLocalMarkdownUrl, localMarkdownPathWithinDirectory, localMarkdownTitle,
 } from '../../../core/localMarkdown';
@@ -20,7 +21,9 @@ interface WorkspaceOptions {
     workspace?: WorkspaceSnapshot,
     fragment?: string,
     intent?: NavigationIntent,
+    signal?: AbortSignal,
   ): Promise<void>;
+  navigationOperation: NavigationOperationController;
   setSidebarMode: Dispatch<SetStateAction<SidebarMode | null>>;
   closeOverlay(): void;
   showError(error: ReaderError | undefined): void;
@@ -31,13 +34,13 @@ interface WorkspaceOptions {
 export function useWorkspace(options: WorkspaceOptions) {
   const {
     controller, sourceUrl, workspace, activeFile, openWorkspaceFile, setSidebarMode,
-    closeOverlay, showError, showNotice, t,
+    closeOverlay, showError, showNotice, t, navigationOperation,
   } = options;
   const [restorable, setRestorable] = useState<PersistedWorkspaceHandle>();
   const [scanning, setScanning] = useState(false);
   const [collapsedDirectories, setCollapsedDirectories] = useState<Set<string>>(new Set());
   const directoryInput = useRef<HTMLInputElement>(null);
-  const scanController = useRef<AbortController | undefined>(undefined);
+  const currentScan = useRef<AbortSignal | undefined>(undefined);
 
   const activate = useCallback(async (
     handle: FileSystemDirectoryHandle,
@@ -46,26 +49,32 @@ export function useWorkspace(options: WorkspaceOptions) {
     navigationMode: NavigationIntent = 'push',
     transient = false,
     fragment?: string,
+    operationSignal?: AbortSignal,
   ): Promise<boolean> => {
-    scanController.current?.abort();
-    const request = new AbortController();
-    scanController.current = request;
+    const signal = operationSignal ?? navigationOperation.begin();
+    if (signal.aborted) return false;
+    currentScan.current = signal;
     setScanning(true);
     try {
       const workspaceId = transient ? undefined : await controller.saveWorkspace(handle, existingId);
-      const snapshot = await controller.scanWorkspace(handle, request.signal, workspaceId);
+      if (signal.aborted) return false;
+      const snapshot = await controller.scanWorkspace(handle, signal, workspaceId);
+      if (signal.aborted) return false;
       snapshot.transient = transient;
-      setSidebarMode('files');
       const selected = snapshot.files.find((file) => file.path === preferredPath)
         ?? snapshot.files.find((file) => /^readme\.(md|markdown|mdx)$/i.test(file.path))
         ?? snapshot.files[0];
       if (!selected) {
+        if (signal.aborted) return false;
         showError({ code: 'workspace-empty', retryable: false });
         return false;
       }
-      await openWorkspaceFile(selected, snapshot, fragment, navigationMode);
+      await openWorkspaceFile(selected, snapshot, fragment, navigationMode, signal);
+      if (signal.aborted) return false;
+      setSidebarMode('files');
       return true;
     } catch (caught) {
+      if (signal.aborted) return false;
       if (caught instanceof WorkspaceScanError) {
         if (caught.code !== 'cancelled') {
           showError({ code: 'workspace-scan-limit', cause: caught, retryable: true });
@@ -74,14 +83,15 @@ export function useWorkspace(options: WorkspaceOptions) {
       }
       throw caught;
     } finally {
-      if (scanController.current === request) {
-        scanController.current = undefined;
+      if (currentScan.current === signal) {
+        currentScan.current = undefined;
         setScanning(false);
       }
     }
-  }, [controller, openWorkspaceFile, setSidebarMode, showError]);
+  }, [controller, navigationOperation, openWorkspaceFile, setSidebarMode, showError]);
 
   const openDirectory = async () => {
+    const signal = navigationOperation.begin();
     closeOverlay();
     if (window.top !== window && sourceUrl && isLocalMarkdownUrl(sourceUrl)) {
       directoryInput.current?.setAttribute('webkitdirectory', '');
@@ -93,8 +103,11 @@ export function useWorkspace(options: WorkspaceOptions) {
       return;
     }
     try {
-      await activate(await window.showDirectoryPicker({ mode: 'read' }));
+      const handle = await window.showDirectoryPicker({ mode: 'read' });
+      if (signal.aborted) return;
+      await activate(handle, undefined, undefined, 'push', false, undefined, signal);
     } catch (caught) {
+      if (signal.aborted) return;
       const name = (caught as DOMException).name;
       if (name === 'NotAllowedError') showError({ code: 'permission-denied', cause: caught, retryable: true });
       else if (name !== 'AbortError') showError({ code: 'workspace-read-failed', cause: caught, retryable: true });
@@ -104,20 +117,26 @@ export function useWorkspace(options: WorkspaceOptions) {
   const openTransient = async (files: FileList | null) => {
     const handle = files ? controller.createTransientWorkspace(files) : undefined;
     if (!handle) return;
+    const signal = navigationOperation.begin();
     const preferredPath = sourceUrl && isLocalMarkdownUrl(sourceUrl)
       ? localMarkdownPathWithinDirectory(sourceUrl, handle.name) ?? localMarkdownTitle(sourceUrl)
       : undefined;
-    await activate(handle, preferredPath, undefined, 'push', true);
+    await activate(handle, preferredPath, undefined, 'push', true, undefined, signal);
+    if (signal.aborted) return;
     if (directoryInput.current) directoryInput.current.value = '';
   };
 
   const restore = async () => {
     if (!restorable) return;
-    if (await controller.requestRead(restorable.handle) !== 'granted') {
+    const signal = navigationOperation.begin();
+    const permission = await controller.requestRead(restorable.handle);
+    if (signal.aborted) return;
+    if (permission !== 'granted') {
       showError({ code: 'permission-denied', retryable: true });
       return;
     }
-    await activate(restorable.handle, undefined, restorable.id, 'replace');
+    await activate(restorable.handle, undefined, restorable.id, 'replace', false, undefined, signal);
+    if (signal.aborted) return;
     setRestorable(undefined);
   };
 
@@ -140,7 +159,7 @@ export function useWorkspace(options: WorkspaceOptions) {
     collapsedDirectories,
     directoryInput,
     activate,
-    cancelScan: () => scanController.current?.abort(),
+    cancelScan: () => navigationOperation.cancel(),
     openDirectory,
     openTransient,
     restore,

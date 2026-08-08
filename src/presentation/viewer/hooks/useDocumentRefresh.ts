@@ -25,7 +25,7 @@ export function useDocumentRefresh(options: DocumentRefreshOptions): void {
       kind: options.kind,
       async run(signal) {
         const result = await options.service.refresh(signal);
-        if (result) onResult.current(result);
+        if (result && !signal.aborted) onResult.current(result);
       },
     }).dispose;
   }, [options.enabled, options.kind, options.scheduler, options.service, options.sourceKey]);

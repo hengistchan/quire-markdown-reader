@@ -20,6 +20,11 @@ async function installWorkspacePicker(page: Page): Promise<void> {
     const handlePermissionRequests = new Map<string, number>();
     let remotePermission = true;
     let remotePermissionRequests = 0;
+    let delayedFileName: string | undefined;
+    let delayedFileReadStarted = 0;
+    let delayedFileReadCompleted = 0;
+    let delayedFileReadGate: Promise<void> | undefined;
+    let releaseDelayedFileRead: (() => void) | undefined;
     Object.defineProperty(window, '__quireDenyDirectoryPicker', {
       configurable: true,
       value: () => { denyDirectory = true; },
@@ -39,6 +44,26 @@ async function installWorkspacePicker(page: Page): Promise<void> {
     Object.defineProperty(window, '__quireRemoteRequestCount', {
       configurable: true,
       value: () => remotePermissionRequests,
+    });
+    Object.defineProperty(window, '__quireDelayFileRead', {
+      configurable: true,
+      value: (name: string) => {
+        delayedFileName = name;
+        delayedFileReadGate = new Promise<void>((resolve) => { releaseDelayedFileRead = resolve; });
+      },
+    });
+    Object.defineProperty(window, '__quireDelayedFileReadCounts', {
+      configurable: true,
+      value: () => ({ started: delayedFileReadStarted, completed: delayedFileReadCompleted }),
+    });
+    Object.defineProperty(window, '__quireReleaseFileRead', {
+      configurable: true,
+      value: () => {
+        delayedFileName = undefined;
+        releaseDelayedFileRead?.();
+        releaseDelayedFileRead = undefined;
+        delayedFileReadGate = undefined;
+      },
     });
     const write = async (handle: FileSystemFileHandle, contents: string) => {
       const writable = await handle.createWritable();
@@ -95,6 +120,24 @@ async function installWorkspacePicker(page: Page): Promise<void> {
         },
       });
     }
+    const fileHandlePrototype = globalThis.FileSystemFileHandle?.prototype as FileSystemFileHandle & {
+      getFile?: () => Promise<File>;
+    };
+    const getFile = fileHandlePrototype?.getFile;
+    if (fileHandlePrototype && getFile) {
+      Object.defineProperty(fileHandlePrototype, 'getFile', {
+        configurable: true,
+        value: async function delayedGetFile(this: FileSystemFileHandle) {
+          if (this.name === delayedFileName && delayedFileReadGate) {
+            const gate = delayedFileReadGate;
+            delayedFileReadStarted += 1;
+            await gate;
+            delayedFileReadCompleted += 1;
+          }
+          return getFile.call(this);
+        },
+      });
+    }
     if (globalThis.chrome?.permissions) {
       chrome.permissions.request = async () => {
         remotePermissionRequests += 1;
@@ -112,6 +155,35 @@ async function openRemote(page: Page, url: string): Promise<void> {
   const dialog = page.getByRole('dialog', { name: 'Open Markdown from the web' });
   await dialog.getByPlaceholder('https://example.com/guide.md').fill(url);
   await dialog.getByRole('button', { name: 'Open' }).click();
+}
+
+interface DelayedFileReadCounts {
+  started: number;
+  completed: number;
+}
+
+async function delayFileRead(page: Page, name: string): Promise<DelayedFileReadCounts> {
+  return page.evaluate((fileName) => {
+    const controls = window as unknown as {
+      __quireDelayFileRead(value: string): void;
+      __quireDelayedFileReadCounts(): DelayedFileReadCounts;
+    };
+    const counts = controls.__quireDelayedFileReadCounts();
+    controls.__quireDelayFileRead(fileName);
+    return counts;
+  }, name);
+}
+
+async function delayedFileReadCounts(page: Page): Promise<DelayedFileReadCounts> {
+  return page.evaluate(() => (
+    window as unknown as { __quireDelayedFileReadCounts(): DelayedFileReadCounts }
+  ).__quireDelayedFileReadCounts());
+}
+
+async function releaseFileRead(page: Page): Promise<void> {
+  await page.evaluate(() => (
+    window as unknown as { __quireReleaseFileRead(): void }
+  ).__quireReleaseFileRead());
 }
 
 async function pasteMarkdownFile(page: Page, name: string, markdown: string): Promise<void> {
@@ -721,3 +793,73 @@ test('keeps installed document history coherent across races, reloads, sources, 
     await rm(profile, { recursive: true, force: true });
   }
 });
+
+for (const race of [
+  { source: 'Workspace', fileName: 'README.md', title: 'README' },
+  { source: 'Local', fileName: 'Local C.md', title: 'Local C' },
+] as const) {
+  test(`keeps a newer Remote navigation when a delayed ${race.source} restore finishes`, async () => {
+    const profile = await mkdtemp(join(tmpdir(), `quire-${race.source.toLowerCase()}-remote-race-`));
+    let context: BrowserContext | undefined;
+    let server: Server | undefined;
+    let page: Page | undefined;
+    try {
+      server = createServer((request, response) => {
+        response.setHeader('content-type', 'text/markdown');
+        response.setHeader('access-control-allow-origin', '*');
+        if (request.url === '/A.md') {
+          response.end('# Remote A\n\nRemote A body.');
+          return;
+        }
+        if (request.url === '/B.md') {
+          response.end('# Remote B\n\nRemote B wins the navigation race.');
+          return;
+        }
+        response.writeHead(404);
+        response.end('Not found');
+      });
+      await new Promise<void>((ready) => server!.listen(0, '127.0.0.1', ready));
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('Could not start navigation race server.');
+      const baseUrl = `http://127.0.0.1:${address.port}`;
+
+      context = await chromium.launchPersistentContext(profile, {
+        channel: 'chromium',
+        headless: true,
+        locale: 'en-US',
+        viewport: { width: 1280, height: 800 },
+        args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`, '--lang=en-US'],
+      });
+      const id = await extensionId(context);
+      page = await context.newPage();
+      await installWorkspacePicker(page);
+      await page.goto(`chrome-extension://${id}/viewer.html`);
+      await page.getByRole('button', { name: 'Open', exact: true }).click();
+      await page.getByRole('button', { name: race.source === 'Workspace' ? 'Open folder' : 'Open file' }).click();
+      await expect(page.locator('.document-identity strong')).toHaveText(race.title);
+
+      await openRemote(page, `${baseUrl}/A.md`);
+      await expect(page.locator('.document-identity strong')).toHaveText('A');
+      const before = await delayFileRead(page, race.fileName);
+
+      await page.getByRole('button', { name: 'Previous document' }).click();
+      await expect.poll(async () => (await delayedFileReadCounts(page!)).started).toBe(before.started + 1);
+
+      await openRemote(page, `${baseUrl}/B.md`);
+      await expect(page.locator('.document-identity strong')).toHaveText('B');
+      await expect(page.getByText('Remote B wins the navigation race.')).toBeVisible();
+      await releaseFileRead(page);
+      await expect.poll(async () => (await delayedFileReadCounts(page!)).completed).toBe(before.completed + 1);
+
+      await expect(page.locator('.document-identity strong')).toHaveText('B');
+      await expect(page.getByText('Remote B wins the navigation race.')).toBeVisible();
+      await expect(page).toHaveURL(new RegExp(`remote=${encodeURIComponent(`${baseUrl}/B.md`)}`));
+      await expect(page.getByRole('heading', { level: 1, name: race.source === 'Workspace' ? 'Workspace Home' : 'Local C' })).toHaveCount(0);
+    } finally {
+      if (page && !page.isClosed()) await releaseFileRead(page).catch(() => undefined);
+      await context?.close();
+      if (server) await new Promise<void>((done) => server!.close(() => done()));
+      await rm(profile, { recursive: true, force: true });
+    }
+  });
+}

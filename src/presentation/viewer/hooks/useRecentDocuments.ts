@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import type { NavigationOperationController } from '../../../application/navigation/navigationOperationController';
 import type { RecentItem, RecentItemInput } from '../../../application/ports/recentRepository';
 import type { ReaderController } from '../../../application/reader/readerController';
 import type { DocumentSession } from '../../../domain/documentSession';
@@ -36,8 +37,9 @@ export function useRecentDocuments(
     setItems,
   );
 
-  const record = useCallback(async (item: RecentItemInput) => {
-    setItems(await controller.rememberRecent(item));
+  const record = useCallback(async (item: RecentItemInput, signal?: AbortSignal) => {
+    const nextItems = await controller.rememberRecent(item);
+    if (!signal?.aborted) setItems(nextItems);
   }, [controller]);
 
   const prepareResume = useCallback((item: RecentItem) => {
@@ -75,42 +77,79 @@ export function useRecentDocuments(
 
 interface RecentDocumentActionsOptions {
   controller: ReaderController;
+  navigationOperation: NavigationOperationController;
   clearResume(): void;
   prepareResume(item: RecentItem): void;
-  openRemote(url: string): Promise<void>;
-  activateWorkspace(handle: FileSystemDirectoryHandle, path?: string, id?: string): Promise<boolean>;
-  openLocalHandle(handle: FileSystemFileHandle, id?: string): Promise<void>;
+  openRemote(
+    url: string,
+    requestPermission?: boolean,
+    intent?: 'push' | 'replace' | 'traverse',
+    fragment?: string,
+    signal?: AbortSignal,
+  ): Promise<void>;
+  activateWorkspace(
+    handle: FileSystemDirectoryHandle,
+    path?: string,
+    id?: string,
+    intent?: 'push' | 'replace' | 'traverse',
+    transient?: boolean,
+    fragment?: string,
+    signal?: AbortSignal,
+  ): Promise<boolean>;
+  openLocalHandle(
+    handle: FileSystemFileHandle,
+    id?: string,
+    fragment?: string,
+    intent?: 'push' | 'replace' | 'traverse',
+    signal?: AbortSignal,
+  ): Promise<void>;
   closeOverlay(): void;
   showError(error: ReaderError): void;
 }
 
 export function useRecentDocumentActions(options: RecentDocumentActionsOptions) {
   const {
-    controller, clearResume, prepareResume, openRemote, activateWorkspace,
+    controller, navigationOperation, clearResume, prepareResume, openRemote, activateWorkspace,
     openLocalHandle, closeOverlay, showError,
   } = options;
 
   const open = useCallback(async (item: RecentItem) => {
+    const signal = navigationOperation.begin();
     clearResume();
-    if (item.kind === 'remote' && item.url) await openRemote(item.url);
+    if (item.kind === 'remote' && item.url) {
+      await openRemote(item.url, true, 'push', undefined, signal);
+    }
     else if (item.kind === 'workspace-file') {
       const stored = await controller.getWorkspace(item.workspaceId);
-      if (!stored) showError({ code: 'workspace-read-failed', retryable: true });
-      else if (await controller.requestRead(stored.handle) === 'granted') {
-        await activateWorkspace(stored.handle, item.filePath, stored.id);
-      } else showError({ code: 'permission-denied', retryable: true });
+      if (signal.aborted) return;
+      if (!stored) {
+        showError({ code: 'workspace-read-failed', retryable: true });
+      } else {
+        const permission = await controller.requestRead(stored.handle);
+        if (signal.aborted) return;
+        if (permission === 'granted') {
+          await activateWorkspace(stored.handle, item.filePath, stored.id, 'push', false, undefined, signal);
+        } else showError({ code: 'permission-denied', retryable: true });
+      }
     } else if (item.kind === 'local-file') {
       const stored = await controller.getFile(item.fileId);
-      if (!stored) showError({ code: 'file-read-failed', retryable: true });
-      else if (await controller.requestRead(stored.handle) === 'granted') {
-        await openLocalHandle(stored.handle, stored.id);
-      } else showError({ code: 'permission-denied', retryable: true });
+      if (signal.aborted) return;
+      if (!stored) {
+        showError({ code: 'file-read-failed', retryable: true });
+      } else {
+        const permission = await controller.requestRead(stored.handle);
+        if (signal.aborted) return;
+        if (permission === 'granted') {
+          await openLocalHandle(stored.handle, stored.id, undefined, 'push', signal);
+        } else showError({ code: 'permission-denied', retryable: true });
+      }
     }
+    if (signal.aborted) return;
     prepareResume(item);
     closeOverlay();
   }, [
     activateWorkspace, clearResume, closeOverlay, controller, openLocalHandle, openRemote,
-    prepareResume, showError,
+    navigationOperation, prepareResume, showError,
   ]);
 
   return { open };

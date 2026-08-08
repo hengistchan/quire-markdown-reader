@@ -110,11 +110,12 @@ export class ReaderController {
   }
 
   async openImported(document: ImportedDocument, signal?: AbortSignal, existingSessionId?: string) {
-    const sessionId = this.dependencies.importedDocumentRegistry.put(document, existingSessionId);
     const snapshot = await this.dependencies.documentService.open(
       this.dependencies.documentSourceFactory.createImported(document),
       signal,
     );
+    if (signal?.aborted) throw signal.reason;
+    const sessionId = this.dependencies.importedDocumentRegistry.put(document, existingSessionId);
     return { sessionId, snapshot };
   }
 

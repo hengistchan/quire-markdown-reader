@@ -19,6 +19,7 @@ import { useReaderDocument } from './useReaderDocument';
 import { useReaderInitialization } from './useReaderInitialization';
 import type { ReaderController } from '../../../application/reader/readerController';
 import type { NavigationTarget } from '../../../domain/navigation/navigationTarget';
+import { NavigationOperationController } from '../../../application/navigation/navigationOperationController';
 
 const WIDE_READER_WIDTH = 980;
 
@@ -34,6 +35,7 @@ export function useReaderController(controller: ReaderController) {
   const feedback = useReaderFeedback();
   const { error, notice, showError: setError, showNotice: setNotice } = feedback;
   const [sidebarMode, setSidebarMode] = useState<SidebarMode | null>(null);
+  const [navigationOperation] = useState(() => new NavigationOperationController());
   const setActiveOverlay = overlays.setActive;
   const [urlValue, setUrlValue] = useState('');
   const [dragActive, setDragActive] = useState(false);
@@ -51,7 +53,7 @@ export function useReaderController(controller: ReaderController) {
     articleRef, activeHeadingId, progress, queueDocumentNavigation, htmlMarkup, headings,
     readMinutes, workspaceName, jumpToHeading,
   } = documentFeature;
-  const navigateToTargetRef = useRef<((target?: NavigationTarget) => Promise<void>) | undefined>(undefined);
+  const navigateToTargetRef = useRef<((target?: NavigationTarget, signal?: AbortSignal) => Promise<void>) | undefined>(undefined);
   const navigation = useReaderNavigation(controller, (target) => {
     void navigateToTargetRef.current?.(target);
   });
@@ -64,7 +66,10 @@ export function useReaderController(controller: ReaderController) {
   const { openMenuOpen, moreMenuOpen, commandOpen, settingsOpen, urlOpen } = overlays;
 
   const shortcutLabels = useMemo(() => createShortcutLabels(), []);
-  useEffect(() => () => controller.dispose(), [controller]);
+  useEffect(() => () => {
+    navigationOperation.cancel();
+    controller.dispose();
+  }, [controller, navigationOperation]);
 
   const updateSettings = settingsFeature.update;
   const documents = useDocumentOpen({
@@ -79,6 +84,7 @@ export function useReaderController(controller: ReaderController) {
     showError: setError,
     fileInput,
     pastedTitle: t('pastedDocument'),
+    navigationOperation,
   });
   const {
     openImported: openImportedDocument,
@@ -87,7 +93,6 @@ export function useReaderController(controller: ReaderController) {
     openDroppedFile: handleFile,
     openFilePicker: handleOpenFile,
     openRemote,
-    cancelPendingRemote,
     cancelRemoteLoad,
     handleArticleClick,
     handlePaste,
@@ -105,6 +110,7 @@ export function useReaderController(controller: ReaderController) {
     showError: setError,
     showNotice: setNotice,
     t,
+    navigationOperation,
   });
   const {
     restorable: restorableWorkspace,
@@ -123,6 +129,7 @@ export function useReaderController(controller: ReaderController) {
   } = workspaceFeature;
   const recentActions = useRecentDocumentActions({
     controller,
+    navigationOperation,
     clearResume,
     prepareResume,
     openRemote,
@@ -139,7 +146,7 @@ export function useReaderController(controller: ReaderController) {
     showError: setError,
     setRestorableWorkspace,
     clearResume,
-    cancelPendingRemote,
+    navigationOperation,
     queueDocumentNavigation,
     openWorkspaceFile,
     activateWorkspace,
@@ -153,11 +160,14 @@ export function useReaderController(controller: ReaderController) {
   useReaderInitialization({
     controller,
     currentTarget: navigation.current,
+    navigationOperation,
     replaceSettings: settingsFeature.replace,
     replaceRecent: recentFeature.replace,
-    openImported: (document) => openImportedDocument(document, undefined, 'replace'),
+    openImported: (document, signal) => openImportedDocument(document, undefined, 'replace', undefined, signal),
     navigateToTarget: restoration.navigateToTarget,
-    activateWorkspace: (handle, path, id) => activateWorkspace(handle, path, id, 'replace'),
+    activateWorkspace: (handle, path, id, signal) => (
+      activateWorkspace(handle, path, id, 'replace', false, undefined, signal)
+    ),
     setRestorableWorkspace,
     setSidebarMode,
   });
@@ -192,14 +202,22 @@ export function useReaderController(controller: ReaderController) {
   const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setDragActive(false);
+    const signal = navigationOperation.begin();
     for (const item of [...event.dataTransfer.items]) {
       const getHandle = (item as DataTransferItem & { getAsFileSystemHandle?: () => Promise<FileSystemHandle | null> }).getAsFileSystemHandle;
       const handle = await getHandle?.call(item);
-      if (handle?.kind === 'directory') { await activateWorkspace(handle as FileSystemDirectoryHandle); return; }
-      if (handle?.kind === 'file') { await handleFileHandle(handle as FileSystemFileHandle); return; }
+      if (signal.aborted) return;
+      if (handle?.kind === 'directory') {
+        await activateWorkspace(handle as FileSystemDirectoryHandle, undefined, undefined, 'push', false, undefined, signal);
+        return;
+      }
+      if (handle?.kind === 'file') {
+        await handleFileHandle(handle as FileSystemFileHandle, undefined, undefined, 'push', signal);
+        return;
+      }
     }
     const file = event.dataTransfer.files[0];
-    if (file) await handleFile(file);
+    if (file && !signal.aborted) await handleFile(file, signal);
   };
 
   const toggleWorkspacePanel = () => {

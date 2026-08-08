@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ReaderControllerDependencies } from './readerController';
 import { ReaderController } from './readerController';
 import { defaultSettings } from '../../shared/defaultSettings';
+import type { DocumentSnapshot, DocumentSource } from '../documents/documentSource';
 
 function dependencies(): ReaderControllerDependencies {
   return {
@@ -60,5 +61,61 @@ describe('ReaderController', () => {
 
     expect(fakes.settingsRepository.save).toHaveBeenCalledWith({ ...defaultSettings, theme: 'dark' });
     expect(fakes.navigationController.push).toHaveBeenCalledWith(target);
+  });
+
+  it('forwards the navigation signal through every document source', async () => {
+    const fakes = dependencies();
+    const controller = new ReaderController(fakes);
+    const signal = new AbortController().signal;
+    const importedSource = {} as DocumentSource;
+    const localSource = {} as DocumentSource;
+    const workspaceSource = {} as DocumentSource;
+    const remoteSource = {} as DocumentSource;
+    const file = {
+      id: 'file', name: 'README.md', path: 'README.md', depth: 0, handle: {} as FileSystemFileHandle,
+    };
+    const workspace = {
+      id: 'workspace', name: 'Workspace', files: [file], tree: [], handle: {} as FileSystemDirectoryHandle,
+    };
+    const snapshot: DocumentSnapshot = {
+      identity: { sourceKind: 'imported', stableId: 'document', displayName: 'Document' },
+      title: 'Document', markdown: '# Document', format: 'markdown', metadata: {},
+    };
+    vi.mocked(fakes.documentSourceFactory.createImported).mockReturnValue(importedSource);
+    vi.mocked(fakes.documentSourceFactory.createLocalFile).mockReturnValue(localSource);
+    vi.mocked(fakes.documentSourceFactory.createWorkspaceFile).mockReturnValue(workspaceSource);
+    vi.mocked(fakes.documentSourceFactory.createRemote).mockReturnValue(remoteSource);
+    vi.mocked(fakes.documentService.open).mockResolvedValue(snapshot);
+
+    await controller.openImported({ title: 'Imported', markdown: '# Imported' }, signal);
+    await controller.openLocalFile(file, signal);
+    await controller.openWorkspaceFile(workspace, file, signal);
+    await controller.openRemote('https://example.com/README.md', signal);
+
+    expect(fakes.documentService.open).toHaveBeenNthCalledWith(1, importedSource, signal);
+    expect(fakes.documentService.open).toHaveBeenNthCalledWith(2, localSource, signal);
+    expect(fakes.documentService.open).toHaveBeenNthCalledWith(3, workspaceSource, signal);
+    expect(fakes.documentService.open).toHaveBeenNthCalledWith(4, remoteSource, signal);
+  });
+
+  it('does not register an imported document after its navigation was cancelled', async () => {
+    const fakes = dependencies();
+    const controller = new ReaderController(fakes);
+    const operation = new AbortController();
+    const reason = new DOMException('Superseded', 'AbortError');
+    vi.mocked(fakes.documentSourceFactory.createImported).mockReturnValue({} as DocumentSource);
+    vi.mocked(fakes.documentService.open).mockImplementation(async () => {
+      operation.abort(reason);
+      return {
+        identity: { sourceKind: 'imported', stableId: 'document', displayName: 'Document' },
+        title: 'Document', markdown: '# Document', format: 'markdown', metadata: {},
+      };
+    });
+
+    await expect(controller.openImported(
+      { title: 'Imported', markdown: '# Imported' },
+      operation.signal,
+    )).rejects.toBe(reason);
+    expect(fakes.importedDocumentRegistry.put).not.toHaveBeenCalled();
   });
 });

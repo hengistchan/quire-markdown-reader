@@ -4,6 +4,7 @@ import {
 import type { RecentItemInput } from '../../../application/ports/recentRepository';
 import type { ReaderController } from '../../../application/reader/readerController';
 import type { NavigationIntent } from '../../../application/navigation/navigationController';
+import type { NavigationOperationController } from '../../../application/navigation/navigationOperationController';
 import {
   isLocalMarkdownUrl, isSelectLocalMarkdownWorkspaceFileMessage, NAVIGATE_LOCAL_MARKDOWN_WORKSPACE,
 } from '../../../core/localMarkdown';
@@ -25,40 +26,35 @@ interface DocumentOpenOptions {
   navigation: ReaderNavigationModel;
   dispatchSession(action: DocumentSessionAction): void;
   queueDocumentNavigation(fragment?: string): void;
-  recordRecent(item: RecentItemInput): Promise<void>;
+  recordRecent(item: RecentItemInput, signal?: AbortSignal): Promise<void>;
   setSidebarMode: Dispatch<SetStateAction<SidebarMode | null>>;
   closeOverlay(): void;
   showError(error: ReaderError | undefined): void;
   fileInput: RefObject<HTMLInputElement | null>;
   pastedTitle: string;
+  navigationOperation: NavigationOperationController;
 }
 
 export function useDocumentOpen(options: DocumentOpenOptions) {
   const {
     controller, session, navigation, dispatchSession, queueDocumentNavigation, recordRecent,
-    setSidebarMode, closeOverlay, showError, fileInput,
+    setSidebarMode, closeOverlay, showError, fileInput, navigationOperation,
   } = options;
   const [remoteLoading, setRemoteLoading] = useState(false);
   const [remoteRetryUrl, setRemoteRetryUrl] = useState<string>();
-  const remoteRequestSequence = useRef(0);
-  const remoteRequest = useRef<{ id: number; controller: AbortController } | undefined>(undefined);
   const embeddedLocalSourceUrl = useRef<string | undefined>(undefined);
-
-  const abortRemoteRequest = useCallback(() => {
-    remoteRequestSequence.current += 1;
-    remoteRequest.current?.controller.abort();
-    remoteRequest.current = undefined;
-    setRemoteLoading(false);
-  }, []);
 
   const openImported = useCallback(async (
     imported: ImportedDocument,
     fragment?: string,
     navigationMode: NavigationIntent = 'push',
     existingSessionId?: string,
+    operationSignal?: AbortSignal,
   ) => {
-    abortRemoteRequest();
-    const opened = await controller.openImported(imported, undefined, existingSessionId);
+    const signal = operationSignal ?? navigationOperation.begin();
+    if (signal.aborted) return;
+    const opened = await controller.openImported(imported, signal, existingSessionId);
+    if (signal.aborted) return;
     if (window.top !== window && imported.sourceUrl && isLocalMarkdownUrl(imported.sourceUrl)) {
       embeddedLocalSourceUrl.current = imported.sourceUrl;
     }
@@ -70,20 +66,33 @@ export function useDocumentOpen(options: DocumentOpenOptions) {
     showError(undefined);
     queueDocumentNavigation(fragment);
     scrollTo({ top: 0 });
-  }, [abortRemoteRequest, controller, dispatchSession, navigation, queueDocumentNavigation, setSidebarMode, showError]);
+  }, [controller, dispatchSession, navigation, navigationOperation, queueDocumentNavigation, setSidebarMode, showError]);
 
   const openWorkspaceFile = useCallback(async (
     file: WorkspaceFile,
     currentWorkspace?: WorkspaceSnapshot,
     fragment?: string,
     navigationMode: NavigationIntent = 'push',
+    operationSignal?: AbortSignal,
   ) => {
-    abortRemoteRequest();
+    const signal = operationSignal ?? navigationOperation.begin();
+    if (signal.aborted) return;
     const targetWorkspace = currentWorkspace ?? (session.kind === 'workspace' ? session.workspace : undefined);
     if (!targetWorkspace) throw new Error('A workspace is required to open a workspace file.');
-    const snapshot = await controller.openWorkspaceFile(targetWorkspace, file);
+    const snapshot = await controller.openWorkspaceFile(targetWorkspace, file, signal);
+    if (signal.aborted) return;
     if (snapshot.metadata.lastModified === undefined || snapshot.metadata.size === undefined) {
       throw new Error('A local file snapshot requires modification metadata.');
+    }
+    if (targetWorkspace.id) {
+      await recordRecent({
+        id: `workspace-file:${targetWorkspace.id}:${file.path}`,
+        title: file.name,
+        kind: 'workspace-file',
+        workspaceId: targetWorkspace.id,
+        filePath: file.path,
+      }, signal);
+      if (signal.aborted) return;
     }
     dispatchSession({
       type: 'replace',
@@ -96,13 +105,6 @@ export function useDocumentOpen(options: DocumentOpenOptions) {
       ),
     });
     if (targetWorkspace.id) {
-      await recordRecent({
-        id: `workspace-file:${targetWorkspace.id}:${file.path}`,
-        title: file.name,
-        kind: 'workspace-file',
-        workspaceId: targetWorkspace.id,
-        filePath: file.path,
-      });
       if (navigationMode !== 'traverse') navigation.record({
         document: { kind: 'workspace-file', workspaceId: targetWorkspace.id, filePath: file.path },
         fragment,
@@ -119,7 +121,7 @@ export function useDocumentOpen(options: DocumentOpenOptions) {
     showError(undefined);
     queueDocumentNavigation(fragment);
     scrollTo({ top: 0, behavior: 'smooth' });
-  }, [abortRemoteRequest, controller, dispatchSession, navigation, queueDocumentNavigation, recordRecent, session, showError]);
+  }, [controller, dispatchSession, navigation, navigationOperation, queueDocumentNavigation, recordRecent, session, showError]);
 
   useEffect(() => {
     const workspace = session.kind === 'workspace' ? session.workspace : undefined;
@@ -139,18 +141,24 @@ export function useDocumentOpen(options: DocumentOpenOptions) {
     existingId?: string,
     fragment?: string,
     navigationMode: NavigationIntent = 'push',
+    operationSignal?: AbortSignal,
   ) => {
+    const signal = operationSignal ?? navigationOperation.begin();
+    if (signal.aborted) return;
     if (!handle.name.match(/\.(md|markdown|mdx)$/i)) {
       showError({ code: 'file-type-invalid', retryable: false });
       return;
     }
-    abortRemoteRequest();
     const fileId = await controller.saveFile(handle, existingId);
+    if (signal.aborted) return;
     const file: WorkspaceFile = { id: `file:${fileId}`, name: handle.name, path: handle.name, depth: 0, handle };
-    const snapshot = await controller.openLocalFile(file);
+    const snapshot = await controller.openLocalFile(file, signal);
+    if (signal.aborted) return;
     if (snapshot.metadata.lastModified === undefined || snapshot.metadata.size === undefined) {
       throw new Error('A local file snapshot requires modification metadata.');
     }
+    await recordRecent({ id: `local-file:${fileId}`, title: handle.name, kind: 'local-file', fileId }, signal);
+    if (signal.aborted) return;
     dispatchSession({
       type: 'replace',
       session: createFileSession(file, snapshot.markdown, snapshot.metadata.lastModified, snapshot.metadata.size),
@@ -162,20 +170,25 @@ export function useDocumentOpen(options: DocumentOpenOptions) {
     showError(undefined);
     scrollTo({ top: 0 });
     closeOverlay();
-    await recordRecent({ id: `local-file:${fileId}`, title: handle.name, kind: 'local-file', fileId });
     queueDocumentNavigation(fragment);
-  }, [abortRemoteRequest, closeOverlay, controller, dispatchSession, navigation, queueDocumentNavigation, recordRecent, setSidebarMode, showError]);
+  }, [closeOverlay, controller, dispatchSession, navigation, navigationOperation, queueDocumentNavigation, recordRecent, setSidebarMode, showError]);
 
-  const openDroppedFile = useCallback(async (file: File) => {
+  const openDroppedFile = useCallback(async (file: File, operationSignal?: AbortSignal) => {
+    const signal = operationSignal ?? navigationOperation.begin();
+    if (signal.aborted) return;
     if (!file.name.match(/\.(md|markdown|mdx)$/i)) {
       showError({ code: 'file-type-invalid', retryable: false });
       return;
     }
-    await openImported({ title: file.name, markdown: await file.text() });
+    const markdown = await file.text();
+    if (signal.aborted) return;
+    await openImported({ title: file.name, markdown }, undefined, 'push', undefined, signal);
+    if (signal.aborted) return;
     closeOverlay();
-  }, [closeOverlay, openImported, showError]);
+  }, [closeOverlay, navigationOperation, openImported, showError]);
 
   const openFilePicker = useCallback(async () => {
+    const signal = navigationOperation.begin();
     if (!('showOpenFilePicker' in window)) {
       fileInput.current?.click();
       return;
@@ -185,47 +198,46 @@ export function useDocumentOpen(options: DocumentOpenOptions) {
         multiple: false,
         types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md', '.markdown', '.mdx'] } }],
       });
-      if (handle) await openLocalHandle(handle);
+      if (handle && !signal.aborted) await openLocalHandle(handle, undefined, undefined, 'push', signal);
     } catch (caught) {
+      if (signal.aborted) return;
       if ((caught as DOMException).name !== 'AbortError') {
         showError(toReaderError(caught, 'file-read-failed'));
       }
     }
-  }, [fileInput, openLocalHandle, showError]);
+  }, [fileInput, navigationOperation, openLocalHandle, showError]);
 
   const openRemote = useCallback(async (
     value: string,
     requestPermission = true,
     navigationMode: NavigationIntent = 'push',
     targetFragment?: string,
+    operationSignal?: AbortSignal,
   ) => {
-    const requestId = remoteRequestSequence.current + 1;
-    remoteRequestSequence.current = requestId;
-    remoteRequest.current?.controller.abort();
+    const signal = operationSignal ?? navigationOperation.begin();
+    if (signal.aborted) return;
     if (!isRemoteUrl(value)) {
-      remoteRequest.current = undefined;
       setRemoteLoading(false);
       showError({ code: 'invalid-url', retryable: false });
       setRemoteRetryUrl(undefined);
       return;
     }
-    const requestController = new AbortController();
-    remoteRequest.current = { id: requestId, controller: requestController };
-    const isLatestRequest = () => remoteRequest.current?.id === requestId;
+    const stopLoading = () => setRemoteLoading(false);
+    signal.addEventListener('abort', stopLoading, { once: true });
     showError(undefined);
     setRemoteRetryUrl(undefined);
     setRemoteLoading(true);
     try {
       if (requestPermission) {
         const granted = await controller.requestRemoteOrigin(value);
-        if (!isLatestRequest()) return;
+        if (signal.aborted) return;
         if (!granted) {
           showError({ code: 'permission-denied', retryable: true });
           return;
         }
       }
-      const snapshot = await controller.openRemote(value, requestController.signal);
-      if (!isLatestRequest()) return;
+      const snapshot = await controller.openRemote(value, signal);
+      if (signal.aborted) return;
       if (!snapshot.remoteState) throw new Error('A remote document snapshot requires refresh state.');
       const document = {
         title: snapshot.title,
@@ -234,6 +246,13 @@ export function useDocumentOpen(options: DocumentOpenOptions) {
       };
       const documentUrl = new URL(snapshot.remoteState.url);
       documentUrl.hash = '';
+      await recordRecent({
+        id: `remote:${documentUrl.href}`,
+        title: snapshot.title,
+        kind: 'remote',
+        url: documentUrl.href,
+      }, signal);
+      if (signal.aborted) return;
       dispatchSession({ type: 'replace', session: createRemoteSession(document, snapshot.remoteState) });
       const fragment = targetFragment ?? linkFragment(value);
       if (navigationMode !== 'traverse') navigation.record({
@@ -243,30 +262,23 @@ export function useDocumentOpen(options: DocumentOpenOptions) {
       setSidebarMode((current) => current === 'files' ? null : current);
       scrollTo({ top: 0 });
       closeOverlay();
-      await recordRecent({
-        id: `remote:${documentUrl.href}`,
-        title: snapshot.title,
-        kind: 'remote',
-        url: documentUrl.href,
-      });
     } catch (caught) {
-      if (!isLatestRequest()) return;
+      if (signal.aborted) return;
       if (caught instanceof RemoteDocumentError && caught.code === 'cancelled') return;
       const readerError = toReaderError(caught, 'remote-network-error');
       showError(readerError);
       if (readerError.retryable) setRemoteRetryUrl(value);
     } finally {
-      if (isLatestRequest()) {
-        remoteRequest.current = undefined;
-        setRemoteLoading(false);
-      }
+      signal.removeEventListener('abort', stopLoading);
+      if (!signal.aborted) setRemoteLoading(false);
     }
-  }, [closeOverlay, controller, dispatchSession, navigation, queueDocumentNavigation, recordRecent, setSidebarMode, showError]);
+  }, [closeOverlay, controller, dispatchSession, navigation, navigationOperation, queueDocumentNavigation, recordRecent, setSidebarMode, showError]);
 
   const cancelRemoteLoad = useCallback(() => {
-    abortRemoteRequest();
+    navigationOperation.cancel();
+    setRemoteLoading(false);
     closeOverlay();
-  }, [abortRemoteRequest, closeOverlay]);
+  }, [closeOverlay, navigationOperation]);
 
   const handleArticleClick = (event: React.MouseEvent<HTMLElement>) => {
     const anchor = (event.target as Element).closest<HTMLAnchorElement>('a[href]');
@@ -277,6 +289,7 @@ export function useDocumentOpen(options: DocumentOpenOptions) {
     if (resolution.type === 'fragment') {
       if (!resolution.fragment) return;
       event.preventDefault();
+      navigationOperation.begin();
       navigation.pushFragment(resolution.fragment);
       queueDocumentNavigation(resolution.fragment);
       return;
@@ -317,7 +330,6 @@ export function useDocumentOpen(options: DocumentOpenOptions) {
     openDroppedFile,
     openFilePicker,
     openRemote,
-    cancelPendingRemote: abortRemoteRequest,
     cancelRemoteLoad,
     handleArticleClick,
     handlePaste,
