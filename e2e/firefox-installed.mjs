@@ -76,8 +76,9 @@ try {
     const handlesAfter = await driver.getAllWindowHandles();
     await driver.switchTo().window(handlesAfter.find((handle) => !handlesBefore.includes(handle)));
     await driver.wait(until.titleIs('Quire'), 10_000);
-    await driver.wait(until.elementLocated(By.css('.document-identity strong')), 10_000);
-    assert.equal(await driver.findElement(By.css('.document-identity strong')).getText(), 'Example Domain');
+    const identity = await driver.wait(until.elementLocated(By.css('.document-identity strong')), 10_000);
+    await driver.wait(until.elementTextIs(identity, 'Example Domain'), 15_000);
+    assert.equal(await identity.getText(), 'Example Domain');
   };
 
   await openExample();
