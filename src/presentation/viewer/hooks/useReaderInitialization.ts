@@ -4,6 +4,7 @@ import type { ReaderController } from '../../../application/reader/readerControl
 import type { NavigationTarget } from '../../../domain/navigation/navigationTarget';
 import type { ImportedDocument, ReaderSettings, SidebarMode } from '../../../shared/types';
 import type { RecentItem } from '../../../application/ports/recentRepository';
+import type { RecentResource } from '../../../application/ports/recentResourceRepository';
 import type { NavigationOperationController } from '../../../application/navigation/navigationOperationController';
 
 interface ReaderInitializationOptions {
@@ -11,6 +12,7 @@ interface ReaderInitializationOptions {
   currentTarget?: NavigationTarget;
   replaceSettings(settings: ReaderSettings): void;
   replaceRecent(items: RecentItem[]): void;
+  replaceRecentResources(items: RecentResource[]): void;
   openImported(document: ImportedDocument, signal?: AbortSignal): Promise<void>;
   navigateToTarget(target: NavigationTarget, signal?: AbortSignal): Promise<void>;
   activateWorkspace(handle: FileSystemDirectoryHandle, path?: string, id?: string, signal?: AbortSignal): Promise<boolean>;
@@ -30,6 +32,7 @@ export function useReaderInitialization(options: ReaderInitializationOptions): v
       const initializedReader = await options.controller.initialize();
       options.replaceSettings(initializedReader.settings);
       options.replaceRecent(initializedReader.recent);
+      options.replaceRecentResources(initializedReader.recentResources);
       if (signal.aborted) return;
       if (initializedReader.handoff) {
         await options.openImported(initializedReader.handoff, signal);
@@ -47,7 +50,16 @@ export function useReaderInitialization(options: ReaderInitializationOptions): v
         const permission = await options.controller.queryRead(storedWorkspace.handle);
         if (signal.aborted) return;
         if (permission === 'granted') {
-          await options.activateWorkspace(storedWorkspace.handle, undefined, storedWorkspace.id, signal);
+          const recentWorkspace = initializedReader.recentResources.find(
+            (resource) => resource.kind === 'workspace'
+              && resource.workspaceId === storedWorkspace.id,
+          );
+          await options.activateWorkspace(
+            storedWorkspace.handle,
+            recentWorkspace?.kind === 'workspace' ? recentWorkspace.lastFilePath : undefined,
+            storedWorkspace.id,
+            signal,
+          );
         } else {
           options.setRestorableWorkspace(storedWorkspace);
           options.setSidebarMode('files');

@@ -30,15 +30,29 @@
 .topbar-icon.active:hover { border-color: color-mix(in srgb, var(--accent) 28%, transparent); background: var(--accent-soft); }
 .topbar-icon svg { width: 17px; }
 
-.popover-menu { position: absolute; z-index: 80; top: 42px; right: 0; width: 230px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface-elevated); box-shadow: var(--shadow-md); animation: rise-in 140ms ease both; }
+.popover-menu { position: absolute; z-index: 80; top: 42px; right: 0; width: 230px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-lg); outline: 0; background: var(--surface-elevated); box-shadow: var(--shadow-md); animation: rise-in 140ms ease both; }
 .popover-menu > label { display: block; padding: 5px 8px 8px; color: var(--text-tertiary); font-size: var(--font-xs); font-weight: 750; }
 .popover-menu button { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 8px; width: 100%; min-height: 46px; padding: 7px 9px; border: 0; border-radius: var(--radius-md); background: transparent; cursor: pointer; text-align: left; }
-.popover-menu button:hover { background: var(--hover); }
+.popover-menu button:hover, .popover-menu button:focus-visible { background: var(--hover); }
+.popover-menu button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 .popover-menu svg { width: 16px; color: var(--icon-secondary); }
 .popover-menu span { display: grid; min-width: 0; gap: 3px; }
 .popover-menu strong { color: var(--text-strong); font-size: var(--font-sm); }
 .popover-menu small { color: var(--text-secondary); font-size: var(--font-xs); }
 .popover-menu kbd { color: var(--text-tertiary); font-size: var(--font-xs); }
+.open-menu { width: min(330px, calc(100vw - 24px)); max-height: min(620px, calc(100vh - 74px)); overflow-y: auto; scrollbar-color: var(--border-strong) transparent; scrollbar-width: thin; }
+.open-menu-section { display: grid; gap: 2px; }
+.open-menu-section > label { display: block; padding: 5px 8px 8px; color: var(--text-tertiary); font-size: var(--font-xs); font-weight: 750; letter-spacing: .04em; text-transform: uppercase; }
+.open-actions { margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--border-soft); }
+.recent-resource-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 30px; align-items: center; border-radius: var(--radius-md); }
+.popover-menu .recent-resource-main { grid-template-columns: 22px minmax(0, 1fr); grid-column: 1 / -1; padding-right: 38px; }
+.recent-resource-main strong, .recent-resource-main small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.popover-menu .recent-resource-remove { position: absolute; right: 4px; display: grid; grid-template-columns: 1fr; place-items: center; width: 28px; min-height: 28px; padding: 0; opacity: 0; color: var(--text-tertiary); }
+.recent-resource-row:hover .recent-resource-remove, .recent-resource-row:focus-within .recent-resource-remove { opacity: 1; }
+.popover-menu .recent-resource-remove:hover, .popover-menu .recent-resource-remove:focus-visible { color: var(--danger); background: var(--danger-soft); }
+.popover-menu .recent-resource-remove svg { width: 14px; }
+.popover-menu .view-all-recent { display: flex; min-height: 34px; padding-left: 39px; color: var(--accent-strong); font-size: var(--font-xs); font-weight: 750; }
+.view-all-recent span { display: block; }
 .more-menu { width: 220px; }
 .more-menu button { min-height: 38px; }
 .more-menu span { display: block; font-size: var(--font-sm); }

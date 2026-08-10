@@ -10,6 +10,10 @@ import type { PersistedFileHandle, PersistedWorkspaceHandle } from '../ports/han
 import type { HandleRepository } from '../ports/handleRepository';
 import type { HandoffRepository } from '../ports/handoffRepository';
 import type { RecentItem, RecentItemInput, RecentRepository } from '../ports/recentRepository';
+import type {
+  RecentResource, RecentResourceInput,
+} from '../ports/recentResourceRepository';
+import type { RecentResourceService } from '../recent/recentResourceService';
 import type { SettingsRepository } from '../ports/settingsRepository';
 import type { PermissionGateway } from '../ports/permissionGateway';
 import type { WorkspaceGateway } from '../ports/workspaceGateway';
@@ -22,6 +26,7 @@ export interface ReaderInitialization {
   settings: ReaderSettings;
   handoff?: ImportedDocument;
   recent: RecentItem[];
+  recentResources: RecentResource[];
 }
 
 export interface ReaderControllerDependencies {
@@ -30,6 +35,7 @@ export interface ReaderControllerDependencies {
   importedDocumentRegistry: ImportedDocumentRegistry;
   settingsRepository: SettingsRepository;
   recentRepository: RecentRepository;
+  recentResourceService: RecentResourceService;
   handleRepository: HandleRepository;
   handoffRepository: HandoffRepository;
   navigationController: NavigationController;
@@ -43,14 +49,15 @@ export class ReaderController {
   constructor(private readonly dependencies: ReaderControllerDependencies) {}
 
   async initialize(): Promise<ReaderInitialization> {
-    const [settings, handoff, recent] = await Promise.all([
+    const [settings, handoff, recent, recentResources] = await Promise.all([
       this.dependencies.settingsRepository.load(),
       this.dependencies.initialHandoffId
         ? this.dependencies.handoffRepository.take(this.dependencies.initialHandoffId)
         : Promise.resolve(undefined),
       this.dependencies.recentRepository.list(),
+      this.dependencies.recentResourceService.list(),
     ]);
-    return { settings, handoff, recent };
+    return { settings, handoff, recent, recentResources };
   }
 
   saveSettings(settings: ReaderSettings): Promise<void> {
@@ -63,6 +70,18 @@ export class ReaderController {
 
   updateRecentPosition(id: string, position: number, headingId?: string): Promise<RecentItem[]> {
     return this.dependencies.recentRepository.updatePosition(id, position, headingId);
+  }
+
+  rememberRecentResource(resource: RecentResourceInput): Promise<RecentResource[]> {
+    return this.dependencies.recentResourceService.remember(resource);
+  }
+
+  removeRecentResource(id: string): Promise<RecentResource[]> {
+    return this.dependencies.recentResourceService.remove(id);
+  }
+
+  updateRecentWorkspaceDocument(workspaceId: string, filePath: string): Promise<RecentResource[]> {
+    return this.dependencies.recentResourceService.updateWorkspaceDocument(workspaceId, filePath);
   }
 
   saveWorkspace(handle: FileSystemDirectoryHandle, id?: string): Promise<string> {

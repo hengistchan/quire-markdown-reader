@@ -40,6 +40,7 @@ interface NavigationRestorationOptions {
     transient?: boolean,
     fragment?: string,
     signal?: AbortSignal,
+    rememberResource?: boolean,
   ): Promise<boolean>;
   openLocalHandle(
     handle: FileSystemFileHandle,
@@ -47,6 +48,7 @@ interface NavigationRestorationOptions {
     fragment?: string,
     intent?: NavigationIntent,
     signal?: AbortSignal,
+    rememberResource?: boolean,
   ): Promise<void>;
   openRemote(
     url: string,
@@ -54,6 +56,7 @@ interface NavigationRestorationOptions {
     intent?: NavigationIntent,
     fragment?: string,
     signal?: AbortSignal,
+    rememberResource?: boolean,
   ): Promise<void>;
   openImported(
     document: ImportedDocument,
@@ -177,7 +180,7 @@ export function useNavigationRestoration(options: NavigationRestorationOptions) 
           );
           return;
         }
-        await options.openRemote(target.document.url, false, 'traverse', target.fragment, signal);
+        await options.openRemote(target.document.url, false, 'traverse', target.fragment, signal, false);
         return;
       }
 
@@ -205,7 +208,7 @@ export function useNavigationRestoration(options: NavigationRestorationOptions) 
           options.showError({ code: 'permission-denied', retryable: true });
           return;
         }
-        await options.openRemote(target.url, false, 'traverse', restorable.target.fragment, signal);
+        await options.openRemote(target.url, false, 'traverse', restorable.target.fragment, signal, false);
       } else if (restorable.kind === 'workspace') {
         const target = restorable.target.document as { kind: 'workspace-file'; workspaceId: string; filePath: string };
         const stored = await options.controller.getWorkspace(target.workspaceId);

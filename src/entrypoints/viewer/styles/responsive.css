@@ -29,6 +29,8 @@
   .reader-stage, .with-context .reader-stage { padding-inline: 18px; }
   .command-palette { margin-top: 7vh; }
   .command-palette footer { display: none; }
+  .diagram-lightbox { width: calc(100vw - 24px); height: calc(100vh - 24px); }
+  .diagram-lightbox .mermaid { padding: 0 .75em .75em; }
 }
 
 @media (prefers-reduced-motion: reduce) {

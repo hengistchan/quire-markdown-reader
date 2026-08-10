@@ -13,7 +13,7 @@ const baselines = {
   'katex-vendor': 154_115,
   'highlight-vendor': 53_836,
   'icons-vendor': 2_001,
-  'viewer-css': 7_077,
+  'viewer-css': 7_500,
 };
 
 const candidates = new Map();

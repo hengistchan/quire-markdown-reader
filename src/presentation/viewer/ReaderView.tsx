@@ -18,7 +18,7 @@ const SettingsDrawer = lazy(() => import('./components/SettingsDrawer')
 export function ReaderView({ view }: { view: ReaderViewModel }) {
   const {
     document: documentModel, navigation, workspace: workspaceModel, search, settings: settingsModel,
-    overlays, feedback, input, recent: recentModel,
+    overlays, feedback, input, recentResources,
   } = view;
   const {
     activeFile, activeHeadingId, articleRef, handleArticleClick, headings, htmlMarkup, jumpToHeading,
@@ -42,6 +42,7 @@ export function ReaderView({ view }: { view: ReaderViewModel }) {
   } = settingsModel;
   const {
     commandOpen, moreMenuOpen, openMenuOpen, settingsOpen, urlOpen, urlValue,
+    closeCommandPalette, commandMode, openCommandPalette,
     setActive: setActiveOverlay, setUrlValue, toggleMoreMenu, toggleOpenMenu,
   } = overlays;
   const {
@@ -52,7 +53,9 @@ export function ReaderView({ view }: { view: ReaderViewModel }) {
     dragActive, fileInput, handleDrop, handleFile, handleOpenFile, handlePaste,
     setDragActive, shortcutLabels,
   } = input;
-  const { items: recent, open: openRecent } = recentModel;
+  const {
+    items: recent, open: openRecent, remove: removeRecent, viewAll: viewAllRecent,
+  } = recentResources;
 
   return (
     <div className={`app-shell ${dragActive ? 'drag-active' : ''}`} style={{ '--reader-width': `${readerWidth}px`, '--reader-size': `${settings.fontSize}px`, '--reader-leading': settings.lineHeight } as CSSProperties} onDragEnter={(event) => { event.preventDefault(); setDragActive(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragActive(false); }} onDrop={(event) => void handleDrop(event)} onPaste={handlePaste}>
@@ -62,7 +65,7 @@ export function ReaderView({ view }: { view: ReaderViewModel }) {
         <div className="rail-actions">
           <button className={contextMode === 'files' ? 'active' : ''} onClick={toggleWorkspacePanel} aria-label={t('toggleWorkspace')} aria-expanded={contextMode === 'files'} title={t('toggleWorkspace')}><FolderOpen /></button>
           <button className={contextMode === 'outline' ? 'active' : ''} onClick={toggleOutlinePanel} aria-label={t('toggleOutline')} aria-expanded={contextMode === 'outline'} title={t('toggleOutline')}><ListTree /></button>
-          <button className={commandOpen ? 'active' : ''} onClick={() => setActiveOverlay('command')} aria-label={t('commandCenter')} title={`${t('commandCenter')} · ${shortcutLabels.command}`}><Search /></button>
+          <button className={commandOpen ? 'active' : ''} onClick={() => openCommandPalette()} aria-label={t('commandCenter')} title={`${t('commandCenter')} · ${shortcutLabels.command}`}><Search /></button>
         </div>
         <div className="rail-bottom">
           <button className={settingsOpen ? 'active' : ''} onClick={() => setActiveOverlay('settings')} aria-label={t('settings')} title={t('settings')}><Settings2 /></button>
@@ -84,13 +87,24 @@ export function ReaderView({ view }: { view: ReaderViewModel }) {
         <div className="topbar-actions">
           <div className="menu-anchor">
             <button className="open-trigger" onClick={toggleOpenMenu} aria-expanded={openMenuOpen}><span>{t('open')}</span><ChevronDown /></button>
-            {openMenuOpen && <OpenMenu t={t} shortcuts={shortcutLabels} onFile={() => void handleOpenFile()} onFolder={() => void handleDirectory()} onUrl={() => setActiveOverlay('url-dialog')} />}
+            {openMenuOpen && <OpenMenu
+              t={t}
+              shortcuts={shortcutLabels}
+              recent={recent}
+              onFile={() => void handleOpenFile()}
+              onFolder={() => void handleDirectory()}
+              onUrl={() => setActiveOverlay('url-dialog')}
+              onRecent={(resource) => void openRecent(resource)}
+              onRemoveRecent={(id) => void removeRecent(id)}
+              onViewAllRecent={viewAllRecent}
+              onClose={() => setActiveOverlay(null)}
+            />}
           </div>
           <button className={`topbar-icon ${settings.wideView ? 'active' : ''}`} onClick={() => updateSettings({ wideView: !settings.wideView })} aria-label={settings.wideView ? t('disableWideView') : t('enableWideView')} aria-pressed={settings.wideView} title={settings.wideView ? t('disableWideView') : t('enableWideView')}><StretchHorizontal /></button>
-          <button className="topbar-icon" onClick={() => setActiveOverlay('command')} aria-label={t('commandCenter')}><Search /></button>
+          <button className="topbar-icon" onClick={() => openCommandPalette()} aria-label={t('commandCenter')}><Search /></button>
           <div className="menu-anchor">
             <button className="topbar-icon" onClick={toggleMoreMenu} aria-label={t('moreActions')} aria-expanded={moreMenuOpen}><MoreHorizontal /></button>
-            {moreMenuOpen && <MoreMenu t={t} commandShortcut={shortcutLabels.command} onCommand={() => setActiveOverlay('command')} onOutline={toggleOutlinePanel} onSettings={() => setActiveOverlay('settings')} />}
+            {moreMenuOpen && <MoreMenu t={t} commandShortcut={shortcutLabels.command} onCommand={() => openCommandPalette()} onOutline={toggleOutlinePanel} onSettings={() => setActiveOverlay('settings')} />}
           </div>
           <input ref={fileInput} hidden type="file" accept=".md,.markdown,.mdx,text/markdown" onChange={(event) => event.target.files?.[0] && void handleFile(event.target.files[0])} />
           <input ref={directoryInput} data-directory-picker hidden type="file" multiple onChange={(event) => void handleTransientDirectory(event.target.files)} />
@@ -128,7 +142,7 @@ export function ReaderView({ view }: { view: ReaderViewModel }) {
       </div>
 
       <Suspense fallback={null}>
-        {commandOpen && <CommandPalette query={commandQuery} matches={commandMatches} workspaceMatches={workspaceMatches} recent={recent} shortcuts={shortcutLabels} t={t} onQuery={setCommandQuery} onClose={() => { setActiveOverlay(null); setCommandQuery(''); }} onFile={() => void handleOpenFile()} onFolder={() => void handleDirectory()} onUrl={() => setActiveOverlay('url-dialog')} onTypedUrl={(value) => void openRemote(value)} onWorkspace={toggleWorkspacePanel} onOutline={toggleOutlinePanel} onQuietMode={() => setSidebarMode(null)} onLightTheme={() => updateSettings({ theme: 'light' })} onDarkTheme={() => updateSettings({ theme: 'dark' })} onSettings={() => setActiveOverlay('settings')} onRecent={(item) => void openRecent(item)} onMatch={jumpToSearchResult} onWorkspaceFile={openWorkspaceSearchResult} />}
+        {commandOpen && <CommandPalette query={commandQuery} mode={commandMode} matches={commandMatches} workspaceMatches={workspaceMatches} recent={recent} shortcuts={shortcutLabels} t={t} onQuery={setCommandQuery} onClose={closeCommandPalette} onFile={() => void handleOpenFile()} onFolder={() => void handleDirectory()} onUrl={() => setActiveOverlay('url-dialog')} onTypedUrl={(value) => void openRemote(value)} onWorkspace={toggleWorkspacePanel} onOutline={toggleOutlinePanel} onQuietMode={() => setSidebarMode(null)} onLightTheme={() => updateSettings({ theme: 'light' })} onDarkTheme={() => updateSettings({ theme: 'dark' })} onSettings={() => setActiveOverlay('settings')} onRecent={(item) => void openRecent(item)} onMatch={jumpToSearchResult} onWorkspaceFile={openWorkspaceSearchResult} />}
         {settingsOpen && <SettingsDrawer settings={settings} t={t} onChange={openImportedSettings} onReset={resetSettings} onClose={() => setActiveOverlay(null)} />}
       </Suspense>
       {urlOpen && <UrlDialog value={urlValue} loading={remoteLoading} t={t} onValue={setUrlValue} onClose={() => setActiveOverlay(null)} onCancel={cancelRemoteLoad} onOpen={() => void openRemote(urlValue)} />}

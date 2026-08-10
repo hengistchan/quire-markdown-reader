@@ -3,6 +3,7 @@ import type { ReaderControllerDependencies } from './readerController';
 import { ReaderController } from './readerController';
 import { defaultSettings } from '../../shared/defaultSettings';
 import type { DocumentSnapshot, DocumentSource } from '../documents/documentSource';
+import { RecentResourceService } from '../recent/recentResourceService';
 
 function dependencies(): ReaderControllerDependencies {
   return {
@@ -10,6 +11,12 @@ function dependencies(): ReaderControllerDependencies {
     recentRepository: {
       list: vi.fn(async () => []), put: vi.fn(async () => []), updatePosition: vi.fn(async () => []),
     },
+    recentResourceService: new RecentResourceService({
+      list: vi.fn(async () => []),
+      put: vi.fn(async () => []),
+      remove: vi.fn(async () => []),
+      updateWorkspaceDocument: vi.fn(async () => []),
+    }),
     handleRepository: {
       saveWorkspace: vi.fn(async () => 'workspace'), saveFile: vi.fn(async () => 'file'),
       getActiveWorkspace: vi.fn(async () => undefined), getWorkspace: vi.fn(async () => undefined),
@@ -47,6 +54,7 @@ describe('ReaderController', () => {
       settings: defaultSettings,
       handoff: { title: 'Handoff.md', markdown: '# Handoff' },
       recent: [],
+      recentResources: [],
     });
     expect(fakes.handoffRepository.take).toHaveBeenCalledWith('handoff-1');
   });

@@ -516,8 +516,8 @@ const embedded = true;
     const reopened = await context.newPage();
     await installWorkspacePicker(reopened);
     await reopened.goto(`chrome-extension://${id}/viewer.html`);
-    await expect(reopened.locator('.document-identity strong')).toHaveText('README');
-    await expect(reopened.getByRole('heading', { level: 1, name: /Workspace Home/ })).toBeVisible();
+    await expect(reopened.locator('.document-identity strong')).toHaveText('guide');
+    await expect(reopened.getByRole('heading', { level: 1, name: /Nested Guide/ })).toBeVisible();
 
     await reopened.evaluate(() => (window as unknown as { __quireDenyDirectoryPicker: () => void }).__quireDenyDirectoryPicker());
     await reopened.getByRole('button', { name: 'Open', exact: true }).click();
@@ -578,6 +578,90 @@ const embedded = true;
     await expect(reopened.locator('.document-meta')).not.toContainText('工程笔记');
     await reopened.setViewportSize({ width: 600, height: 800 });
     await expect(reopened.locator('.reader-stage')).toBeVisible();
+  } finally {
+    await context?.close();
+    if (server) await new Promise<void>((done) => server!.close(() => done()));
+    await rm(profile, { recursive: true, force: true });
+  }
+});
+
+test('reopens persisted Recent Resources with workspace permission and last-document recovery', async () => {
+  const profile = await mkdtemp(join(tmpdir(), 'quire-recent-resources-e2e-'));
+  let context: BrowserContext | undefined;
+  let server: Server | undefined;
+  try {
+    server = createServer((_request, response) => {
+      response.writeHead(200, {
+        'content-type': 'text/markdown',
+        'access-control-allow-origin': '*',
+      });
+      response.end('# Recent Remote\n\nRemote resource body.');
+    });
+    await new Promise<void>((ready) => server!.listen(0, '127.0.0.1', ready));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Could not start Recent Resources server.');
+
+    context = await chromium.launchPersistentContext(profile, {
+      channel: 'chromium',
+      headless: true,
+      locale: 'en-US',
+      viewport: { width: 1280, height: 800 },
+      args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`, '--lang=en-US'],
+    });
+    const id = await extensionId(context);
+    const page = await context.newPage();
+    await installWorkspacePicker(page);
+    await page.goto(`chrome-extension://${id}/viewer.html`);
+
+    await page.getByRole('button', { name: 'Open', exact: true }).click();
+    await page.getByRole('button', { name: 'Open folder' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Workspace Home' })).toBeVisible();
+    await page.getByRole('button', { name: 'guide.md' }).click();
+    await expect(page.locator('.document-identity strong')).toHaveText('guide');
+
+    await openRemote(page, `http://127.0.0.1:${address.port}/recent.md`);
+    await expect(page.getByText('Remote resource body.')).toBeVisible();
+    await page.getByRole('button', { name: 'Open', exact: true }).click();
+    await page.getByRole('button', { name: 'Open file' }).click();
+    await expect(page.getByText('Local file body.')).toBeVisible();
+    await page.getByRole('button', { name: 'Open', exact: true }).click();
+    await page.getByRole('button', { name: 'Open file' }).click();
+    await expect(page.getByText('Local file body.')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Open', exact: true }).click();
+    const menu = page.locator('.open-menu');
+    const resourceRows = menu.locator('.recent-resource-main');
+    await expect(resourceRows).toHaveCount(3);
+    await expect(resourceRows.nth(0)).toContainText('Local C.md');
+    await expect(resourceRows.nth(1)).toContainText('recent.md');
+    await expect(resourceRows.nth(2)).toContainText('Quire E2E');
+
+    await page.evaluate(() => (
+      window as unknown as { __quireSetHandlePermission(name: string, state: PermissionState): void }
+    ).__quireSetHandlePermission('Quire E2E', 'prompt'));
+    const requestsBefore = await page.evaluate(
+      () => (window as unknown as { __quireHandleRequestCount(name: string): number }).__quireHandleRequestCount('Quire E2E'),
+    );
+    await menu.getByRole('button', { name: /Quire E2E Workspace/ }).click();
+    await expect(page.locator('.document-identity strong')).toHaveText('guide');
+    await expect(page.getByText('Before refresh.')).toBeVisible();
+    expect(await page.evaluate(
+      () => (window as unknown as { __quireHandleRequestCount(name: string): number }).__quireHandleRequestCount('Quire E2E'),
+    )).toBe(requestsBefore + 1);
+
+    const reopened = await context.newPage();
+    await installWorkspacePicker(reopened);
+    await reopened.goto(`chrome-extension://${id}/viewer.html`);
+    await reopened.evaluate(() => (
+      window as unknown as { __quireSetHandlePermission(name: string, state: PermissionState): void }
+    ).__quireSetHandlePermission('Quire E2E', 'prompt'));
+    await reopened.getByRole('button', { name: 'Open', exact: true }).click();
+    await reopened.locator('.open-menu').getByRole('button', { name: /Quire E2E Workspace/ }).click();
+    await expect(reopened.locator('.document-identity strong')).toHaveText('guide');
+    await expect(reopened.getByText('Before refresh.')).toBeVisible();
+    expect(await reopened.evaluate(
+      () => (window as unknown as { __quireHandleRequestCount(name: string): number }).__quireHandleRequestCount('Quire E2E'),
+    )).toBe(1);
   } finally {
     await context?.close();
     if (server) await new Promise<void>((done) => server!.close(() => done()));

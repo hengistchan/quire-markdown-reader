@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import type { PersistedWorkspaceHandle } from '../../../application/ports/handleRepository';
 import type { ReaderController } from '../../../application/reader/readerController';
+import type { RecentResourceInput } from '../../../application/ports/recentResourceRepository';
 import type { NavigationIntent } from '../../../application/navigation/navigationController';
 import type { NavigationOperationController } from '../../../application/navigation/navigationOperationController';
 import {
@@ -23,6 +24,7 @@ interface WorkspaceOptions {
     intent?: NavigationIntent,
     signal?: AbortSignal,
   ): Promise<void>;
+  rememberRecentResource(resource: RecentResourceInput, signal?: AbortSignal): Promise<void>;
   navigationOperation: NavigationOperationController;
   setSidebarMode: Dispatch<SetStateAction<SidebarMode | null>>;
   closeOverlay(): void;
@@ -35,6 +37,7 @@ export function useWorkspace(options: WorkspaceOptions) {
   const {
     controller, sourceUrl, workspace, activeFile, openWorkspaceFile, setSidebarMode,
     closeOverlay, showError, showNotice, t, navigationOperation,
+    rememberRecentResource,
   } = options;
   const [restorable, setRestorable] = useState<PersistedWorkspaceHandle>();
   const [scanning, setScanning] = useState(false);
@@ -50,6 +53,7 @@ export function useWorkspace(options: WorkspaceOptions) {
     transient = false,
     fragment?: string,
     operationSignal?: AbortSignal,
+    rememberResource = false,
   ): Promise<boolean> => {
     const signal = operationSignal ?? navigationOperation.begin();
     if (signal.aborted) return false;
@@ -71,6 +75,16 @@ export function useWorkspace(options: WorkspaceOptions) {
       }
       await openWorkspaceFile(selected, snapshot, fragment, navigationMode, signal);
       if (signal.aborted) return false;
+      if (rememberResource && snapshot.id) {
+        await rememberRecentResource({
+          id: `workspace:${snapshot.id}`,
+          title: snapshot.name,
+          kind: 'workspace',
+          workspaceId: snapshot.id,
+          lastFilePath: selected.path,
+        }, signal);
+        if (signal.aborted) return false;
+      }
       setSidebarMode('files');
       return true;
     } catch (caught) {
@@ -88,7 +102,9 @@ export function useWorkspace(options: WorkspaceOptions) {
         setScanning(false);
       }
     }
-  }, [controller, navigationOperation, openWorkspaceFile, setSidebarMode, showError]);
+  }, [
+    controller, navigationOperation, openWorkspaceFile, rememberRecentResource, setSidebarMode, showError,
+  ]);
 
   const openDirectory = async () => {
     const signal = navigationOperation.begin();
@@ -105,7 +121,7 @@ export function useWorkspace(options: WorkspaceOptions) {
     try {
       const handle = await window.showDirectoryPicker({ mode: 'read' });
       if (signal.aborted) return;
-      await activate(handle, undefined, undefined, 'push', false, undefined, signal);
+      await activate(handle, undefined, undefined, 'push', false, undefined, signal, true);
     } catch (caught) {
       if (signal.aborted) return;
       const name = (caught as DOMException).name;
