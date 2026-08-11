@@ -45,9 +45,11 @@ This document is the iteration and release boundary for the 0.0.6 update. Checke
 - [x] Installed Chromium passes Recent Resources, navigation, diagram, workspace, width, and permission-recovery flows.
 - [x] Light and dark visual regression passes against the committed baselines.
 - [x] Installed Firefox passes toolbar, context-menu, recent-resource, localization, and native-shortcut flows.
-- [ ] GitHub CI passes on the final 0.0.6 release commit.
-- [ ] Create and push the annotated `v0.0.6` tag only after every preceding gate passes and publication is explicitly authorized.
+- [x] GitHub CI passes on the final 0.0.6 release commit.
+- [x] Create and push the annotated `v0.0.6` tag only after every preceding gate passes and publication is explicitly authorized.
 
 Local release evidence on 2026-08-11: the release guard accepted `v0.0.6` and rejected `v0.0.5`; TypeScript compilation and 36 files with 242 unit/component tests passed; Chrome and Firefox builds and ZIPs passed bundle and package validation; all 143 Firefox package files were reproduced byte-for-byte from the source archive; all ten localized store screenshots and store disclosures passed; five installed-Chromium E2E flows and both non-update visual-regression tests passed. Firefox ESR 140.13.0 in a temporary Debian container passed local-file opening, Recent Resource reopening, localization, toolbar action, context menu, and native-shortcut flows. The macOS host has no usable Firefox installation, so the disposable Linux container is the local Firefox evidence.
 
-Pre-release product commit CI run [31505235890](https://github.com/hengistchan/quire-markdown-reader/actions/runs/31505235890) passed compilation, 242 tests, builds, ZIPs, bundle/package/source/store verification, Chromium, visual regression, and both Firefox gates. The final 0.0.6 release commit still requires its own green CI run before tagging.
+The release candidate branch CI run [31507784232](https://github.com/hengistchan/quire-markdown-reader/actions/runs/31507784232), pull request CI run [31508493528](https://github.com/hengistchan/quire-markdown-reader/actions/runs/31508493528), and final `main` CI run [31508921246](https://github.com/hengistchan/quire-markdown-reader/actions/runs/31508921246) all passed the complete release gate. Pull request [#1](https://github.com/hengistchan/quire-markdown-reader/pull/1) was merged as `833b960041aea779b67a665f0bf4f8ab208b0916`.
+
+After the final `main` CI passed and publication was authorized, annotated tag `v0.0.6` was pushed with peeled target `833b960041aea779b67a665f0bf4f8ab208b0916`. Release workflow run [31509372545](https://github.com/hengistchan/quire-markdown-reader/actions/runs/31509372545) repeated the complete gate and published [Quire v0.0.6](https://github.com/hengistchan/quire-markdown-reader/releases/tag/v0.0.6) as a non-draft, non-prerelease release with Chrome, Edge, Firefox, and source ZIP assets.
