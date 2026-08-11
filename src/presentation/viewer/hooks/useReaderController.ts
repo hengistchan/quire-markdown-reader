@@ -4,6 +4,7 @@ import { createShortcutLabels } from '../../../core/shortcuts';
 import type {
   ReaderSettings, SidebarMode,
 } from '../../../shared/types';
+import { WIDE_READER_WIDTH } from '../../../shared/defaultSettings';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
 import { useReaderNavigation } from './useReaderNavigation';
 import { useNavigationRestoration } from './useNavigationRestoration';
@@ -12,7 +13,8 @@ import { useReaderOverlay } from './useReaderOverlay';
 import { useReaderSession } from './useReaderSession';
 import { useReaderSettings } from './useReaderSettings';
 import { useReaderSearch } from './useReaderSearch';
-import { useRecentDocumentActions, useRecentDocuments } from './useRecentDocuments';
+import { useRecentDocuments } from './useRecentDocuments';
+import { useRecentResourceActions, useRecentResources } from './useRecentResources';
 import { useDocumentOpen } from './useDocumentOpen';
 import { useWorkspace } from './useWorkspace';
 import { useReaderDocument } from './useReaderDocument';
@@ -20,8 +22,7 @@ import { useReaderInitialization } from './useReaderInitialization';
 import type { ReaderController } from '../../../application/reader/readerController';
 import type { NavigationTarget } from '../../../domain/navigation/navigationTarget';
 import { NavigationOperationController } from '../../../application/navigation/navigationOperationController';
-
-const WIDE_READER_WIDTH = 980;
+import type { CommandPaletteMode } from '../components/types';
 
 export function useReaderController(controller: ReaderController) {
   const settingsFeature = useReaderSettings(controller);
@@ -62,6 +63,13 @@ export function useReaderController(controller: ReaderController) {
     items: recent, record: recordRecent, resumeTarget, clearResume, prepareResume,
     continueReading, startFromTop,
   } = recentFeature;
+  const recentResourcesFeature = useRecentResources(controller);
+  const {
+    items: recentResources,
+    remember: rememberRecentResource,
+    updateWorkspaceDocument: updateRecentWorkspaceDocument,
+  } = recentResourcesFeature;
+  const [commandMode, setCommandMode] = useState<CommandPaletteMode>('default');
 
   const { openMenuOpen, moreMenuOpen, commandOpen, settingsOpen, urlOpen } = overlays;
 
@@ -79,6 +87,8 @@ export function useReaderController(controller: ReaderController) {
     dispatchSession,
     queueDocumentNavigation,
     recordRecent,
+    rememberRecentResource,
+    updateRecentWorkspaceDocument,
     setSidebarMode,
     closeOverlay: overlays.close,
     showError: setError,
@@ -105,6 +115,7 @@ export function useReaderController(controller: ReaderController) {
     workspace,
     activeFile,
     openWorkspaceFile,
+    rememberRecentResource,
     setSidebarMode,
     closeOverlay: overlays.close,
     showError: setError,
@@ -117,6 +128,8 @@ export function useReaderController(controller: ReaderController) {
     setRestorable: setRestorableWorkspace,
     scanning: workspaceScanning,
     collapsedDirectories,
+    allDirectoriesCollapsed,
+    hasDirectories,
     directoryInput,
     activate: activateWorkspace,
     cancelScan: cancelWorkspaceScan,
@@ -126,10 +139,12 @@ export function useReaderController(controller: ReaderController) {
     refresh: refreshWorkspace,
     dismissRestore: dismissWorkspaceRestore,
     toggleDirectory,
+    toggleAllDirectories,
   } = workspaceFeature;
-  const recentActions = useRecentDocumentActions({
+  const recentResourceActions = useRecentResourceActions({
     controller,
     navigationOperation,
+    readingHistory: recent,
     clearResume,
     prepareResume,
     openRemote,
@@ -163,6 +178,7 @@ export function useReaderController(controller: ReaderController) {
     navigationOperation,
     replaceSettings: settingsFeature.replace,
     replaceRecent: recentFeature.replace,
+    replaceRecentResources: recentResourcesFeature.replace,
     openImported: (document, signal) => openImportedDocument(document, undefined, 'replace', undefined, signal),
     navigateToTarget: restoration.navigateToTarget,
     activateWorkspace: (handle, path, id, signal) => (
@@ -170,14 +186,6 @@ export function useReaderController(controller: ReaderController) {
     ),
     setRestorableWorkspace,
     setSidebarMode,
-  });
-
-  useKeyboardShortcuts({
-    openCommand: () => setActiveOverlay('command'),
-    openFile: () => void handleOpenFile(),
-    openFolder: () => void handleDirectory(),
-    openUrl: () => setActiveOverlay('url-dialog'),
-    close: () => setActiveOverlay(null),
   });
 
   const search = useReaderSearch({
@@ -208,11 +216,20 @@ export function useReaderController(controller: ReaderController) {
       const handle = await getHandle?.call(item);
       if (signal.aborted) return;
       if (handle?.kind === 'directory') {
-        await activateWorkspace(handle as FileSystemDirectoryHandle, undefined, undefined, 'push', false, undefined, signal);
+        await activateWorkspace(
+          handle as FileSystemDirectoryHandle,
+          undefined,
+          undefined,
+          'push',
+          false,
+          undefined,
+          signal,
+          true,
+        );
         return;
       }
       if (handle?.kind === 'file') {
-        await handleFileHandle(handle as FileSystemFileHandle, undefined, undefined, 'push', signal);
+        await handleFileHandle(handle as FileSystemFileHandle, undefined, undefined, 'push', signal, true);
         return;
       }
     }
@@ -242,6 +259,23 @@ export function useReaderController(controller: ReaderController) {
   };
   const toggleOpenMenu = () => setActiveOverlay((current) => current === 'open-menu' ? null : 'open-menu');
   const toggleMoreMenu = () => setActiveOverlay((current) => current === 'more-menu' ? null : 'more-menu');
+  const openCommandPalette = (mode: CommandPaletteMode = 'default') => {
+    setCommandMode(mode);
+    setCommandQuery('');
+    setActiveOverlay('command');
+  };
+  const closeCommandPalette = () => {
+    setActiveOverlay(null);
+    setCommandQuery('');
+    setCommandMode('default');
+  };
+  useKeyboardShortcuts({
+    openCommand: () => openCommandPalette('default'),
+    openFile: () => void handleOpenFile(),
+    openFolder: () => void handleDirectory(),
+    openUrl: () => setActiveOverlay('url-dialog'),
+    close: closeCommandPalette,
+  });
   const openImportedSettings = (patch: Partial<ReaderSettings>) => {
     updateSettings(patch.contentWidth === undefined ? patch : { ...patch, wideView: false });
     if (patch.showOutline !== undefined) {
@@ -264,6 +298,8 @@ export function useReaderController(controller: ReaderController) {
       contextMode,
       contextOpen,
       collapsedDirectories,
+      allDirectoriesCollapsed,
+      hasDirectories,
       directoryInput,
       fileFilter,
       filteredFiles,
@@ -277,6 +313,7 @@ export function useReaderController(controller: ReaderController) {
       setFileFilter,
       setSidebarMode,
       toggleDirectory,
+      toggleAllDirectories,
       togglePanel: toggleWorkspacePanel,
     },
     search: {
@@ -294,6 +331,7 @@ export function useReaderController(controller: ReaderController) {
     },
     overlays: {
       commandOpen, moreMenuOpen, openMenuOpen, settingsOpen, urlOpen, urlValue,
+      closeCommandPalette, commandMode, openCommandPalette,
       setActive: setActiveOverlay, setUrlValue, toggleMoreMenu, toggleOpenMenu,
     },
     feedback: {
@@ -304,7 +342,12 @@ export function useReaderController(controller: ReaderController) {
       dragActive, fileInput, handleDrop, handleFile, handleOpenFile, handlePaste,
       setDragActive, shortcutLabels,
     },
-    recent: { items: recent, open: recentActions.open },
+    recentResources: {
+      items: recentResources,
+      open: recentResourceActions.open,
+      remove: recentResourcesFeature.remove,
+      viewAll: () => openCommandPalette('recent'),
+    },
   };
 }
 

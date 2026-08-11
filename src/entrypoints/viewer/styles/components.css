@@ -1,7 +1,7 @@
 .outline-panel .context-heading { border-bottom: 1px solid var(--border-soft); }
 .outline-panel .context-heading > div { grid-template-columns: minmax(0, 1fr); }
 .outline-navigation { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; padding: 10px 9px; overflow-y: auto; overscroll-behavior-y: auto; scrollbar-color: var(--border-strong) transparent; scrollbar-width: thin; gap: 3px; }
-.outline-navigation button { flex: 0 0 auto; width: 100%; min-height: 34px; padding-block: 8px; overflow: hidden; border: 0; border-radius: var(--radius-sm); color: var(--text-secondary); background: transparent; cursor: pointer; font-size: var(--font-xs); text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.outline-navigation button { flex: 0 0 auto; width: 100%; min-height: 34px; padding-block: 8px; overflow: hidden; border: 0; border-radius: var(--radius-sm); color: var(--text-secondary); background: transparent; cursor: pointer; font-size: var(--font-ui-size); line-height: 1.4; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 .outline-navigation button:hover { color: var(--text-strong); background: var(--hover); }
 .outline-navigation button.active { color: var(--text-strong); background: var(--selected); font-weight: 700; }
 .outline-empty { margin: 14px 9px; color: var(--text-secondary); font-size: var(--font-xs); line-height: 1.5; }

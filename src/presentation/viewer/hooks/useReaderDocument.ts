@@ -98,6 +98,8 @@ export function useReaderDocument(options: ReaderDocumentOptions) {
       copyCode: t('copyCode'),
       copyFailed: t('copyFailed'),
       diagramControls: t('diagramControls'),
+      expandDiagram: t('expandDiagram'),
+      closeLightbox: t('closeLightbox'),
       interactiveDiagram: t('interactiveDiagram'),
       resetZoom: t('resetZoom'),
       zoomIn: t('zoomIn'),

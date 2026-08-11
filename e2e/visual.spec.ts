@@ -103,6 +103,19 @@ for (const theme of ['light', 'dark'] as const) {
 
       await page.getByRole('button', { name: 'Toggle file workspace' }).click();
       await capture(page, `workspace-${theme}-1280x800.png`);
+      await expect(page.locator('.file-row').first()).toHaveCSS('font-size', '12px');
+
+      await page.getByRole('button', { name: 'Toggle file workspace' }).click();
+      await page.getByRole('button', { name: 'Toggle document outline' }).click();
+      await expect(page.locator('.outline-navigation button').first()).toHaveCSS('font-size', '12px');
+      await capture(page, `outline-${theme}-1280x800.png`);
+      await page.getByRole('button', { name: 'Toggle document outline' }).click();
+      await page.getByRole('button', { name: 'Toggle file workspace' }).click();
+
+      await page.getByRole('button', { name: 'Open', exact: true }).click();
+      await expect(page.locator('.open-menu')).toBeVisible();
+      await capture(page, `recent-open-menu-${theme}-1280x800.png`);
+      await page.keyboard.press('Escape');
 
       await page.getByRole('button', { name: 'Command center' }).first().click();
       await expect(page.getByRole('dialog', { name: 'Command center' })).toBeVisible();
@@ -171,6 +184,15 @@ for (const theme of ['light', 'dark'] as const) {
           const command = page.getByRole('dialog', { name: 'Command center' });
           await expect(command).toBeVisible();
           expect(await command.evaluate((element) => {
+            const bounds = element.getBoundingClientRect();
+            return bounds.left >= -1 && bounds.right <= innerWidth + 1 && bounds.bottom <= innerHeight + 1;
+          })).toBe(true);
+          await page.keyboard.press('Escape');
+
+          await page.getByRole('button', { name: 'Open', exact: true }).click();
+          const openMenu = page.locator('.open-menu');
+          await expect(openMenu).toBeVisible();
+          expect(await openMenu.evaluate((element) => {
             const bounds = element.getBoundingClientRect();
             return bounds.left >= -1 && bounds.right <= innerWidth + 1 && bounds.bottom <= innerHeight + 1;
           })).toBe(true);

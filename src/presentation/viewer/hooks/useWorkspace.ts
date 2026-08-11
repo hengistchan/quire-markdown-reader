@@ -1,6 +1,7 @@
-import { useCallback, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import type { PersistedWorkspaceHandle } from '../../../application/ports/handleRepository';
 import type { ReaderController } from '../../../application/reader/readerController';
+import type { RecentResourceInput } from '../../../application/ports/recentResourceRepository';
 import type { NavigationIntent } from '../../../application/navigation/navigationController';
 import type { NavigationOperationController } from '../../../application/navigation/navigationOperationController';
 import {
@@ -9,7 +10,15 @@ import {
 import { WorkspaceScanError } from '../../../shared/errors/workspaceScanError';
 import type { ReaderError } from '../../../shared/errors/readerError';
 import type { Translator } from '../../../shared/i18n';
-import type { SidebarMode, WorkspaceFile, WorkspaceSnapshot } from '../../../shared/types';
+import type {
+  SidebarMode, WorkspaceFile, WorkspaceSnapshot, WorkspaceTreeNode,
+} from '../../../shared/types';
+
+function directoryPaths(nodes: WorkspaceTreeNode[]): string[] {
+  return nodes.flatMap((node) => node.kind === 'directory'
+    ? [node.path, ...directoryPaths(node.children)]
+    : []);
+}
 
 interface WorkspaceOptions {
   controller: ReaderController;
@@ -23,6 +32,7 @@ interface WorkspaceOptions {
     intent?: NavigationIntent,
     signal?: AbortSignal,
   ): Promise<void>;
+  rememberRecentResource(resource: RecentResourceInput, signal?: AbortSignal): Promise<void>;
   navigationOperation: NavigationOperationController;
   setSidebarMode: Dispatch<SetStateAction<SidebarMode | null>>;
   closeOverlay(): void;
@@ -35,10 +45,17 @@ export function useWorkspace(options: WorkspaceOptions) {
   const {
     controller, sourceUrl, workspace, activeFile, openWorkspaceFile, setSidebarMode,
     closeOverlay, showError, showNotice, t, navigationOperation,
+    rememberRecentResource,
   } = options;
   const [restorable, setRestorable] = useState<PersistedWorkspaceHandle>();
   const [scanning, setScanning] = useState(false);
   const [collapsedDirectories, setCollapsedDirectories] = useState<Set<string>>(new Set());
+  const workspaceDirectoryPaths = useMemo(
+    () => directoryPaths(workspace?.tree ?? []),
+    [workspace?.tree],
+  );
+  const allDirectoriesCollapsed = workspaceDirectoryPaths.length > 0
+    && workspaceDirectoryPaths.every((path) => collapsedDirectories.has(path));
   const directoryInput = useRef<HTMLInputElement>(null);
   const currentScan = useRef<AbortSignal | undefined>(undefined);
 
@@ -50,6 +67,7 @@ export function useWorkspace(options: WorkspaceOptions) {
     transient = false,
     fragment?: string,
     operationSignal?: AbortSignal,
+    rememberResource = false,
   ): Promise<boolean> => {
     const signal = operationSignal ?? navigationOperation.begin();
     if (signal.aborted) return false;
@@ -71,6 +89,16 @@ export function useWorkspace(options: WorkspaceOptions) {
       }
       await openWorkspaceFile(selected, snapshot, fragment, navigationMode, signal);
       if (signal.aborted) return false;
+      if (rememberResource && snapshot.id) {
+        await rememberRecentResource({
+          id: `workspace:${snapshot.id}`,
+          title: snapshot.name,
+          kind: 'workspace',
+          workspaceId: snapshot.id,
+          lastFilePath: selected.path,
+        }, signal);
+        if (signal.aborted) return false;
+      }
       setSidebarMode('files');
       return true;
     } catch (caught) {
@@ -88,7 +116,9 @@ export function useWorkspace(options: WorkspaceOptions) {
         setScanning(false);
       }
     }
-  }, [controller, navigationOperation, openWorkspaceFile, setSidebarMode, showError]);
+  }, [
+    controller, navigationOperation, openWorkspaceFile, rememberRecentResource, setSidebarMode, showError,
+  ]);
 
   const openDirectory = async () => {
     const signal = navigationOperation.begin();
@@ -105,7 +135,7 @@ export function useWorkspace(options: WorkspaceOptions) {
     try {
       const handle = await window.showDirectoryPicker({ mode: 'read' });
       if (signal.aborted) return;
-      await activate(handle, undefined, undefined, 'push', false, undefined, signal);
+      await activate(handle, undefined, undefined, 'push', false, undefined, signal, true);
     } catch (caught) {
       if (signal.aborted) return;
       const name = (caught as DOMException).name;
@@ -151,12 +181,19 @@ export function useWorkspace(options: WorkspaceOptions) {
     if (next.has(path)) next.delete(path); else next.add(path);
     return next;
   });
+  const toggleAllDirectories = () => setCollapsedDirectories((current) => {
+    const allCollapsed = workspaceDirectoryPaths.length > 0
+      && workspaceDirectoryPaths.every((path) => current.has(path));
+    return allCollapsed ? new Set() : new Set(workspaceDirectoryPaths);
+  });
 
   return {
     restorable,
     setRestorable,
     scanning,
     collapsedDirectories,
+    allDirectoriesCollapsed,
+    hasDirectories: workspaceDirectoryPaths.length > 0,
     directoryInput,
     activate,
     cancelScan: () => navigationOperation.cancel(),
@@ -166,5 +203,6 @@ export function useWorkspace(options: WorkspaceOptions) {
     refresh,
     dismissRestore: () => setRestorable(undefined),
     toggleDirectory,
+    toggleAllDirectories,
   };
 }

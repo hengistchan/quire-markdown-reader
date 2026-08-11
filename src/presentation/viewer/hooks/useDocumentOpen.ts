@@ -2,6 +2,7 @@ import {
   useCallback, useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction,
 } from 'react';
 import type { RecentItemInput } from '../../../application/ports/recentRepository';
+import type { RecentResourceInput } from '../../../application/ports/recentResourceRepository';
 import type { ReaderController } from '../../../application/reader/readerController';
 import type { NavigationIntent } from '../../../application/navigation/navigationController';
 import type { NavigationOperationController } from '../../../application/navigation/navigationOperationController';
@@ -9,6 +10,7 @@ import {
   isLocalMarkdownUrl, isSelectLocalMarkdownWorkspaceFileMessage, NAVIGATE_LOCAL_MARKDOWN_WORKSPACE,
 } from '../../../core/localMarkdown';
 import { isRemoteUrl, linkFragment } from '../../../core/paths';
+import { normalizeRecentRemoteUrl } from '../../../application/recent/recentResourceService';
 import {
   createFileSession, createImportedSession, createRemoteSession, createWorkspaceSession,
   type DocumentSession, type DocumentSessionAction,
@@ -27,6 +29,8 @@ interface DocumentOpenOptions {
   dispatchSession(action: DocumentSessionAction): void;
   queueDocumentNavigation(fragment?: string): void;
   recordRecent(item: RecentItemInput, signal?: AbortSignal): Promise<void>;
+  rememberRecentResource(resource: RecentResourceInput, signal?: AbortSignal): Promise<void>;
+  updateRecentWorkspaceDocument(workspaceId: string, filePath: string, signal?: AbortSignal): Promise<void>;
   setSidebarMode: Dispatch<SetStateAction<SidebarMode | null>>;
   closeOverlay(): void;
   showError(error: ReaderError | undefined): void;
@@ -38,7 +42,8 @@ interface DocumentOpenOptions {
 export function useDocumentOpen(options: DocumentOpenOptions) {
   const {
     controller, session, navigation, dispatchSession, queueDocumentNavigation, recordRecent,
-    setSidebarMode, closeOverlay, showError, fileInput, navigationOperation,
+    rememberRecentResource, updateRecentWorkspaceDocument, setSidebarMode, closeOverlay, showError,
+    fileInput, navigationOperation,
   } = options;
   const [remoteLoading, setRemoteLoading] = useState(false);
   const [remoteRetryUrl, setRemoteRetryUrl] = useState<string>();
@@ -93,6 +98,8 @@ export function useDocumentOpen(options: DocumentOpenOptions) {
         filePath: file.path,
       }, signal);
       if (signal.aborted) return;
+      await updateRecentWorkspaceDocument(targetWorkspace.id, file.path, signal);
+      if (signal.aborted) return;
     }
     dispatchSession({
       type: 'replace',
@@ -121,7 +128,10 @@ export function useDocumentOpen(options: DocumentOpenOptions) {
     showError(undefined);
     queueDocumentNavigation(fragment);
     scrollTo({ top: 0, behavior: 'smooth' });
-  }, [controller, dispatchSession, navigation, navigationOperation, queueDocumentNavigation, recordRecent, session, showError]);
+  }, [
+    controller, dispatchSession, navigation, navigationOperation, queueDocumentNavigation,
+    recordRecent, session, showError, updateRecentWorkspaceDocument,
+  ]);
 
   useEffect(() => {
     const workspace = session.kind === 'workspace' ? session.workspace : undefined;
@@ -142,6 +152,7 @@ export function useDocumentOpen(options: DocumentOpenOptions) {
     fragment?: string,
     navigationMode: NavigationIntent = 'push',
     operationSignal?: AbortSignal,
+    rememberResource = false,
   ) => {
     const signal = operationSignal ?? navigationOperation.begin();
     if (signal.aborted) return;
@@ -159,6 +170,15 @@ export function useDocumentOpen(options: DocumentOpenOptions) {
     }
     await recordRecent({ id: `local-file:${fileId}`, title: handle.name, kind: 'local-file', fileId }, signal);
     if (signal.aborted) return;
+    if (rememberResource) {
+      await rememberRecentResource({
+        id: `local-file:${fileId}`,
+        title: handle.name,
+        kind: 'local-file',
+        fileId,
+      }, signal);
+      if (signal.aborted) return;
+    }
     dispatchSession({
       type: 'replace',
       session: createFileSession(file, snapshot.markdown, snapshot.metadata.lastModified, snapshot.metadata.size),
@@ -171,7 +191,10 @@ export function useDocumentOpen(options: DocumentOpenOptions) {
     scrollTo({ top: 0 });
     closeOverlay();
     queueDocumentNavigation(fragment);
-  }, [closeOverlay, controller, dispatchSession, navigation, navigationOperation, queueDocumentNavigation, recordRecent, setSidebarMode, showError]);
+  }, [
+    closeOverlay, controller, dispatchSession, navigation, navigationOperation, queueDocumentNavigation,
+    recordRecent, rememberRecentResource, setSidebarMode, showError,
+  ]);
 
   const openDroppedFile = useCallback(async (file: File, operationSignal?: AbortSignal) => {
     const signal = operationSignal ?? navigationOperation.begin();
@@ -198,7 +221,9 @@ export function useDocumentOpen(options: DocumentOpenOptions) {
         multiple: false,
         types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md', '.markdown', '.mdx'] } }],
       });
-      if (handle && !signal.aborted) await openLocalHandle(handle, undefined, undefined, 'push', signal);
+      if (handle && !signal.aborted) {
+        await openLocalHandle(handle, undefined, undefined, 'push', signal, true);
+      }
     } catch (caught) {
       if (signal.aborted) return;
       if ((caught as DOMException).name !== 'AbortError') {
@@ -213,6 +238,7 @@ export function useDocumentOpen(options: DocumentOpenOptions) {
     navigationMode: NavigationIntent = 'push',
     targetFragment?: string,
     operationSignal?: AbortSignal,
+    rememberResource = true,
   ) => {
     const signal = operationSignal ?? navigationOperation.begin();
     if (signal.aborted) return;
@@ -253,6 +279,16 @@ export function useDocumentOpen(options: DocumentOpenOptions) {
         url: documentUrl.href,
       }, signal);
       if (signal.aborted) return;
+      if (rememberResource) {
+        const resourceUrl = normalizeRecentRemoteUrl(documentUrl.href);
+        await rememberRecentResource({
+          id: `remote:${resourceUrl}`,
+          title: snapshot.title,
+          kind: 'remote',
+          url: resourceUrl,
+        }, signal);
+        if (signal.aborted) return;
+      }
       dispatchSession({ type: 'replace', session: createRemoteSession(document, snapshot.remoteState) });
       const fragment = targetFragment ?? linkFragment(value);
       if (navigationMode !== 'traverse') navigation.record({
@@ -272,7 +308,10 @@ export function useDocumentOpen(options: DocumentOpenOptions) {
       signal.removeEventListener('abort', stopLoading);
       if (!signal.aborted) setRemoteLoading(false);
     }
-  }, [closeOverlay, controller, dispatchSession, navigation, navigationOperation, queueDocumentNavigation, recordRecent, setSidebarMode, showError]);
+  }, [
+    closeOverlay, controller, dispatchSession, navigation, navigationOperation, queueDocumentNavigation,
+    recordRecent, rememberRecentResource, setSidebarMode, showError,
+  ]);
 
   const cancelRemoteLoad = useCallback(() => {
     navigationOperation.cancel();
@@ -304,7 +343,7 @@ export function useDocumentOpen(options: DocumentOpenOptions) {
     }
     if (resolution.type === 'remote-document') {
       event.preventDefault();
-      void openRemote(resolution.url);
+      void openRemote(resolution.url, true, 'push', undefined, undefined, false);
     }
   };
 

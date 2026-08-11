@@ -16,6 +16,7 @@ const options = new firefox.Options()
   .setPreference('browser.startup.homepage_override.mstone', 'ignore');
 if (process.env.FIREFOX_BINARY) options.setBinary(process.env.FIREFOX_BINARY);
 if (!process.env.FIREFOX_HEADED) options.addArguments('-headless');
+if (process.env.FIREFOX_WEBDRIVER_URL) options.addArguments('-remote-allow-system-access');
 
 let builder = new Builder().forBrowser('firefox').setFirefoxOptions(options);
 if (process.env.FIREFOX_WEBDRIVER_URL) builder = builder.usingServer(process.env.FIREFOX_WEBDRIVER_URL);
@@ -26,12 +27,21 @@ else {
   builder = builder.setFirefoxService(service.addArguments('--allow-system-access'));
 }
 const driver = await builder.build();
-const server = createServer((_request, response) => {
+const server = createServer((request, response) => {
+  if (request.url === '/recent.md') {
+    response.writeHead(200, {
+      'content-type': 'text/markdown',
+      'access-control-allow-origin': '*',
+    });
+    response.end('# Recent Remote\n\nFirefox recent resource body.');
+    return;
+  }
   response.writeHead(200, { 'content-type': 'text/html' });
   response.end('<title>Example Domain</title><main><h1>Example Domain</h1><p>Deterministic Quire browser-action fixture.</p></main>');
 });
 await new Promise((ready) => server.listen(41737, '0.0.0.0', ready));
 const exampleUrl = `http://${process.env.FIREFOX_TEST_HOST || '127.0.0.1'}:41737/`;
+const recentUrl = `${exampleUrl}recent.md`;
 
 try {
   const installedId = await driver.installAddon(archive, true);
@@ -56,6 +66,35 @@ try {
   await input.sendKeys(fixture);
   await driver.wait(until.elementLocated(By.xpath("//*[contains(text(), 'Local reading works.') ]")), 15_000);
   assert.equal(await driver.findElement(By.css('.document-identity strong')).getText(), 'guide');
+
+  const allowRemotePermission = async () => {
+    await driver.executeScript(`
+      browser.permissions.request = async () => true;
+      browser.permissions.contains = async () => true;
+    `);
+  };
+  await allowRemotePermission();
+  await driver.findElement(By.css('.open-trigger')).click();
+  await driver.findElement(By.xpath("//div[contains(@class, 'open-menu')]//button[contains(., 'Open URL')]")).click();
+  const remoteInput = await driver.wait(
+    until.elementLocated(By.css('.url-dialog input[placeholder="https://example.com/guide.md"]')),
+    5_000,
+  );
+  await remoteInput.sendKeys(recentUrl);
+  await driver.findElement(By.xpath("//section[contains(@class, 'url-dialog')]//button[normalize-space()='Open']")).click();
+  await driver.wait(until.elementLocated(By.xpath("//*[contains(text(), 'Firefox recent resource body.')]")), 15_000);
+
+  await driver.get(viewerUrl);
+  await driver.wait(until.titleIs('Quire'), 10_000);
+  await allowRemotePermission();
+  await driver.findElement(By.css('.open-trigger')).click();
+  const recentRemote = await driver.wait(
+    until.elementLocated(By.xpath("//div[contains(@class, 'open-menu')]//button[contains(., 'recent.md')]")),
+    10_000,
+  );
+  await recentRemote.click();
+  await driver.wait(until.elementLocated(By.xpath("//*[contains(text(), 'Firefox recent resource body.')]")), 15_000);
+  assert.equal(await driver.findElement(By.css('.document-identity strong')).getText(), 'recent');
 
   await driver.findElement(By.css('button[aria-label="Reader settings"]')).click();
   const language = await driver.wait(
@@ -119,7 +158,7 @@ try {
   const nativeFlows = ['toolbar action'];
   if (!process.env.FIREFOX_SKIP_CONTEXT) nativeFlows.push('context menu');
   if (!process.env.FIREFOX_SKIP_SHORTCUT) nativeFlows.push('shortcut');
-  console.log(`Firefox ${capabilities.get('browserVersion')}: installed add-on, local file, localization, and ${nativeFlows.join(', ')} flows passed.`);
+  console.log(`Firefox ${capabilities.get('browserVersion')}: installed add-on, local file, Recent Resource reopen, localization, and ${nativeFlows.join(', ')} flows passed.`);
 } finally {
   await driver.quit();
   await new Promise((done) => server.close(done));

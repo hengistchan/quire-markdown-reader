@@ -27,14 +27,24 @@ vi.mock('mermaid', () => ({ default: {
   run: (options: unknown) => mermaidMocks.run(options),
 } }));
 
-function installBrowser(overrides: Record<string, unknown> = {}, recentItems: unknown = []) {
+function installBrowser(
+  overrides: Record<string, unknown> = {},
+  recentItems: unknown = [],
+  recentResources: unknown = [],
+) {
+  let storedRecentItems = recentItems;
+  let storedRecentResources = recentResources;
   const local = {
     get: vi.fn(async (key: string | string[]) => {
       if (key === 'reader-settings') return { 'reader-settings': { ...defaultSettings, enableMermaid: false } };
-      if (key === 'recent-documents') return { 'recent-documents': recentItems };
+      if (key === 'recent-documents') return { 'recent-documents': storedRecentItems };
+      if (key === 'recent-resources') return { 'recent-resources': storedRecentResources };
       return { onboardingComplete: false };
     }),
-    set: vi.fn(async () => undefined),
+    set: vi.fn(async (value: Record<string, unknown>) => {
+      if ('recent-documents' in value) storedRecentItems = value['recent-documents'];
+      if ('recent-resources' in value) storedRecentResources = value['recent-resources'];
+    }),
     remove: vi.fn(async () => undefined),
   };
   const api = {
@@ -251,31 +261,91 @@ describe('Quire viewer experience', () => {
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
-  it('toggles a persistent wider reading width beside the Open control', async () => {
+  it('defaults to the widest reading width and persists the standard-width toggle', async () => {
     const { local } = installBrowser();
     const user = userEvent.setup();
     render(<App />);
 
-    const wideButton = await screen.findByRole('button', { name: 'Use wider reading width' });
+    const wideButton = await screen.findByRole('button', { name: 'Use standard reading width' });
     const openButton = screen.getByRole('button', { name: 'Open' });
     const searchButton = within(document.querySelector<HTMLElement>('.topbar-actions')!).getByRole('button', { name: 'Command center' });
     expect(openButton.compareDocumentPosition(wideButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(wideButton.compareDocumentPosition(searchButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(wideButton.getAttribute('aria-pressed')).toBe('false');
-    expect(document.querySelector<HTMLElement>('.app-shell')?.style.getPropertyValue('--reader-width')).toBe('760px');
+    expect(wideButton.getAttribute('aria-pressed')).toBe('true');
+    expect(document.querySelector<HTMLElement>('.app-shell')?.style.getPropertyValue('--reader-width')).toBe('1200px');
 
-    await user.click(wideButton);
-
-    expect(screen.getByRole('button', { name: 'Use standard reading width' }).getAttribute('aria-pressed')).toBe('true');
+    await user.click(screen.getByRole('button', { name: 'Reader settings' }));
+    const pageWidth = await screen.findByLabelText<HTMLInputElement>('Page width');
+    expect(pageWidth.value).toBe('980');
+    fireEvent.change(pageWidth, { target: { value: '970' } });
+    expect(document.querySelector<HTMLElement>('.app-shell')?.style.getPropertyValue('--reader-width')).toBe('970px');
+    fireEvent.change(pageWidth, { target: { value: '980' } });
     expect(document.querySelector<HTMLElement>('.app-shell')?.style.getPropertyValue('--reader-width')).toBe('980px');
+    await user.click(screen.getByRole('button', { name: 'Close settings' }));
+
+    const enableWideButton = screen.getByRole('button', { name: 'Use wider reading width' });
+    expect(enableWideButton.getAttribute('aria-pressed')).toBe('false');
     await waitFor(() => expect(local.set).toHaveBeenCalledWith(expect.objectContaining({
       'reader-settings': expect.objectContaining({
-        settings: expect.objectContaining({ wideView: true }),
+        settings: expect.objectContaining({ contentWidth: 980, wideView: false }),
       }),
     })));
 
+    await user.click(enableWideButton);
+    expect(document.querySelector<HTMLElement>('.app-shell')?.style.getPropertyValue('--reader-width')).toBe('1200px');
     await user.click(screen.getByRole('button', { name: 'Use standard reading width' }));
-    expect(document.querySelector<HTMLElement>('.app-shell')?.style.getPropertyValue('--reader-width')).toBe('760px');
+    expect(document.querySelector<HTMLElement>('.app-shell')?.style.getPropertyValue('--reader-width')).toBe('980px');
+  });
+
+  it('collapses and expands every folder in the workspace tree', async () => {
+    const fileHandle = (name: string, markdown: string) => ({
+      kind: 'file',
+      name,
+      getFile: vi.fn(async () => ({
+        name, lastModified: 1, size: markdown.length, text: async () => markdown,
+      }) as unknown as File),
+    } as unknown as FileSystemFileHandle);
+    const directoryHandle = (
+      name: string,
+      entries: Array<[string, FileSystemFileHandle | FileSystemDirectoryHandle]>,
+    ) => ({
+      kind: 'directory',
+      name,
+      entries: async function* () {
+        for (const entry of entries) yield entry;
+      },
+    } as unknown as FileSystemDirectoryHandle);
+    const nested = directoryHandle('nested', [
+      ['details.md', fileHandle('details.md', '# Details')],
+    ]);
+    const docs = directoryHandle('docs', [
+      ['guide.md', fileHandle('guide.md', '# Guide')],
+      ['nested', nested],
+    ]);
+    const workspace = directoryHandle('notes', [
+      ['README.md', fileHandle('README.md', '# Workspace home')],
+      ['docs', docs],
+    ]);
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'saveWorkspace').mockResolvedValue('workspace-tree');
+    vi.stubGlobal('showDirectoryPicker', vi.fn(async () => workspace));
+    installBrowser();
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'Open' }));
+    await user.click(screen.getByRole('button', { name: /Open folder/ }));
+    await screen.findByRole('button', { name: 'guide.md' });
+    expect(screen.getByRole('button', { name: 'nested' })).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Collapse all folders' }));
+    expect(screen.getByRole('button', { name: 'Expand all folders' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'guide.md' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'nested' })).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Expand all folders' }));
+    expect(screen.getByRole('button', { name: 'Collapse all folders' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'guide.md' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'details.md' })).toBeTruthy();
   });
 
   it('switches the complete reader UI to Simplified Chinese and persists it', async () => {
@@ -401,25 +471,24 @@ describe('Quire viewer experience', () => {
     installBrowser({}, { version: 2, items: [
       { id: 'workspace-file:first:first.md', title: 'first.md', kind: 'workspace-file', workspaceId: 'first', filePath: 'first.md', openedAt: 2, scrollPosition: 320, headingId: 'first-workspace' },
       { id: 'workspace-file:second:second.md', title: 'second.md', kind: 'workspace-file', workspaceId: 'second', filePath: 'second.md', openedAt: 1 },
+    ] }, { version: 1, items: [
+      { id: 'workspace:first', title: 'docs', kind: 'workspace', workspaceId: 'first', lastFilePath: 'first.md', openedAt: 2 },
+      { id: 'workspace:second', title: 'docs', kind: 'workspace', workspaceId: 'second', lastFilePath: 'second.md', openedAt: 1 },
     ] });
     const user = userEvent.setup();
     render(<App />);
 
     await screen.findByLabelText('Document navigation');
     fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
-    await user.click(within(await screen.findByRole('dialog', { name: 'Command center' })).getByRole('button', { name: /first.md/ }));
+    const firstCommand = within(await screen.findByRole('dialog', { name: 'Command center' }));
+    await user.click(firstCommand.getAllByRole('button', { name: /docs Workspace/ })[0]!);
     await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('First workspace'));
     await user.click(screen.getByRole('button', { name: 'Continue reading' }));
     await waitFor(() => expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' }));
 
     fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
     const commandCenter = within(await screen.findByRole('dialog', { name: 'Command center' }));
-    const commandInput = commandCenter.getByPlaceholderText('Type a command, filename, or URL…');
-    await user.type(commandInput, 'first');
-    expect(commandCenter.getAllByRole('button', { name: /first.md/ })).toHaveLength(1);
-    await user.clear(commandInput);
-    await user.type(commandInput, 'second');
-    await user.click(commandCenter.getByRole('button', { name: /second.md/ }));
+    await user.click(commandCenter.getAllByRole('button', { name: /docs Workspace/ })[1]!);
     await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Second workspace'));
     expect(screen.getByRole('button', { name: 'Previous document' }).hasAttribute('disabled')).toBe(false);
 
@@ -428,6 +497,98 @@ describe('Quire viewer experience', () => {
     } });
     await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('First workspace'));
     expect(screen.getByRole('button', { name: 'Next document' }).hasAttribute('disabled')).toBe(false);
+  });
+
+  it('keeps explicit workspace resources separate from internal document reading history', async () => {
+    const workspaceHandle = (name: string, files: Record<string, string>) => {
+      const handles = Object.entries(files).map(([fileName, markdown]) => [
+        fileName,
+        {
+          kind: 'file',
+          name: fileName,
+          getFile: vi.fn(async () => ({
+            name: fileName,
+            lastModified: 1,
+            size: markdown.length,
+            text: async () => markdown,
+          }) as unknown as File),
+        } as unknown as FileSystemFileHandle,
+      ] as const);
+      return {
+        kind: 'directory',
+        name,
+        queryPermission: vi.fn(async () => 'prompt' as PermissionState),
+        requestPermission: vi.fn(async () => 'granted' as PermissionState),
+        entries: async function* () {
+          for (const entry of handles) yield entry;
+        },
+      } as unknown as FileSystemDirectoryHandle;
+    };
+    const first = workspaceHandle('Workspace A', {
+      'README.md': '# Workspace A readme',
+      'design.md': '# Workspace A design\n\nLast document body.',
+    });
+    const second = workspaceHandle('Workspace B', {
+      'README.md': '# Workspace B readme\n\nSecond workspace body.',
+    });
+    const ids = new Map<FileSystemDirectoryHandle, string>([[first, 'workspace-a'], [second, 'workspace-b']]);
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'getActiveWorkspace').mockResolvedValue(undefined);
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'saveWorkspace').mockImplementation(async (handle, existingId) => (
+      existingId ?? ids.get(handle) ?? 'generated'
+    ));
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'getWorkspace').mockImplementation(async (id) => {
+      const handle = id === 'workspace-a' ? first : id === 'workspace-b' ? second : undefined;
+      return handle ? { id, kind: 'workspace', name: handle.name, handle, savedAt: 1 } : undefined;
+    });
+    vi.stubGlobal('showDirectoryPicker', vi.fn()
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce(second));
+    const { local } = installBrowser();
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'Open' }));
+    await user.click(screen.getByRole('button', { name: /Open folder/ }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Workspace A readme'));
+    await user.click(screen.getByRole('button', { name: 'design.md' }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Last document body.'));
+
+    await user.click(screen.getByRole('button', { name: 'Open' }));
+    await user.click(screen.getByRole('button', { name: /Open folder/ }));
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Second workspace body.'));
+
+    await user.click(screen.getByRole('button', { name: 'Open' }));
+    const menu = within(document.querySelector<HTMLElement>('.open-menu')!);
+    const recentButtons = menu.getAllByRole('button', { name: /Workspace [AB] Workspace/ });
+    expect(recentButtons.map((button) => button.textContent)).toEqual([
+      'Workspace BWorkspace',
+      'Workspace AWorkspace',
+    ]);
+    expect(menu.getAllByRole('button', { name: /Workspace A Workspace/ })).toHaveLength(1);
+
+    await user.click(menu.getByRole('button', { name: 'Remove from recent: Workspace B' }));
+    expect(document.querySelector('article')?.textContent).toContain('Second workspace body.');
+    expect(menu.queryByRole('button', { name: /Workspace B Workspace/ })).toBeNull();
+
+    await user.click(menu.getByRole('button', { name: 'View all recent…' }));
+    const palette = within(await screen.findByRole('dialog', { name: 'Command center' }));
+    const searchRecent = palette.getByPlaceholderText('Search recently opened…');
+    await user.type(searchRecent, 'workspace a');
+    await user.click(palette.getByRole('button', { name: /Workspace A Workspace/ }));
+
+    await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Last document body.'));
+    expect(first.requestPermission).toHaveBeenCalledOnce();
+    await waitFor(() => expect(local.set).toHaveBeenCalledWith(expect.objectContaining({
+      'recent-resources': expect.objectContaining({
+        version: 1,
+        items: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'workspace:workspace-a',
+            lastFilePath: 'design.md',
+          }),
+        ]),
+      }),
+    })));
   });
 
   it('keeps mixed workspace, remote, and local navigation aligned with browser history', async () => {
@@ -540,6 +701,12 @@ describe('Quire viewer experience', () => {
     expect(document.querySelector('.document-identity strong')?.textContent).toBe('B');
     expect(new URLSearchParams(location.search).get('remote')).toBe('https://docs.example.com/B.md');
     expect(location.hash).toBe('#part');
+
+    await user.click(screen.getByRole('button', { name: 'Open' }));
+    const recentMenu = within(document.querySelector<HTMLElement>('.open-menu')!);
+    expect(recentMenu.getAllByRole('button', { name: /A\.md docs\.example\.com/ })).toHaveLength(1);
+    expect(recentMenu.queryByRole('button', { name: /B\.md docs\.example\.com/ })).toBeNull();
+    fireEvent.keyDown(document.querySelector<HTMLElement>('.open-menu')!, { key: 'Escape' });
 
     await user.click(screen.getByRole('button', { name: 'Previous document' }));
     await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Remote A'));

@@ -62,6 +62,11 @@
 .markdown-body .diagram-shell:has(.mermaid[data-resource-state='error']) { border-color: color-mix(in srgb, var(--danger) 42%, var(--border)); background: var(--danger-soft); }
 .markdown-body .mermaid[data-resource-state='error']::before { content: attr(data-resource-error); display: block; margin-bottom: 12px; color: var(--danger); font: 700 var(--font-xs)/1.5 var(--font-ui); white-space: normal; }
 body > .mermaidTooltip:empty { display: none !important; }
+.diagram-lightbox-backdrop { position: fixed; z-index: 250; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, .55); backdrop-filter: blur(8px); animation: fade-in 150ms ease both; }
+.diagram-lightbox { display: flex; flex-direction: column; width: min(calc(100vw - 48px), 1200px); height: calc(100vh - 48px); border: 1px solid var(--border); border-radius: 12px; background: var(--surface-document); box-shadow: var(--shadow-md); animation: rise-in 150ms ease both; }
+.diagram-lightbox .diagram-toolbar { position: static; margin: 10px 10px 0; align-self: flex-end; }
+.diagram-lightbox .mermaid { display: flex; align-items: center; justify-content: center; flex: 1; min-height: 0; margin: 0; padding: 0 1.5em 1.5em; overflow: auto; }
+.diagram-lightbox .mermaid svg { max-width: none; transform-origin: center; }
 .markdown-body .katex-display { overflow-x: auto; overflow-y: hidden; padding: .5em 0; }
 .document-footer { display: flex; align-items: center; gap: 14px; width: min(100%, var(--reader-width)); margin: 72px auto 0; color: var(--text-tertiary); font-size: var(--font-xs); font-weight: 750; letter-spacing: .13em; text-transform: uppercase; }
 .document-footer i { flex: 1; height: 1px; background: var(--border-soft); }

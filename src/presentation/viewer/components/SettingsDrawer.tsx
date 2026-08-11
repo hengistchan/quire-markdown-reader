@@ -1,5 +1,6 @@
 import { ChevronRight, Moon, ShieldCheck, Sun, X } from 'lucide-react';
 import type { ReaderSettings } from '../../../shared/types';
+import { MAX_READER_WIDTH, MIN_READER_WIDTH } from '../../../shared/defaultSettings';
 import type { Translator } from './types';
 
 export function SettingsDrawer({ settings, t, onChange, onReset, onClose }: {
@@ -17,7 +18,7 @@ export function SettingsDrawer({ settings, t, onChange, onReset, onClose }: {
         <div className="segmented">{(['light', 'dark', 'system'] as const).map((theme) => <button key={theme} className={settings.theme === theme ? 'active' : ''} onClick={() => onChange({ theme })}>{theme === 'light' ? <Sun /> : theme === 'dark' ? <Moon /> : <span className="system-icon" />} {t(theme)}</button>)}</div>
         <div className="font-choice"><button className={settings.fontFamily === 'serif' ? 'active' : ''} onClick={() => onChange({ fontFamily: 'serif' })}><strong>{t('serif')}</strong><span>Aa</span></button><button className={settings.fontFamily === 'sans' ? 'active' : ''} onClick={() => onChange({ fontFamily: 'sans' })}><strong>{t('sans')}</strong><span>Aa</span></button></div>
         <RangeSetting label={t('textSize')} value={settings.fontSize} min={15} max={24} suffix=" px" onChange={(fontSize) => onChange({ fontSize })} />
-        <RangeSetting label={t('pageWidth')} value={settings.contentWidth} min={560} max={980} step={10} suffix=" px" onChange={(contentWidth) => onChange({ contentWidth })} />
+        <RangeSetting label={t('pageWidth')} value={settings.contentWidth} min={MIN_READER_WIDTH} max={MAX_READER_WIDTH} step={10} suffix=" px" onChange={(contentWidth) => onChange({ contentWidth })} />
         <RangeSetting label={t('lineHeight')} value={settings.lineHeight} min={1.45} max={2} step={0.01} onChange={(lineHeight) => onChange({ lineHeight })} />
         <div className="setting-row"><div><strong>{t('language')}</strong><span>English / 简体中文</span></div><select aria-label={t('language')} value={settings.locale} onChange={(event) => onChange({ locale: event.target.value as ReaderSettings['locale'] })}><option value="system">{t('system')}</option><option value="en">English</option><option value="zh-CN">简体中文</option></select></div>
       </section>

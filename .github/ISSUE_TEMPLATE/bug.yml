@@ -10,7 +10,7 @@ body:
     id: version
     attributes:
       label: Quire version
-      placeholder: 0.0.5
+      placeholder: 0.0.6
     validations:
       required: true
   - type: dropdown

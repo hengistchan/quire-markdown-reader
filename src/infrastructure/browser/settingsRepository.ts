@@ -1,6 +1,6 @@
 import type { ReaderSettings } from '../../shared/types';
 import type { SettingsRepository } from '../../application/ports/settingsRepository';
-import { defaultSettings } from '../../shared/defaultSettings';
+import { defaultSettings, MAX_READER_WIDTH, MIN_READER_WIDTH } from '../../shared/defaultSettings';
 
 export { defaultSettings } from '../../shared/defaultSettings';
 
@@ -42,7 +42,7 @@ function normalizeSettings(value: unknown, missingIsRepair = true): { settings: 
     fontFamily: enumValue(value.fontFamily, ['sans', 'serif'], defaultSettings.fontFamily),
     fontSize: numberValue(value.fontSize, 15, 24, defaultSettings.fontSize),
     lineHeight: numberValue(value.lineHeight, 1.45, 2, defaultSettings.lineHeight),
-    contentWidth: numberValue(value.contentWidth, 560, 980, defaultSettings.contentWidth),
+    contentWidth: numberValue(value.contentWidth, MIN_READER_WIDTH, MAX_READER_WIDTH, defaultSettings.contentWidth),
     wideView: booleanValue(value.wideView, defaultSettings.wideView),
     showReadingProgress: booleanValue(value.showReadingProgress, defaultSettings.showReadingProgress),
     showOutline: booleanValue(value.showOutline, defaultSettings.showOutline),
