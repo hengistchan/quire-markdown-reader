@@ -261,31 +261,91 @@ describe('Quire viewer experience', () => {
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
-  it('toggles a persistent wider reading width beside the Open control', async () => {
+  it('defaults to the widest reading width and persists the standard-width toggle', async () => {
     const { local } = installBrowser();
     const user = userEvent.setup();
     render(<App />);
 
-    const wideButton = await screen.findByRole('button', { name: 'Use wider reading width' });
+    const wideButton = await screen.findByRole('button', { name: 'Use standard reading width' });
     const openButton = screen.getByRole('button', { name: 'Open' });
     const searchButton = within(document.querySelector<HTMLElement>('.topbar-actions')!).getByRole('button', { name: 'Command center' });
     expect(openButton.compareDocumentPosition(wideButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(wideButton.compareDocumentPosition(searchButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(wideButton.getAttribute('aria-pressed')).toBe('false');
-    expect(document.querySelector<HTMLElement>('.app-shell')?.style.getPropertyValue('--reader-width')).toBe('760px');
+    expect(wideButton.getAttribute('aria-pressed')).toBe('true');
+    expect(document.querySelector<HTMLElement>('.app-shell')?.style.getPropertyValue('--reader-width')).toBe('1200px');
 
-    await user.click(wideButton);
-
-    expect(screen.getByRole('button', { name: 'Use standard reading width' }).getAttribute('aria-pressed')).toBe('true');
+    await user.click(screen.getByRole('button', { name: 'Reader settings' }));
+    const pageWidth = await screen.findByLabelText<HTMLInputElement>('Page width');
+    expect(pageWidth.value).toBe('980');
+    fireEvent.change(pageWidth, { target: { value: '970' } });
+    expect(document.querySelector<HTMLElement>('.app-shell')?.style.getPropertyValue('--reader-width')).toBe('970px');
+    fireEvent.change(pageWidth, { target: { value: '980' } });
     expect(document.querySelector<HTMLElement>('.app-shell')?.style.getPropertyValue('--reader-width')).toBe('980px');
+    await user.click(screen.getByRole('button', { name: 'Close settings' }));
+
+    const enableWideButton = screen.getByRole('button', { name: 'Use wider reading width' });
+    expect(enableWideButton.getAttribute('aria-pressed')).toBe('false');
     await waitFor(() => expect(local.set).toHaveBeenCalledWith(expect.objectContaining({
       'reader-settings': expect.objectContaining({
-        settings: expect.objectContaining({ wideView: true }),
+        settings: expect.objectContaining({ contentWidth: 980, wideView: false }),
       }),
     })));
 
+    await user.click(enableWideButton);
+    expect(document.querySelector<HTMLElement>('.app-shell')?.style.getPropertyValue('--reader-width')).toBe('1200px');
     await user.click(screen.getByRole('button', { name: 'Use standard reading width' }));
-    expect(document.querySelector<HTMLElement>('.app-shell')?.style.getPropertyValue('--reader-width')).toBe('760px');
+    expect(document.querySelector<HTMLElement>('.app-shell')?.style.getPropertyValue('--reader-width')).toBe('980px');
+  });
+
+  it('collapses and expands every folder in the workspace tree', async () => {
+    const fileHandle = (name: string, markdown: string) => ({
+      kind: 'file',
+      name,
+      getFile: vi.fn(async () => ({
+        name, lastModified: 1, size: markdown.length, text: async () => markdown,
+      }) as unknown as File),
+    } as unknown as FileSystemFileHandle);
+    const directoryHandle = (
+      name: string,
+      entries: Array<[string, FileSystemFileHandle | FileSystemDirectoryHandle]>,
+    ) => ({
+      kind: 'directory',
+      name,
+      entries: async function* () {
+        for (const entry of entries) yield entry;
+      },
+    } as unknown as FileSystemDirectoryHandle);
+    const nested = directoryHandle('nested', [
+      ['details.md', fileHandle('details.md', '# Details')],
+    ]);
+    const docs = directoryHandle('docs', [
+      ['guide.md', fileHandle('guide.md', '# Guide')],
+      ['nested', nested],
+    ]);
+    const workspace = directoryHandle('notes', [
+      ['README.md', fileHandle('README.md', '# Workspace home')],
+      ['docs', docs],
+    ]);
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'saveWorkspace').mockResolvedValue('workspace-tree');
+    vi.stubGlobal('showDirectoryPicker', vi.fn(async () => workspace));
+    installBrowser();
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole('button', { name: 'Open' }));
+    await user.click(screen.getByRole('button', { name: /Open folder/ }));
+    await screen.findByRole('button', { name: 'guide.md' });
+    expect(screen.getByRole('button', { name: 'nested' })).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Collapse all folders' }));
+    expect(screen.getByRole('button', { name: 'Expand all folders' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'guide.md' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'nested' })).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Expand all folders' }));
+    expect(screen.getByRole('button', { name: 'Collapse all folders' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'guide.md' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'details.md' })).toBeTruthy();
   });
 
   it('switches the complete reader UI to Simplified Chinese and persists it', async () => {

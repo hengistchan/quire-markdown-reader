@@ -3,8 +3,9 @@
 .context-panel { position: sticky; top: 56px; display: flex; flex-direction: column; height: calc(100vh - 56px); height: calc(100dvh - 56px); border-right: 1px solid var(--border-soft); background: var(--surface-sidebar); }
 .context-heading { display: grid; gap: 7px; padding: 20px 16px 12px; }
 .context-heading span { color: var(--text-tertiary); font-size: var(--font-xs); }
-.context-heading > div { display: grid; grid-template-columns: minmax(0, 1fr) 28px; align-items: center; gap: 8px; }
+.context-heading > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; }
 .context-heading strong { overflow: hidden; color: var(--text-strong); font-size: var(--font-lg); text-overflow: ellipsis; white-space: nowrap; }
+.context-heading-actions { display: flex; align-items: center; gap: 2px; }
 .context-heading button { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: var(--radius-sm); color: var(--icon-secondary); background: transparent; cursor: pointer; }
 .context-heading button:hover { color: var(--icon-primary); background: var(--hover); }
 .context-heading button:disabled { color: var(--icon-disabled); cursor: wait; }
@@ -15,12 +16,12 @@
 .file-filter input { width: 100%; height: 34px; border: 0; outline: 0; color: var(--text-primary); background: transparent; font-size: var(--font-xs); }
 .context-files { flex: 1 1 auto; min-height: 0; padding: 2px 9px 12px; overflow-y: auto; scrollbar-color: var(--border-strong) transparent; scrollbar-width: thin; }
 .tree-group { display: grid; }
-.folder-row, .file-row { display: grid; align-items: center; gap: 6px; width: 100%; min-height: 34px; border: 0; border-radius: var(--radius-sm); color: var(--text-secondary); background: transparent; cursor: pointer; text-align: left; }
+.folder-row, .file-row { display: grid; align-items: center; gap: 6px; width: 100%; min-height: 34px; border: 0; border-radius: var(--radius-sm); color: var(--text-secondary); background: transparent; cursor: pointer; font-size: var(--font-ui-size); line-height: 1.4; text-align: left; }
 .folder-row { grid-template-columns: 17px 17px minmax(0, 1fr); }
 .file-row { grid-template-columns: 17px minmax(0, 1fr) 14px; }
 .folder-row:hover, .file-row:hover { color: var(--text-strong); background: var(--hover); }
 .folder-row svg, .file-row svg { width: 13px; color: var(--icon-secondary); }
-.folder-row span, .file-row span { overflow: hidden; font-size: var(--font-xs); text-overflow: ellipsis; white-space: nowrap; }
+.folder-row span, .file-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .folder-row { color: var(--text-primary); font-weight: 650; }
 .file-row.active { color: var(--text-strong); background: var(--selected); font-weight: 700; }
 .file-row.active > svg:first-child, .row-check { color: var(--accent-strong); }

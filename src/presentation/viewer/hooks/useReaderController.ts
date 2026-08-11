@@ -4,6 +4,7 @@ import { createShortcutLabels } from '../../../core/shortcuts';
 import type {
   ReaderSettings, SidebarMode,
 } from '../../../shared/types';
+import { WIDE_READER_WIDTH } from '../../../shared/defaultSettings';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
 import { useReaderNavigation } from './useReaderNavigation';
 import { useNavigationRestoration } from './useNavigationRestoration';
@@ -22,8 +23,6 @@ import type { ReaderController } from '../../../application/reader/readerControl
 import type { NavigationTarget } from '../../../domain/navigation/navigationTarget';
 import { NavigationOperationController } from '../../../application/navigation/navigationOperationController';
 import type { CommandPaletteMode } from '../components/types';
-
-const WIDE_READER_WIDTH = 980;
 
 export function useReaderController(controller: ReaderController) {
   const settingsFeature = useReaderSettings(controller);
@@ -129,6 +128,8 @@ export function useReaderController(controller: ReaderController) {
     setRestorable: setRestorableWorkspace,
     scanning: workspaceScanning,
     collapsedDirectories,
+    allDirectoriesCollapsed,
+    hasDirectories,
     directoryInput,
     activate: activateWorkspace,
     cancelScan: cancelWorkspaceScan,
@@ -138,6 +139,7 @@ export function useReaderController(controller: ReaderController) {
     refresh: refreshWorkspace,
     dismissRestore: dismissWorkspaceRestore,
     toggleDirectory,
+    toggleAllDirectories,
   } = workspaceFeature;
   const recentResourceActions = useRecentResourceActions({
     controller,
@@ -296,6 +298,8 @@ export function useReaderController(controller: ReaderController) {
       contextMode,
       contextOpen,
       collapsedDirectories,
+      allDirectoriesCollapsed,
+      hasDirectories,
       directoryInput,
       fileFilter,
       filteredFiles,
@@ -309,6 +313,7 @@ export function useReaderController(controller: ReaderController) {
       setFileFilter,
       setSidebarMode,
       toggleDirectory,
+      toggleAllDirectories,
       togglePanel: toggleWorkspacePanel,
     },
     search: {

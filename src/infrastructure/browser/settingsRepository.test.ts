@@ -46,6 +46,18 @@ describe('reader settings storage', () => {
     expect(set).not.toHaveBeenCalled();
   });
 
+  it('preserves an explicit standard-width preference in the current schema', async () => {
+    const set = vi.fn(async () => undefined);
+    const settings = { ...defaultSettings, wideView: false };
+    const get = vi.fn(async () => ({
+      'reader-settings': { version: SETTINGS_SCHEMA_VERSION, settings },
+    }));
+    vi.stubGlobal('browser', { storage: { local: { get, set } } });
+
+    await expect(loadSettings()).resolves.toEqual(settings);
+    expect(set).not.toHaveBeenCalled();
+  });
+
   it('adds remote-image privacy defaults when migrating version 3 settings', async () => {
     const set = vi.fn(async () => undefined);
     const { loadRemoteImages: _loadRemoteImages, remoteImageReferrerPolicy: _policy, ...versionThree } = defaultSettings;

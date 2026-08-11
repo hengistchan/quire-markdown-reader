@@ -276,17 +276,26 @@ const embedded = true;
     await expect(diagramToolbar.getByRole('button', { name: 'Reset zoom: 100%' })).toBeDisabled();
 
     const openControl = page.getByRole('button', { name: 'Open', exact: true });
-    const wideControl = page.getByRole('button', { name: 'Use wider reading width' });
+    const wideControl = page.getByRole('button', { name: 'Use standard reading width' });
     const topbarSearch = page.locator('.topbar-actions').getByRole('button', { name: 'Command center' });
-    const [openBox, wideBox, searchBox, standardReaderBox] = await Promise.all([
+    const [openBox, wideBox, searchBox, wideReaderBox] = await Promise.all([
       openControl.boundingBox(), wideControl.boundingBox(), topbarSearch.boundingBox(), page.locator('.markdown-body').boundingBox(),
     ]);
     expect(wideBox!.x).toBeGreaterThan(openBox!.x + openBox!.width - 1);
     expect(wideBox!.x + wideBox!.width).toBeLessThanOrEqual(searchBox!.x + 1);
     await wideControl.click();
-    await expect(page.getByRole('button', { name: 'Use standard reading width' })).toHaveAttribute('aria-pressed', 'true');
-    await expect.poll(async () => (await page.locator('.markdown-body').boundingBox())!.width).toBeGreaterThan(standardReaderBox!.width);
-    await page.getByRole('button', { name: 'Use standard reading width' }).click();
+    await expect(page.getByRole('button', { name: 'Use wider reading width' })).toHaveAttribute('aria-pressed', 'false');
+    await expect.poll(async () => (await page.locator('.markdown-body').boundingBox())!.width).toBeLessThan(wideReaderBox!.width);
+    await page.getByRole('button', { name: 'Use wider reading width' }).click();
+
+    await page.getByRole('button', { name: 'Reader settings' }).click();
+    const pageWidth = page.getByRole('slider', { name: 'Page width' });
+    await pageWidth.fill('970');
+    await pageWidth.fill('980');
+    await page.getByRole('button', { name: 'Close settings' }).click();
+    const maxCustomReaderBox = await page.locator('.markdown-body').boundingBox();
+    await page.getByRole('button', { name: 'Use wider reading width' }).click();
+    await expect.poll(async () => (await page.locator('.markdown-body').boundingBox())!.width).toBeGreaterThan(maxCustomReaderBox!.width);
 
     await openControl.click();
     await page.getByRole('button', { name: 'Open folder' }).click();
@@ -294,6 +303,11 @@ const embedded = true;
     await expect(page.getByRole('button', { name: 'docs' })).toBeVisible();
     await expect(page.getByRole('button', { name: /guide\.md/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /ignored\.md/ })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Collapse all folders' }).click();
+    await expect(page.getByRole('button', { name: 'Expand all folders' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /guide\.md/ })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Expand all folders' }).click();
+    await expect(page.getByRole('button', { name: /guide\.md/ })).toBeVisible();
     await page.getByRole('button', { name: /guide\.md/ }).click();
     await expect(page.locator('.document-identity strong')).toHaveText('guide');
     await expect(page).toHaveURL(/\?workspace=[^&]+&file=docs%2Fguide\.md$/);

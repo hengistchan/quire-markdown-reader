@@ -1,7 +1,8 @@
 import { lazy, Suspense, type CSSProperties } from 'react';
 import {
-  AlertCircle, ArrowLeft, ArrowRight, ChevronDown, File, FolderOpen, ListTree, LoaderCircle,
-  MoreHorizontal, RotateCw, Search, Settings2, StretchHorizontal, X,
+  AlertCircle, ArrowLeft, ArrowRight, ChevronDown, ChevronsDownUp, ChevronsUpDown, File,
+  FolderOpen, ListTree, LoaderCircle, MoreHorizontal, RotateCw, Search, Settings2,
+  StretchHorizontal, X,
 } from 'lucide-react';
 import { MoreMenu } from './components/MoreMenu';
 import { OpenMenu } from './components/OpenMenu';
@@ -26,10 +27,11 @@ export function ReaderView({ view }: { view: ReaderViewModel }) {
   } = documentModel;
   const {
     current: workspace, restorable: restorableWorkspace, scanning: workspaceScanning, contextMode,
-    contextOpen, collapsedDirectories, directoryInput, fileFilter, filteredFiles,
+    contextOpen, collapsedDirectories, allDirectoriesCollapsed, hasDirectories, directoryInput,
+    fileFilter, filteredFiles,
     cancelScan: cancelWorkspaceScan, dismissRestore, openDirectory: handleDirectory,
     openFile: openWorkspaceFile, openTransient: handleTransientDirectory, refresh: refreshWorkspace,
-    restore: restoreWorkspace, setFileFilter, setSidebarMode, toggleDirectory,
+    restore: restoreWorkspace, setFileFilter, setSidebarMode, toggleDirectory, toggleAllDirectories,
     togglePanel: toggleWorkspacePanel,
   } = workspaceModel;
   const {
@@ -113,7 +115,10 @@ export function ReaderView({ view }: { view: ReaderViewModel }) {
 
       <div className={`workspace ${contextOpen ? 'with-context' : ''}`}>
         {contextMode === 'files' && <aside className="context-panel workspace-panel" aria-label={t('workspace')}>
-          <div className="context-heading"><span>{t('workspace')}</span><div><strong>{workspace?.name ?? t('restoreTitle')}</strong>{workspace && !workspace.transient && <button disabled={workspaceScanning} onClick={() => void refreshWorkspace()} aria-label={t('refreshWorkspace')} title={t('refreshWorkspace')}><RotateCw className={workspaceScanning ? 'loading-spinner' : ''} /></button>}</div></div>
+          <div className="context-heading"><span>{t('workspace')}</span><div><strong>{workspace?.name ?? t('restoreTitle')}</strong><div className="context-heading-actions">
+            {workspace && hasDirectories && <button onClick={toggleAllDirectories} aria-label={allDirectoriesCollapsed ? t('expandAllFolders') : t('collapseAllFolders')} title={allDirectoriesCollapsed ? t('expandAllFolders') : t('collapseAllFolders')}>{allDirectoriesCollapsed ? <ChevronsUpDown /> : <ChevronsDownUp />}</button>}
+            {workspace && !workspace.transient && <button disabled={workspaceScanning} onClick={() => void refreshWorkspace()} aria-label={t('refreshWorkspace')} title={t('refreshWorkspace')}><RotateCw className={workspaceScanning ? 'loading-spinner' : ''} /></button>}
+          </div></div></div>
           {workspace && <label className="file-filter"><Search /><input value={fileFilter} onChange={(event) => setFileFilter(event.target.value)} placeholder={t('filterFiles')} /></label>}
           {restorableWorkspace && <div className="restore-card"><RotateCw /><strong>{t('restoreTitle')}</strong><p>{t('restoreBody')}</p><button onClick={() => void restoreWorkspace()}>{t('restore')}</button><button className="quiet" onClick={dismissRestore}>{t('dismiss')}</button></div>}
           <nav className="context-files">

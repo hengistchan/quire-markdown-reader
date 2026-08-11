@@ -103,6 +103,14 @@ for (const theme of ['light', 'dark'] as const) {
 
       await page.getByRole('button', { name: 'Toggle file workspace' }).click();
       await capture(page, `workspace-${theme}-1280x800.png`);
+      await expect(page.locator('.file-row').first()).toHaveCSS('font-size', '12px');
+
+      await page.getByRole('button', { name: 'Toggle file workspace' }).click();
+      await page.getByRole('button', { name: 'Toggle document outline' }).click();
+      await expect(page.locator('.outline-navigation button').first()).toHaveCSS('font-size', '12px');
+      await capture(page, `outline-${theme}-1280x800.png`);
+      await page.getByRole('button', { name: 'Toggle document outline' }).click();
+      await page.getByRole('button', { name: 'Toggle file workspace' }).click();
 
       await page.getByRole('button', { name: 'Open', exact: true }).click();
       await expect(page.locator('.open-menu')).toBeVisible();

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import type { PersistedWorkspaceHandle } from '../../../application/ports/handleRepository';
 import type { ReaderController } from '../../../application/reader/readerController';
 import type { RecentResourceInput } from '../../../application/ports/recentResourceRepository';
@@ -10,7 +10,15 @@ import {
 import { WorkspaceScanError } from '../../../shared/errors/workspaceScanError';
 import type { ReaderError } from '../../../shared/errors/readerError';
 import type { Translator } from '../../../shared/i18n';
-import type { SidebarMode, WorkspaceFile, WorkspaceSnapshot } from '../../../shared/types';
+import type {
+  SidebarMode, WorkspaceFile, WorkspaceSnapshot, WorkspaceTreeNode,
+} from '../../../shared/types';
+
+function directoryPaths(nodes: WorkspaceTreeNode[]): string[] {
+  return nodes.flatMap((node) => node.kind === 'directory'
+    ? [node.path, ...directoryPaths(node.children)]
+    : []);
+}
 
 interface WorkspaceOptions {
   controller: ReaderController;
@@ -42,6 +50,12 @@ export function useWorkspace(options: WorkspaceOptions) {
   const [restorable, setRestorable] = useState<PersistedWorkspaceHandle>();
   const [scanning, setScanning] = useState(false);
   const [collapsedDirectories, setCollapsedDirectories] = useState<Set<string>>(new Set());
+  const workspaceDirectoryPaths = useMemo(
+    () => directoryPaths(workspace?.tree ?? []),
+    [workspace?.tree],
+  );
+  const allDirectoriesCollapsed = workspaceDirectoryPaths.length > 0
+    && workspaceDirectoryPaths.every((path) => collapsedDirectories.has(path));
   const directoryInput = useRef<HTMLInputElement>(null);
   const currentScan = useRef<AbortSignal | undefined>(undefined);
 
@@ -167,12 +181,19 @@ export function useWorkspace(options: WorkspaceOptions) {
     if (next.has(path)) next.delete(path); else next.add(path);
     return next;
   });
+  const toggleAllDirectories = () => setCollapsedDirectories((current) => {
+    const allCollapsed = workspaceDirectoryPaths.length > 0
+      && workspaceDirectoryPaths.every((path) => current.has(path));
+    return allCollapsed ? new Set() : new Set(workspaceDirectoryPaths);
+  });
 
   return {
     restorable,
     setRestorable,
     scanning,
     collapsedDirectories,
+    allDirectoriesCollapsed,
+    hasDirectories: workspaceDirectoryPaths.length > 0,
     directoryInput,
     activate,
     cancelScan: () => navigationOperation.cancel(),
@@ -182,5 +203,6 @@ export function useWorkspace(options: WorkspaceOptions) {
     refresh,
     dismissRestore: () => setRestorable(undefined),
     toggleDirectory,
+    toggleAllDirectories,
   };
 }
