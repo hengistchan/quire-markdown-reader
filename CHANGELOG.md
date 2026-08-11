@@ -4,6 +4,27 @@ All notable changes to Quire are documented here. This project follows [Semantic
 
 ## [Unreleased]
 
+## [0.0.6] - 2026-08-11
+
+### Added
+
+- Added Recent Resources for explicitly opened local files, workspaces, and remote URLs without mixing them into per-document reading history
+- Added five-item recent access in the Open menu, full recent-resource search in the command center, per-item removal, deduplication, and workspace last-file recovery
+- Added expanded Mermaid lightboxes with mouse, touch, pinch, keyboard, pan, zoom, and reset interactions
+- Added a workspace-header control that collapses or expands every nested folder in one action
+
+### Changed
+
+- Increased file-tree and document-outline typography while preserving compact row density and visual hierarchy
+- Made the widest reading layout the default, separated the 560–980 px custom range from the 1200 px Wide View, and kept the saved custom width when toggling modes
+- Extended light and dark visual-regression coverage to the Open menu and document-outline panel
+
+### Fixed
+
+- Prevented workspace-internal navigation, browser traversal, relative links, and reading-position restoration from creating duplicate Recent Resources
+- Restored recent workspaces through explicit permission recovery and handled missing local handles without leaving stale document content
+- Kept Wide View visibly effective after the page-width slider is changed to its maximum value
+
 ## [0.0.5] - 2026-08-08
 
 ### Added
@@ -116,7 +137,8 @@ All notable changes to Quire are documented here. This project follows [Semantic
 - First-run guidance, actionable error and permission states, English and Simplified Chinese interfaces
 - Reproducible browser packages, automated tests, community documents, store materials, and release automation
 
-[Unreleased]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.5...HEAD
+[Unreleased]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.6...HEAD
+[0.0.6]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.2...v0.0.3

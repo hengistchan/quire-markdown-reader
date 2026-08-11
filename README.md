@@ -66,7 +66,7 @@ npm run test:visual
 npm run test:e2e:firefox:context
 ```
 
-The native Firefox shortcut gate runs in a Linux display session with `xvfb-run -a npm run test:e2e:firefox:native`. See the [v0.0.5 acceptance matrix](docs/acceptance-v0.0.5.md) for the current iteration boundary; earlier matrices remain as historical evidence.
+The native Firefox shortcut gate runs in a Linux display session with `xvfb-run -a npm run test:e2e:firefox:native`. See the [v0.0.6 acceptance matrix](docs/acceptance-v0.0.6.md) for the current iteration boundary; earlier matrices remain as historical evidence.
 
 ## Permissions and privacy
 
