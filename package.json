@@ -1,6 +1,6 @@
 {
   "name": "quire-markdown-reader",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "An open-source, read-only Markdown reader and local document workspace for browsers.",
   "license": "MIT",
   "private": true,

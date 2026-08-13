@@ -197,13 +197,12 @@ pie showData
 
 ```mermaid
 gitGraph
-  commit id: "0.0.5"
-  branch release-0.0.6
-  checkout release-0.0.6
-  commit id: "recent"
-  commit id: "workspace"
+  commit id: "0.0.6"
+  branch release-0.0.7
+  checkout release-0.0.7
+  commit id: "dotfiles"
   checkout main
-  merge release-0.0.6
+  merge release-0.0.7
 ```
 
 ## Mermaid XY chart

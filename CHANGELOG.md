@@ -4,6 +4,12 @@ All notable changes to Quire are documented here. This project follows [Semantic
 
 ## [Unreleased]
 
+## [0.0.7] - 2026-08-13
+
+### Fixed
+
+- Included dot-prefixed Markdown files when scanning imported folders while continuing to ignore hidden directories and dependency/build directories
+
 ## [0.0.6] - 2026-08-11
 
 ### Added
@@ -137,7 +143,8 @@ All notable changes to Quire are documented here. This project follows [Semantic
 - First-run guidance, actionable error and permission states, English and Simplified Chinese interfaces
 - Reproducible browser packages, automated tests, community documents, store materials, and release automation
 
-[Unreleased]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.6...HEAD
+[Unreleased]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.7...HEAD
+[0.0.7]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.6...v0.0.7
 [0.0.6]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/hengistchan/quire-markdown-reader/compare/v0.0.3...v0.0.4
