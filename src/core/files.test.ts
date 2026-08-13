@@ -88,6 +88,22 @@ describe('workspace collection', () => {
     });
   });
 
+  it('includes dot-prefixed markdown files while still skipping hidden directories', async () => {
+    const root = directoryHandle('notes', {
+      '.draft.md': fileHandle('.draft.md'),
+      '.private': directoryHandle('.private', { 'secret.md': fileHandle('secret.md') }),
+      'public.md': fileHandle('public.md'),
+    });
+
+    const workspace = await collectWorkspace(root);
+
+    expect(workspace.files.map((file) => file.path)).toEqual([
+      '.draft.md',
+      'public.md',
+    ]);
+    expect(workspace.tree.map((node) => node.path)).toEqual(['.draft.md', 'public.md']);
+  });
+
   it('scans the supported 5000-file workspace boundary', async () => {
     const children = Object.fromEntries(Array.from(
       { length: 5_000 },

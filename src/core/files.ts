@@ -60,11 +60,10 @@ async function collectDirectory(
 
   for (const [name, handle] of handles) {
     assertScanActive(context);
-    if (name.startsWith('.')) continue;
     const path = prefix ? `${prefix}/${name}` : name;
 
     if (handle.kind === 'directory') {
-      if (context.ignoredDirectories.has(name)) continue;
+      if (name.startsWith('.') || context.ignoredDirectories.has(name)) continue;
       if (depth >= context.maxDepth) throw new WorkspaceScanError('max-depth');
       const nested = await collectDirectory(handle, context, path, depth + 1);
       files.push(...nested.files);
