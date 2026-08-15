@@ -25,8 +25,12 @@ This document is the iteration and release boundary for the 0.0.7 update. Checke
 - [x] Store artwork and all localized screenshots pass validation.
 - [x] Installed Chromium passes the complete reader and recent-resource/navigation/restoration flows.
 - [x] Light and dark visual regression passes against the committed baselines.
-- [ ] Installed Firefox passes toolbar, context-menu, and native-shortcut flows.
-- [ ] GitHub CI passes on the final 0.0.7 release commit.
-- [ ] Create and push the annotated `v0.0.7` tag only after every preceding gate passes and publication is explicitly authorized.
+- [x] Installed Firefox passes toolbar, context-menu, and native-shortcut flows.
+- [x] GitHub CI passes on the final 0.0.7 release commit.
+- [x] Create and push the annotated `v0.0.7` tag only after every preceding gate passes and publication is explicitly authorized.
 
 Local release evidence on 2026-08-13: the release guard accepted `v0.0.7` and rejected `v0.0.6`; TypeScript compilation and 36 files with 243 unit/component tests passed; Chrome and Firefox builds and ZIPs passed bundle and package validation; all 143 Firefox package files were reproduced byte-for-byte from the source archive; all ten localized store screenshots and store disclosures passed; five installed-Chromium E2E flows and both non-update visual-regression tests passed. The macOS host has no usable Firefox installation, so the Linux release workflow is the Firefox release gate.
+
+The final `main` CI run [31713490822](https://github.com/hengistchan/quire-markdown-reader/actions/runs/31713490822) passed the complete release gate, including the installed-Firefox toolbar, context-menu, and native-shortcut flows.
+
+After publication was authorized, annotated tag `v0.0.7` was pushed with peeled target `764148ab8e8a6007e967a7b32f0f7784664101c5`. Release workflow run [31713950786](https://github.com/hengistchan/quire-markdown-reader/actions/runs/31713950786) repeated the complete gate and published [Quire v0.0.7](https://github.com/hengistchan/quire-markdown-reader/releases/tag/v0.0.7) as a non-draft, non-prerelease release with Chrome, Edge, Firefox, and source ZIP assets.
