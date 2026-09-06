@@ -18,7 +18,7 @@ export const defaultSettings: ReaderSettings = {
   enableKatex: true,
   enableMermaid: true,
   enableHtml: true,
-  loadRemoteImages: true,
+  loadRemoteImages: false,
   remoteImageReferrerPolicy: 'no-referrer',
   customCss: '',
 };

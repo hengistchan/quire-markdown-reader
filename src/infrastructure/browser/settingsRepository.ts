@@ -6,8 +6,8 @@ export { defaultSettings } from '../../shared/defaultSettings';
 
 const STORAGE_KEY = 'reader-settings';
 const BACKUP_KEY = 'reader-settings-backup';
-const PREVIOUS_SETTINGS_SCHEMA_VERSIONS = new Set([2, 3]);
-export const SETTINGS_SCHEMA_VERSION = 4;
+const PREVIOUS_SETTINGS_SCHEMA_VERSIONS = new Set([2, 3, 4]);
+export const SETTINGS_SCHEMA_VERSION = 5;
 
 interface PersistedReaderSettings {
   version: typeof SETTINGS_SCHEMA_VERSION;
@@ -21,13 +21,11 @@ function isRecord(value: unknown): value is SettingsRecord {
 }
 
 function enumValue<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
-  return typeof value === 'string' && allowed.includes(value as T) ? value as T : fallback;
+  return typeof value === 'string' && allowed.includes(value as T) ? (value as T) : fallback;
 }
 
 function numberValue(value: unknown, min: number, max: number, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max
-    ? value
-    : fallback;
+  return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max ? value : fallback;
 }
 
 function booleanValue(value: unknown, fallback: boolean): boolean {
@@ -58,8 +56,9 @@ function normalizeSettings(value: unknown, missingIsRepair = true): { settings: 
     ),
     customCss: typeof value.customCss === 'string' ? value.customCss : defaultSettings.customCss,
   };
-  const repaired = (Object.keys(defaultSettings) as (keyof ReaderSettings)[])
-    .some((key) => key in value ? value[key] !== settings[key] : missingIsRepair);
+  const repaired = (Object.keys(defaultSettings) as (keyof ReaderSettings)[]).some((key) =>
+    key in value ? value[key] !== settings[key] : missingIsRepair,
+  );
   return { settings, repaired };
 }
 
@@ -79,18 +78,23 @@ export async function loadSettings(): Promise<ReaderSettings> {
 
   const record = isRecord(raw) ? raw : undefined;
   const envelope = record?.version === SETTINGS_SCHEMA_VERSION && 'settings' in record;
-  const previousSettings = typeof record?.version === 'number'
-    && PREVIOUS_SETTINGS_SCHEMA_VERSIONS.has(record.version)
-    && isRecord(record.settings)
-    ? record.settings
-    : undefined;
+  const previousSettings =
+    typeof record?.version === 'number' &&
+    PREVIOUS_SETTINGS_SCHEMA_VERSIONS.has(record.version) &&
+    isRecord(record.settings)
+      ? record.settings
+      : undefined;
   const previousEnvelope = previousSettings !== undefined;
   const legacy = record !== undefined && !('version' in record);
   const settingsSource = previousEnvelope
     ? { ...previousSettings, enableHtml: record?.version === 2 ? true : previousSettings.enableHtml }
-    : envelope ? record.settings : legacy ? record : undefined;
+    : envelope
+      ? record.settings
+      : legacy
+        ? record
+        : undefined;
   const normalized = normalizeSettings(settingsSource, !legacy);
-  const needsBackup = previousEnvelope || !envelope && !legacy || normalized.repaired;
+  const needsBackup = previousEnvelope || (!envelope && !legacy) || normalized.repaired;
   const needsMigration = previousEnvelope || legacy || normalized.repaired;
 
   if (needsBackup || needsMigration) {

@@ -5,8 +5,21 @@ describe('searchMarkdown', () => {
   it('returns structured matches with source positions and heading context', () => {
     const source = '# Overview\n\nIntro text.\n\n## Details\n\nFind the needle here.\nNeedle appears again.';
     expect(searchMarkdown(source, 'needle')).toEqual([
-      expect.objectContaining({ id: '7:9', text: 'Find the needle here.', headingId: 'details', blockIndex: 3, startOffset: 46, lineNumber: 7 }),
-      expect.objectContaining({ id: '8:0', text: 'Needle appears again.', headingId: 'details', blockIndex: 3, lineNumber: 8 }),
+      expect.objectContaining({
+        id: '7:9',
+        text: 'Find the needle here.',
+        headingId: 'details',
+        blockIndex: 3,
+        startOffset: 46,
+        lineNumber: 7,
+      }),
+      expect.objectContaining({
+        id: '8:0',
+        text: 'Needle appears again.',
+        headingId: 'details',
+        blockIndex: 3,
+        lineNumber: 8,
+      }),
     ]);
   });
 

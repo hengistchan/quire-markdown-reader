@@ -1,6 +1,4 @@
-import type {
-  RecentResource, RecentResourceInput, RecentResourceRepository,
-} from '../ports/recentResourceRepository';
+import type { RecentResource, RecentResourceInput, RecentResourceRepository } from '../ports/recentResourceRepository';
 
 export function normalizeRecentRemoteUrl(value: string): string {
   const url = new URL(value);

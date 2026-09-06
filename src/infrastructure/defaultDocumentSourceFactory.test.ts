@@ -6,9 +6,15 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function workspaceFile(markdown = '# Local', lastModified = 42, size = markdown.length, text = vi.fn(async () => markdown)) {
+function workspaceFile(
+  markdown = '# Local',
+  lastModified = 42,
+  size = markdown.length,
+  text = vi.fn(async () => markdown),
+) {
   const handle = {
-    kind: 'file', name: 'Local.md',
+    kind: 'file',
+    name: 'Local.md',
     getFile: async () => ({ text, lastModified, size }) as unknown as File,
   } as FileSystemFileHandle;
   return { file: { id: 'Local.md', name: 'Local.md', path: 'Local.md', depth: 0, handle }, text };
@@ -17,17 +23,28 @@ function workspaceFile(markdown = '# Local', lastModified = 42, size = markdown.
 describe('DefaultDocumentSourceFactory', () => {
   it('loads imported and local files through the same snapshot contract', async () => {
     const factory = new DefaultDocumentSourceFactory();
-    await expect(factory.createImported({ title: 'Imported.md', markdown: '# Imported' }).load())
-      .resolves.toMatchObject({ title: 'Imported.md', markdown: '# Imported', format: 'markdown' });
-    await expect(factory.createLocalFile(workspaceFile().file).load())
-      .resolves.toMatchObject({ title: 'Local.md', markdown: '# Local', metadata: { lastModified: 42, size: 7 } });
+    await expect(
+      factory.createImported({ title: 'Imported.md', markdown: '# Imported' }).load(),
+    ).resolves.toMatchObject({ title: 'Imported.md', markdown: '# Imported', format: 'markdown' });
+    await expect(factory.createLocalFile(workspaceFile().file).load()).resolves.toMatchObject({
+      title: 'Local.md',
+      markdown: '# Local',
+      metadata: { lastModified: 42, size: 7 },
+    });
   });
 
   it('reports unchanged local refreshes and honors cancellation', async () => {
     const fixture = workspaceFile();
-    const source = new DefaultDocumentSourceFactory().createWorkspaceFile({
-      id: 'workspace', name: 'docs', files: [fixture.file], tree: [], handle: {} as FileSystemDirectoryHandle,
-    }, fixture.file);
+    const source = new DefaultDocumentSourceFactory().createWorkspaceFile(
+      {
+        id: 'workspace',
+        name: 'docs',
+        files: [fixture.file],
+        tree: [],
+        handle: {} as FileSystemDirectoryHandle,
+      },
+      fixture.file,
+    );
     const previous = await source.load();
     await expect(source.refresh(previous)).resolves.toEqual({ changed: false, snapshot: previous });
     expect(fixture.text).toHaveBeenCalledTimes(1);
@@ -54,7 +71,8 @@ describe('DefaultDocumentSourceFactory', () => {
   });
 
   it('loads and conditionally refreshes a remote document', async () => {
-    const fetcher = vi.fn()
+    const fetcher = vi
+      .fn()
       .mockResolvedValueOnce(new Response('# Remote', { headers: { etag: 'v1' } }))
       .mockResolvedValueOnce(new Response(null, { status: 304 }));
     const source = new DefaultDocumentSourceFactory(fetcher).createRemote('https://example.com/Remote.md');
@@ -65,10 +83,14 @@ describe('DefaultDocumentSourceFactory', () => {
 
   it('owns workspace asset URLs and relative document-link resolution until disposal', async () => {
     const imageHandle = {
-      kind: 'file', name: 'image.png', getFile: vi.fn(async () => ({ name: 'image.png' } as File)),
+      kind: 'file',
+      name: 'image.png',
+      getFile: vi.fn(async () => ({ name: 'image.png' }) as File),
     } as unknown as FileSystemFileHandle;
     const root = {
-      kind: 'directory', name: 'docs', getFileHandle: vi.fn(async () => imageHandle),
+      kind: 'directory',
+      name: 'docs',
+      getFileHandle: vi.fn(async () => imageHandle),
     } as unknown as FileSystemDirectoryHandle;
     const fixture = workspaceFile();
     fixture.file.path = 'guide/Local.md';
@@ -83,9 +105,14 @@ describe('DefaultDocumentSourceFactory', () => {
     const source = new DefaultDocumentSourceFactory().createWorkspaceFile(workspace, fixture.file);
 
     await expect(source.resolveAsset('../image.png')).resolves.toMatchObject({ type: 'object-url', url: 'blob:first' });
-    await expect(source.resolveAsset('../image.png')).resolves.toMatchObject({ type: 'object-url', url: 'blob:second' });
+    await expect(source.resolveAsset('../image.png')).resolves.toMatchObject({
+      type: 'object-url',
+      url: 'blob:second',
+    });
     expect(source.resolveLink('../README.md#start')).toEqual({
-      type: 'workspace-document', path: 'README.md', fragment: 'start',
+      type: 'workspace-document',
+      path: 'README.md',
+      fragment: 'start',
     });
     source.dispose();
 

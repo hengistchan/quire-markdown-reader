@@ -15,13 +15,24 @@ describe('recent documents', () => {
       openedAt: index,
     }));
     const set = vi.fn(async (_value?: unknown) => undefined);
-    vi.stubGlobal('browser', { storage: { local: { get: vi.fn(async () => ({ 'recent-documents': existing })), set } } });
+    vi.stubGlobal('browser', {
+      storage: { local: { get: vi.fn(async () => ({ 'recent-documents': existing })), set } },
+    });
 
-    const result = await rememberRecentItem({ id: 'same', title: 'Updated', kind: 'remote', url: 'https://example.com/new.md' });
+    const result = await rememberRecentItem({
+      id: 'same',
+      title: 'Updated',
+      kind: 'remote',
+      url: 'https://example.com/new.md',
+    });
 
     expect(result).toHaveLength(6);
     expect(result[0]).toEqual({
-      id: 'same', title: 'Updated', kind: 'remote', url: 'https://example.com/new.md', openedAt: Date.now(),
+      id: 'same',
+      title: 'Updated',
+      kind: 'remote',
+      url: 'https://example.com/new.md',
+      openedAt: Date.now(),
     });
     expect(result.filter((item) => item.id === 'same')).toHaveLength(1);
     expect(set).toHaveBeenLastCalledWith({ 'recent-documents': { version: 2, items: result } });
@@ -31,12 +42,25 @@ describe('recent documents', () => {
   it('keeps separately restorable workspace and local-file identities', async () => {
     const set = vi.fn(async (_value?: unknown) => undefined);
     let stored: unknown = { version: 2, items: [] };
-    vi.stubGlobal('browser', { storage: { local: {
-      get: vi.fn(async () => ({ 'recent-documents': stored })),
-      set: vi.fn(async (value: Record<string, unknown>) => { stored = value['recent-documents']; await set(value); }),
-    } } });
+    vi.stubGlobal('browser', {
+      storage: {
+        local: {
+          get: vi.fn(async () => ({ 'recent-documents': stored })),
+          set: vi.fn(async (value: Record<string, unknown>) => {
+            stored = value['recent-documents'];
+            await set(value);
+          }),
+        },
+      },
+    });
 
-    await rememberRecentItem({ id: 'workspace:a:README.md', title: 'README.md', kind: 'workspace-file', workspaceId: 'a', filePath: 'README.md' });
+    await rememberRecentItem({
+      id: 'workspace:a:README.md',
+      title: 'README.md',
+      kind: 'workspace-file',
+      workspaceId: 'a',
+      filePath: 'README.md',
+    });
     const result = await rememberRecentItem({ id: 'file:b', title: 'README.md', kind: 'local-file', fileId: 'b' });
 
     expect(result).toMatchObject([
@@ -46,16 +70,37 @@ describe('recent documents', () => {
   });
 
   it('preserves and updates reading position metadata', async () => {
-    let stored: unknown = { version: 2, items: [{
-      id: 'remote:guide', title: 'Guide', kind: 'remote', url: 'https://example.com/guide.md',
-      openedAt: 1, scrollPosition: 480, headingId: 'architecture',
-    }] };
-    vi.stubGlobal('browser', { storage: { local: {
-      get: vi.fn(async () => ({ 'recent-documents': stored })),
-      set: vi.fn(async (value: Record<string, unknown>) => { stored = value['recent-documents']; }),
-    } } });
+    let stored: unknown = {
+      version: 2,
+      items: [
+        {
+          id: 'remote:guide',
+          title: 'Guide',
+          kind: 'remote',
+          url: 'https://example.com/guide.md',
+          openedAt: 1,
+          scrollPosition: 480,
+          headingId: 'architecture',
+        },
+      ],
+    };
+    vi.stubGlobal('browser', {
+      storage: {
+        local: {
+          get: vi.fn(async () => ({ 'recent-documents': stored })),
+          set: vi.fn(async (value: Record<string, unknown>) => {
+            stored = value['recent-documents'];
+          }),
+        },
+      },
+    });
 
-    const remembered = await rememberRecentItem({ id: 'remote:guide', title: 'Guide', kind: 'remote', url: 'https://example.com/guide.md' });
+    const remembered = await rememberRecentItem({
+      id: 'remote:guide',
+      title: 'Guide',
+      kind: 'remote',
+      url: 'https://example.com/guide.md',
+    });
     expect(remembered[0]).toMatchObject({ scrollPosition: 480, headingId: 'architecture' });
     const updated = await updateRecentPosition('remote:guide', 720, 'testing');
     expect(updated[0]).toMatchObject({ scrollPosition: 720, headingId: 'testing' });

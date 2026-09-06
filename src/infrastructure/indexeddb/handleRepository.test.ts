@@ -1,8 +1,14 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  clearWorkspaceHandle, loadActiveWorkspace, loadFileRecord, loadWorkspaceHandle, loadWorkspaceRecord,
-  saveFileHandle, saveWorkspaceHandle,
+  clearWorkspaceHandle,
+  loadActiveWorkspace,
+  loadFileRecord,
+  loadWorkspaceHandle,
+  loadWorkspaceRecord,
+  saveFileHandle,
+  saveWorkspaceHandle,
+  setActiveWorkspaceHandle,
 } from './handleRepository';
 
 async function deleteDatabase(): Promise<void> {
@@ -19,6 +25,7 @@ describe('workspace handle persistence', () => {
   it('restores and clears the active directory handle', async () => {
     const handle = { kind: 'directory', name: 'notes' } as FileSystemDirectoryHandle;
     const id = await saveWorkspaceHandle(handle);
+    await setActiveWorkspaceHandle(id);
     await expect(loadWorkspaceHandle()).resolves.toEqual(handle);
     await expect(loadWorkspaceRecord(id)).resolves.toMatchObject({ id, name: 'notes', handle });
     await clearWorkspaceHandle();
@@ -30,11 +37,25 @@ describe('workspace handle persistence', () => {
     const second = { kind: 'directory', name: 'docs' } as FileSystemDirectoryHandle;
     const firstId = await saveWorkspaceHandle(first);
     const secondId = await saveWorkspaceHandle(second);
+    await setActiveWorkspaceHandle(secondId);
 
     expect(firstId).not.toBe(secondId);
     await expect(loadWorkspaceHandle(firstId)).resolves.toEqual(first);
     await expect(loadWorkspaceHandle(secondId)).resolves.toEqual(second);
     await expect(loadActiveWorkspace()).resolves.toMatchObject({ id: secondId, handle: second });
+  });
+
+  it('does not replace the active workspace when a candidate is only saved', async () => {
+    const active = { kind: 'directory', name: 'Workspace A' } as FileSystemDirectoryHandle;
+    const candidate = { kind: 'directory', name: 'Workspace B' } as FileSystemDirectoryHandle;
+    const activeId = await saveWorkspaceHandle(active);
+    await setActiveWorkspaceHandle(activeId);
+
+    const candidateId = await saveWorkspaceHandle(candidate);
+    await expect(loadActiveWorkspace()).resolves.toMatchObject({ id: activeId, handle: active });
+
+    await setActiveWorkspaceHandle(candidateId);
+    await expect(loadActiveWorkspace()).resolves.toMatchObject({ id: candidateId, handle: candidate });
   });
 
   it('persists individual file handles independently', async () => {

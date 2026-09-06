@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReaderController } from '../../../application/reader/readerController';
 import { isLocalMarkdownUrl } from '../../../core/localMarkdown';
-import { renderMarkdownDocument, renderPlainTextDocument } from '../../../core/markdown';
+import {
+  currentMarkdownFeatureRuntime,
+  loadMarkdownFeatureRuntime,
+  renderMarkdownDocument,
+  renderPlainTextDocument,
+} from '../../../core/markdown';
 import type { DocumentSession, DocumentSessionAction } from '../../../domain/documentSession';
 import type { Translator } from '../../../shared/i18n';
 import type { ReaderSettings } from '../../../shared/types';
@@ -29,18 +34,51 @@ export function useReaderDocument(options: ReaderDocumentOptions) {
   const progress = useReadingProgress();
   const queueDocumentNavigation = useDocumentNavigation(setActiveHeadingId);
   const documentFormat = session.kind === 'imported' ? session.format : 'markdown';
-  const renderOptions = useMemo(() => ({
-    enableKatex: settings.enableKatex,
-    enableMermaid: settings.enableMermaid,
-    enableHtml: settings.enableHtml,
-  }), [settings.enableHtml, settings.enableKatex, settings.enableMermaid]);
+  const [markdownRuntime, setMarkdownRuntime] = useState(currentMarkdownFeatureRuntime);
+  const renderOptions = useMemo(
+    () => ({
+      enableKatex: settings.enableKatex,
+      enableMermaid: settings.enableMermaid,
+      enableHtml: settings.enableHtml,
+      loadRemoteImages: settings.loadRemoteImages,
+      remoteImageReferrerPolicy: settings.remoteImageReferrerPolicy,
+    }),
+    [
+      settings.enableHtml,
+      settings.enableKatex,
+      settings.enableMermaid,
+      settings.loadRemoteImages,
+      settings.remoteImageReferrerPolicy,
+    ],
+  );
   const rendered = useMemo(
-    () => documentFormat === 'plain-text'
-      ? renderPlainTextDocument(session.markdown)
-      : renderMarkdownDocument(session.markdown, renderOptions),
-    [documentFormat, renderOptions, session.markdown],
+    () =>
+      documentFormat === 'plain-text'
+        ? renderPlainTextDocument(session.markdown)
+        : renderMarkdownDocument(session.markdown, renderOptions, markdownRuntime),
+    [documentFormat, markdownRuntime, renderOptions, session.markdown],
   );
   const htmlMarkup = useMemo(() => ({ __html: rendered.html }), [rendered.html]);
+
+  useEffect(() => {
+    if (documentFormat === 'plain-text' || session.kind === 'welcome') return;
+    let cancelled = false;
+    void loadMarkdownFeatureRuntime(session.markdown, renderOptions)
+      .then((runtime) => {
+        if (
+          !cancelled &&
+          (markdownRuntime.highlight !== runtime.highlight ||
+            markdownRuntime.katex !== runtime.katex ||
+            markdownRuntime.texmath !== runtime.texmath)
+        ) {
+          setMarkdownRuntime({ ...runtime });
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [documentFormat, markdownRuntime, renderOptions, session.kind, session.markdown]);
 
   useMermaidRuntime(articleRef, {
     enabled: settings.enableMermaid,
@@ -53,12 +91,18 @@ export function useReaderDocument(options: ReaderDocumentOptions) {
     referrerPolicy: settings.remoteImageReferrerPolicy,
   });
 
-  const refreshKind = session.kind === 'remote'
-    ? 'remote'
-    : session.kind === 'file' || session.kind === 'workspace' ? 'local' : undefined;
-  const refreshSourceKey = session.kind === 'remote'
-    ? session.state.url
-    : session.kind === 'file' || session.kind === 'workspace' ? session.file.id : undefined;
+  const refreshKind =
+    session.kind === 'remote'
+      ? 'remote'
+      : session.kind === 'file' || session.kind === 'workspace'
+        ? 'local'
+        : undefined;
+  const refreshSourceKey =
+    session.kind === 'remote'
+      ? session.state.url
+      : session.kind === 'file' || session.kind === 'workspace'
+        ? session.file.id
+        : undefined;
   useDocumentRefresh({
     enabled: settings.autoRefresh && !(session.kind === 'workspace' && session.workspace.transient),
     kind: refreshKind,
@@ -66,9 +110,12 @@ export function useReaderDocument(options: ReaderDocumentOptions) {
     service: controller,
     scheduler: controller,
     onResult(result) {
-      if (refreshKind === 'local' && result.changed
-        && result.snapshot.metadata.lastModified !== undefined
-        && result.snapshot.metadata.size !== undefined) {
+      if (
+        refreshKind === 'local' &&
+        result.changed &&
+        result.snapshot.metadata.lastModified !== undefined &&
+        result.snapshot.metadata.size !== undefined
+      ) {
         dispatch({
           type: 'refresh-local',
           markdown: result.snapshot.markdown,
@@ -79,11 +126,13 @@ export function useReaderDocument(options: ReaderDocumentOptions) {
       } else if (refreshKind === 'remote' && result.snapshot.remoteState) {
         dispatch({
           type: 'refresh-remote',
-          document: result.changed ? {
-            title: result.snapshot.title,
-            markdown: result.snapshot.markdown,
-            sourceUrl: result.snapshot.metadata.sourceUrl,
-          } : undefined,
+          document: result.changed
+            ? {
+                title: result.snapshot.title,
+                markdown: result.snapshot.markdown,
+                sourceUrl: result.snapshot.metadata.sourceUrl,
+              }
+            : undefined,
           state: result.snapshot.remoteState,
         });
         if (result.changed) showNotice(t('updated'));
@@ -135,17 +184,22 @@ export function useReaderDocument(options: ReaderDocumentOptions) {
     return () => observer.disconnect();
   }, [rendered.headings]);
 
-  const sourceUrl = session.kind === 'imported'
-    ? session.sourceUrl
-    : session.kind === 'remote' ? session.state.url : undefined;
+  const sourceUrl =
+    session.kind === 'imported' ? session.sourceUrl : session.kind === 'remote' ? session.state.url : undefined;
   const workspace = session.kind === 'workspace' ? session.workspace : undefined;
-  const workspaceName = workspace?.name
-    ?? (documentFormat === 'plain-text'
+  const workspaceName =
+    workspace?.name ??
+    (documentFormat === 'plain-text'
       ? t('plainTextSnapshot')
       : sourceUrl
-      ? (isLocalMarkdownUrl(sourceUrl) ? t('localFile') : t('fromWeb'))
-      : session.kind === 'welcome' ? t('gettingStarted')
-      : session.kind === 'unavailable' ? t('unavailableDocument') : t('imported'));
+        ? isLocalMarkdownUrl(sourceUrl)
+          ? t('localFile')
+          : t('fromWeb')
+        : session.kind === 'welcome'
+          ? t('gettingStarted')
+          : session.kind === 'unavailable'
+            ? t('unavailableDocument')
+            : t('imported'));
 
   const jumpToHeading = (id: string) => {
     const target = document.getElementById(id);

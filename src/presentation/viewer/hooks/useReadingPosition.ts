@@ -19,7 +19,8 @@ export function useReadingPosition<T>(
     let position = Math.max(0, scrollY);
     const save = () => {
       timer = undefined;
-      void persistRef.current(documentId, position, heading.current)
+      void persistRef
+        .current(documentId, position, heading.current)
         .then((value) => onPersistedRef.current(value))
         .catch(() => undefined);
     };

@@ -15,7 +15,12 @@ interface ReaderInitializationOptions {
   replaceRecentResources(items: RecentResource[]): void;
   openImported(document: ImportedDocument, signal?: AbortSignal): Promise<void>;
   navigateToTarget(target: NavigationTarget, signal?: AbortSignal): Promise<void>;
-  activateWorkspace(handle: FileSystemDirectoryHandle, path?: string, id?: string, signal?: AbortSignal): Promise<boolean>;
+  activateWorkspace(
+    handle: FileSystemDirectoryHandle,
+    path?: string,
+    id?: string,
+    signal?: AbortSignal,
+  ): Promise<boolean>;
   navigationOperation: NavigationOperationController;
   setRestorableWorkspace(value: PersistedWorkspaceHandle): void;
   setSidebarMode: Dispatch<SetStateAction<SidebarMode | null>>;
@@ -51,8 +56,7 @@ export function useReaderInitialization(options: ReaderInitializationOptions): v
         if (signal.aborted) return;
         if (permission === 'granted') {
           const recentWorkspace = initializedReader.recentResources.find(
-            (resource) => resource.kind === 'workspace'
-              && resource.workspaceId === storedWorkspace.id,
+            (resource) => resource.kind === 'workspace' && resource.workspaceId === storedWorkspace.id,
           );
           await options.activateWorkspace(
             storedWorkspace.handle,

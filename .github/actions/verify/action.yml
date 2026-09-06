@@ -1,0 +1,57 @@
+name: Verify Quire
+description: Run the complete Quire source, package, security, and browser verification gate.
+
+runs:
+  using: composite
+  steps:
+    - name: Install dependencies
+      shell: bash
+      run: npm ci
+    - name: Install Chromium
+      shell: bash
+      run: npx playwright install --with-deps chromium
+    - name: Install Firefox input dependency
+      shell: bash
+      run: sudo apt-get update && sudo apt-get install -y xdotool
+    - name: Audit dependencies
+      shell: bash
+      run: npm run security:verify
+    - name: Lint
+      shell: bash
+      run: npm run lint
+    - name: Compile
+      shell: bash
+      run: npm run compile
+    - name: Test with coverage
+      shell: bash
+      run: npm run test:coverage
+    - name: Build browser packages
+      shell: bash
+      run: npm run build
+    - name: Create archives
+      shell: bash
+      run: npm run zip
+    - name: Verify bundle budgets
+      shell: bash
+      run: npm run bundle:verify
+    - name: Verify packages
+      shell: bash
+      run: npm run package:verify
+    - name: Rebuild Firefox package from sources
+      shell: bash
+      run: npm run source:verify
+    - name: Verify store assets
+      shell: bash
+      run: npm run store:verify
+    - name: Test installed Chromium extension
+      shell: bash
+      run: npm run test:e2e:chromium
+    - name: Test visual snapshots
+      shell: bash
+      run: npm run test:visual
+    - name: Test Firefox action and context menu
+      shell: bash
+      run: npm run test:e2e:firefox:context
+    - name: Test native Firefox shortcut
+      shell: bash
+      run: xvfb-run -a npm run test:e2e:firefox:native

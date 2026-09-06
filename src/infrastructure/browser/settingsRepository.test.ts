@@ -60,18 +60,24 @@ describe('reader settings storage', () => {
 
   it('adds remote-image privacy defaults when migrating version 3 settings', async () => {
     const set = vi.fn(async () => undefined);
-    const { loadRemoteImages: _loadRemoteImages, remoteImageReferrerPolicy: _policy, ...versionThree } = defaultSettings;
+    const {
+      loadRemoteImages: _loadRemoteImages,
+      remoteImageReferrerPolicy: _policy,
+      ...versionThree
+    } = defaultSettings;
     const raw = { version: 3, settings: { ...versionThree, enableHtml: false } };
     const get = vi.fn(async () => ({ 'reader-settings': raw }));
     vi.stubGlobal('browser', { storage: { local: { get, set } } });
 
     await expect(loadSettings()).resolves.toEqual({ ...defaultSettings, enableHtml: false });
-    expect(set).toHaveBeenCalledWith(expect.objectContaining({
-      'reader-settings': {
-        version: SETTINGS_SCHEMA_VERSION,
-        settings: { ...defaultSettings, enableHtml: false },
-      },
-    }));
+    expect(set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        'reader-settings': {
+          version: SETTINGS_SCHEMA_VERSION,
+          settings: { ...defaultSettings, enableHtml: false },
+        },
+      }),
+    );
   });
 
   it('validates fields, ignores unknown data, and backs up repaired values', async () => {
@@ -84,10 +90,12 @@ describe('reader settings storage', () => {
     vi.stubGlobal('browser', { storage: { local: { get, set } } });
 
     await expect(loadSettings()).resolves.toEqual(defaultSettings);
-    expect(set).toHaveBeenCalledWith(expect.objectContaining({
-      'reader-settings': { version: SETTINGS_SCHEMA_VERSION, settings: defaultSettings },
-      'reader-settings-backup': expect.objectContaining({ value: raw }),
-    }));
+    expect(set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        'reader-settings': { version: SETTINGS_SCHEMA_VERSION, settings: defaultSettings },
+        'reader-settings-backup': expect.objectContaining({ value: raw }),
+      }),
+    );
   });
 
   it('recovers from an unsupported or corrupted schema', async () => {
@@ -97,10 +105,12 @@ describe('reader settings storage', () => {
     vi.stubGlobal('browser', { storage: { local: { get, set } } });
 
     await expect(loadSettings()).resolves.toEqual(defaultSettings);
-    expect(set).toHaveBeenCalledWith(expect.objectContaining({
-      'reader-settings': { version: SETTINGS_SCHEMA_VERSION, settings: defaultSettings },
-      'reader-settings-backup': expect.objectContaining({ value: raw }),
-    }));
+    expect(set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        'reader-settings': { version: SETTINGS_SCHEMA_VERSION, settings: defaultSettings },
+        'reader-settings-backup': expect.objectContaining({ value: raw }),
+      }),
+    );
   });
 
   it('saves the complete settings contract', async () => {

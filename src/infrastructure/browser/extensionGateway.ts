@@ -1,6 +1,8 @@
 import type { ImportedDocument } from '../../shared/types';
 import {
-  isOpenLocalMarkdownMessage, isReadLocalMarkdownAssetMessage, type ReadLocalMarkdownAssetResponse,
+  isOpenLocalMarkdownMessage,
+  isReadLocalMarkdownAssetMessage,
+  type ReadLocalMarkdownAssetResponse,
 } from '../../core/localMarkdown';
 import { cleanupExpiredDocumentHandoffs, createDocumentHandoff } from '../handoffStore';
 
@@ -9,10 +11,19 @@ const MAX_LOCAL_ASSET_BYTES = 5 * 1024 * 1024;
 
 function localAssetMimeType(url: URL): string {
   const extension = url.pathname.split('.').pop()?.toLowerCase();
-  return ({
-    avif: 'image/avif', gif: 'image/gif', jpeg: 'image/jpeg', jpg: 'image/jpeg',
-    png: 'image/png', svg: 'image/svg+xml', webp: 'image/webp',
-  } as Record<string, string>)[extension ?? ''] ?? 'application/octet-stream';
+  return (
+    (
+      {
+        avif: 'image/avif',
+        gif: 'image/gif',
+        jpeg: 'image/jpeg',
+        jpg: 'image/jpeg',
+        png: 'image/png',
+        svg: 'image/svg+xml',
+        webp: 'image/webp',
+      } as Record<string, string>
+    )[extension ?? ''] ?? 'application/octet-stream'
+  );
 }
 
 function encodeBase64(buffer: ArrayBuffer): string {
@@ -31,7 +42,8 @@ export async function readLocalMarkdownAsset(
 ): Promise<ReadLocalMarkdownAssetResponse> {
   try {
     const url = new URL(href, sourceUrl);
-    if (url.protocol !== 'file:' || !/\.(?:avif|gif|jpe?g|png|svg|webp)$/i.test(url.pathname)) return { error: 'invalid-url' };
+    if (url.protocol !== 'file:' || !/\.(?:avif|gif|jpe?g|png|svg|webp)$/i.test(url.pathname))
+      return { error: 'invalid-url' };
     url.hash = '';
     const response = await fetcher(url.href);
     if (!response.ok && response.status !== 0) return { error: 'read-failed' };
@@ -50,7 +62,9 @@ function isViewerSender(sender: Browser.runtime.MessageSender, api: ExtensionApi
   try {
     const actual = new URL(sender.url);
     const expected = new URL(api.runtime.getURL('/viewer.html'));
-    return actual.protocol === expected.protocol && actual.host === expected.host && actual.pathname === expected.pathname;
+    return (
+      actual.protocol === expected.protocol && actual.host === expected.host && actual.pathname === expected.pathname
+    );
   } catch {
     return false;
   }

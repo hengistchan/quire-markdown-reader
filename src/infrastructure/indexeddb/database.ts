@@ -50,9 +50,9 @@ export function transact<T>(
     const rejectTransaction = () => {
       database.close();
       reject(
-        transaction.error
-        ?? request.error
-        ?? new Error(mode === 'readonly' ? 'IndexedDB read transaction failed.' : 'IndexedDB write transaction failed.'),
+        transaction.error ??
+          request.error ??
+          new Error(mode === 'readonly' ? 'IndexedDB read transaction failed.' : 'IndexedDB write transaction failed.'),
       );
     };
 

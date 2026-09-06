@@ -6,17 +6,27 @@ export type { WorkspaceScanLimit } from '../shared/errors/workspaceScanError';
 const MARKDOWN_EXTENSIONS = ['.md', '.markdown', '.mdx'];
 
 export const DEFAULT_IGNORED_DIRECTORIES = new Set([
-  '.git', 'node_modules', 'dist', 'build', 'coverage', '.next', '.output', 'target', 'vendor',
+  '.git',
+  'node_modules',
+  'dist',
+  'build',
+  'coverage',
+  '.next',
+  '.output',
+  'target',
+  'vendor',
 ]);
 export const DEFAULT_WORKSPACE_MAX_DEPTH = 20;
 export const DEFAULT_WORKSPACE_MAX_FILES = 5_000;
 export const DEFAULT_WORKSPACE_MAX_DIRECTORIES = 20_000;
+export const DEFAULT_WORKSPACE_MAX_ENTRIES = 50_000;
 
 export interface WorkspaceScanOptions {
   workspaceId?: string;
   maxDepth?: number;
   maxFiles?: number;
   maxDirectories?: number;
+  maxEntries?: number;
   ignoredDirectories?: ReadonlySet<string>;
   signal?: AbortSignal;
 }
@@ -25,10 +35,12 @@ interface WorkspaceScanContext {
   maxDepth: number;
   maxFiles: number;
   maxDirectories: number;
+  maxEntries: number;
   ignoredDirectories: ReadonlySet<string>;
   signal?: AbortSignal;
   fileCount: number;
   directoryCount: number;
+  entryCount: number;
 }
 
 export function isMarkdownFile(name: string): boolean {
@@ -54,6 +66,11 @@ async function collectDirectory(
   const handles: Array<[string, FileSystemFileHandle | FileSystemDirectoryHandle]> = [];
   for await (const entry of directory.entries()) {
     assertScanActive(context);
+    context.entryCount += 1;
+    if (context.entryCount > context.maxEntries) throw new WorkspaceScanError('max-entries');
+    const [name, handle] = entry;
+    if (handle.kind === 'directory' && (name.startsWith('.') || context.ignoredDirectories.has(name))) continue;
+    if (handle.kind === 'file' && !isMarkdownFile(name)) continue;
     handles.push(entry);
   }
   handles.sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }));
@@ -87,18 +104,26 @@ function createScanContext(options: WorkspaceScanOptions): WorkspaceScanContext 
     maxDepth: options.maxDepth ?? DEFAULT_WORKSPACE_MAX_DEPTH,
     maxFiles: options.maxFiles ?? DEFAULT_WORKSPACE_MAX_FILES,
     maxDirectories: options.maxDirectories ?? DEFAULT_WORKSPACE_MAX_DIRECTORIES,
+    maxEntries: options.maxEntries ?? DEFAULT_WORKSPACE_MAX_ENTRIES,
     ignoredDirectories: options.ignoredDirectories ?? DEFAULT_IGNORED_DIRECTORIES,
     signal: options.signal,
     fileCount: 0,
     directoryCount: 0,
+    entryCount: 0,
   };
 }
 
-export async function collectMarkdownFiles(directory: FileSystemDirectoryHandle, options: WorkspaceScanOptions = {}): Promise<WorkspaceFile[]> {
+export async function collectMarkdownFiles(
+  directory: FileSystemDirectoryHandle,
+  options: WorkspaceScanOptions = {},
+): Promise<WorkspaceFile[]> {
   return (await collectDirectory(directory, createScanContext(options))).files;
 }
 
-export async function collectWorkspace(directory: FileSystemDirectoryHandle, options: WorkspaceScanOptions = {}): Promise<WorkspaceSnapshot> {
+export async function collectWorkspace(
+  directory: FileSystemDirectoryHandle,
+  options: WorkspaceScanOptions = {},
+): Promise<WorkspaceSnapshot> {
   const { files, tree } = await collectDirectory(directory, createScanContext(options));
   return { id: options.workspaceId, name: directory.name, files, tree, handle: directory };
 }
@@ -142,15 +167,18 @@ function transientDirectoryHandle(node: TransientDirectoryNode): FileSystemDirec
 
 export function createTransientDirectoryHandle(selectedFiles: Iterable<File>): FileSystemDirectoryHandle | undefined {
   const entries = [...selectedFiles]
-    .map((file) => ({ file, parts: (file.webkitRelativePath || file.name).split('/').filter((part) => part && part !== '.') }))
+    .map((file) => ({
+      file,
+      parts: (file.webkitRelativePath || file.name).split('/').filter((part) => part && part !== '.'),
+    }))
     .filter(({ parts }) => parts.length > 0 && !parts.includes('..'));
   if (!entries.length) return undefined;
   const firstEntry = entries[0]!;
   const firstRoot = firstEntry.parts[0];
-  const sharedRoot = firstRoot && firstEntry.parts.length > 1
-    && entries.every(({ parts }) => parts.length > 1 && parts[0] === firstRoot)
-    ? firstRoot
-    : 'Selected folder';
+  const sharedRoot =
+    firstRoot && firstEntry.parts.length > 1 && entries.every(({ parts }) => parts.length > 1 && parts[0] === firstRoot)
+      ? firstRoot
+      : 'Selected folder';
   const root: TransientDirectoryNode = { name: sharedRoot, directories: new Map(), files: new Map() };
   for (const { file, parts: originalParts } of entries) {
     const parts = sharedRoot === 'Selected folder' ? [...originalParts] : originalParts.slice(1);
@@ -174,12 +202,17 @@ export async function readWorkspaceFile(file: WorkspaceFile): Promise<string> {
   return (await file.handle.getFile()).text();
 }
 
-export async function readWorkspaceFileSnapshot(file: WorkspaceFile): Promise<{ markdown: string; lastModified: number; size: number }> {
+export async function readWorkspaceFileSnapshot(
+  file: WorkspaceFile,
+): Promise<{ markdown: string; lastModified: number; size: number }> {
   const snapshot = await file.handle.getFile();
   return { markdown: await snapshot.text(), lastModified: snapshot.lastModified, size: snapshot.size };
 }
 
-export async function getWorkspaceFileHandle(root: FileSystemDirectoryHandle, path: string): Promise<FileSystemFileHandle> {
+export async function getWorkspaceFileHandle(
+  root: FileSystemDirectoryHandle,
+  path: string,
+): Promise<FileSystemFileHandle> {
   const segments = path.split('/').filter(Boolean);
   const filename = segments.pop();
   if (!filename) throw new Error('The workspace path does not point to a file.');

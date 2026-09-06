@@ -1,9 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { readerErrorMessage } from '../../../shared/errors/readerError';
 import { createShortcutLabels } from '../../../core/shortcuts';
-import type {
-  ReaderSettings, SidebarMode,
-} from '../../../shared/types';
+import type { ReaderSettings, SidebarMode } from '../../../shared/types';
 import { WIDE_READER_WIDTH } from '../../../shared/defaultSettings';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
 import { useReaderNavigation } from './useReaderNavigation';
@@ -29,8 +27,14 @@ export function useReaderController(controller: ReaderController) {
   const { settings, resolvedTheme, t } = settingsFeature;
   const sessionFeature = useReaderSession(t);
   const {
-    session, dispatch: dispatchSession, title, source, sourceUrl,
-    remoteState, workspace, activeFile,
+    session,
+    dispatch: dispatchSession,
+    title,
+    source,
+    sourceUrl,
+    remoteState,
+    workspace,
+    activeFile,
   } = sessionFeature;
   const overlays = useReaderOverlay();
   const feedback = useReaderFeedback();
@@ -51,17 +55,31 @@ export function useReaderController(controller: ReaderController) {
     showNotice: setNotice,
   });
   const {
-    articleRef, activeHeadingId, progress, queueDocumentNavigation, htmlMarkup, headings,
-    readMinutes, workspaceName, jumpToHeading,
+    articleRef,
+    activeHeadingId,
+    progress,
+    queueDocumentNavigation,
+    htmlMarkup,
+    headings,
+    readMinutes,
+    workspaceName,
+    jumpToHeading,
   } = documentFeature;
-  const navigateToTargetRef = useRef<((target?: NavigationTarget, signal?: AbortSignal) => Promise<void>) | undefined>(undefined);
+  const navigateToTargetRef = useRef<((target?: NavigationTarget, signal?: AbortSignal) => Promise<void>) | undefined>(
+    undefined,
+  );
   const navigation = useReaderNavigation(controller, (target) => {
     void navigateToTargetRef.current?.(target);
   });
   const recentFeature = useRecentDocuments(controller, session, activeHeadingId);
   const {
-    items: recent, record: recordRecent, resumeTarget, clearResume, prepareResume,
-    continueReading, startFromTop,
+    items: recent,
+    record: recordRecent,
+    resumeTarget,
+    clearResume,
+    prepareResume,
+    continueReading,
+    startFromTop,
   } = recentFeature;
   const recentResourcesFeature = useRecentResources(controller);
   const {
@@ -74,10 +92,13 @@ export function useReaderController(controller: ReaderController) {
   const { openMenuOpen, moreMenuOpen, commandOpen, settingsOpen, urlOpen } = overlays;
 
   const shortcutLabels = useMemo(() => createShortcutLabels(), []);
-  useEffect(() => () => {
-    navigationOperation.cancel();
-    controller.dispose();
-  }, [controller, navigationOperation]);
+  useEffect(
+    () => () => {
+      navigationOperation.cancel();
+      controller.dispose();
+    },
+    [controller, navigationOperation],
+  );
 
   const updateSettings = settingsFeature.update;
   const documents = useDocumentOpen({
@@ -181,9 +202,8 @@ export function useReaderController(controller: ReaderController) {
     replaceRecentResources: recentResourcesFeature.replace,
     openImported: (document, signal) => openImportedDocument(document, undefined, 'replace', undefined, signal),
     navigateToTarget: restoration.navigateToTarget,
-    activateWorkspace: (handle, path, id, signal) => (
-      activateWorkspace(handle, path, id, 'replace', false, undefined, signal)
-    ),
+    activateWorkspace: (handle, path, id, signal) =>
+      activateWorkspace(handle, path, id, 'replace', false, undefined, signal),
     setRestorableWorkspace,
     setSidebarMode,
   });
@@ -193,17 +213,27 @@ export function useReaderController(controller: ReaderController) {
     workspace,
     articleRef,
     closeOverlay: () => setActiveOverlay(null),
-    openWorkspaceFile: (file) => { void openWorkspaceFile(file); },
+    openWorkspaceFile: (file) => {
+      void openWorkspaceFile(file);
+    },
   });
   const {
-    commandQuery, setCommandQuery, fileFilter, setFileFilter, commandMatches, workspaceMatches,
-    filteredFiles, jumpToSearchResult, openWorkspaceSearchResult,
+    commandQuery,
+    setCommandQuery,
+    fileFilter,
+    setFileFilter,
+    commandMatches,
+    workspaceMatches,
+    filteredFiles,
+    jumpToSearchResult,
+    openWorkspaceSearchResult,
   } = search;
-  const contextMode = sidebarMode === 'files' && (workspace || restorableWorkspace)
-    ? 'files'
-    : sidebarMode === 'outline' && settings.showOutline
-      ? 'outline'
-      : null;
+  const contextMode =
+    sidebarMode === 'files' && (workspace || restorableWorkspace)
+      ? 'files'
+      : sidebarMode === 'outline' && settings.showOutline
+        ? 'outline'
+        : null;
   const contextOpen = contextMode !== null;
   const readerWidth = settings.wideView ? WIDE_READER_WIDTH : settings.contentWidth;
 
@@ -212,7 +242,8 @@ export function useReaderController(controller: ReaderController) {
     setDragActive(false);
     const signal = navigationOperation.begin();
     for (const item of [...event.dataTransfer.items]) {
-      const getHandle = (item as DataTransferItem & { getAsFileSystemHandle?: () => Promise<FileSystemHandle | null> }).getAsFileSystemHandle;
+      const getHandle = (item as DataTransferItem & { getAsFileSystemHandle?: () => Promise<FileSystemHandle | null> })
+        .getAsFileSystemHandle;
       const handle = await getHandle?.call(item);
       if (signal.aborted) return;
       if (handle?.kind === 'directory') {
@@ -243,22 +274,25 @@ export function useReaderController(controller: ReaderController) {
       void handleDirectory();
       return;
     }
-    setSidebarMode((current) => current === 'files' ? null : 'files');
+    setSidebarMode((current) => (current === 'files' ? null : 'files'));
   };
 
   const toggleOutlinePanel = () => {
     setActiveOverlay(null);
     if (!settings.showOutline) updateSettings({ showOutline: true });
-    setSidebarMode((current) => current === 'outline' ? null : 'outline');
+    setSidebarMode((current) => (current === 'outline' ? null : 'outline'));
   };
 
-  const dismissError = () => { setError(undefined); documents.clearRemoteRetry(); };
+  const dismissError = () => {
+    setError(undefined);
+    documents.clearRemoteRetry();
+  };
   const dismissRestore = () => {
     dismissWorkspaceRestore();
     restoration.dismiss();
   };
-  const toggleOpenMenu = () => setActiveOverlay((current) => current === 'open-menu' ? null : 'open-menu');
-  const toggleMoreMenu = () => setActiveOverlay((current) => current === 'more-menu' ? null : 'more-menu');
+  const toggleOpenMenu = () => setActiveOverlay((current) => (current === 'open-menu' ? null : 'open-menu'));
+  const toggleMoreMenu = () => setActiveOverlay((current) => (current === 'more-menu' ? null : 'more-menu'));
   const openCommandPalette = (mode: CommandPaletteMode = 'default') => {
     setCommandMode(mode);
     setCommandQuery('');
@@ -279,7 +313,7 @@ export function useReaderController(controller: ReaderController) {
   const openImportedSettings = (patch: Partial<ReaderSettings>) => {
     updateSettings(patch.contentWidth === undefined ? patch : { ...patch, wideView: false });
     if (patch.showOutline !== undefined) {
-      setSidebarMode((current) => patch.showOutline ? 'outline' : current === 'outline' ? null : current);
+      setSidebarMode((current) => (patch.showOutline ? 'outline' : current === 'outline' ? null : current));
     }
   };
   const resetSettings = settingsFeature.reset;
@@ -287,8 +321,20 @@ export function useReaderController(controller: ReaderController) {
 
   return {
     document: {
-      activeFile, activeHeadingId, articleRef, handleArticleClick, headings, htmlMarkup, jumpToHeading,
-      openRemote, progress, readMinutes, remoteState, session, title, workspaceName,
+      activeFile,
+      activeHeadingId,
+      articleRef,
+      handleArticleClick,
+      headings,
+      htmlMarkup,
+      jumpToHeading,
+      openRemote,
+      progress,
+      readMinutes,
+      remoteState,
+      session,
+      title,
+      workspaceName,
     },
     navigation,
     workspace: {
@@ -317,8 +363,12 @@ export function useReaderController(controller: ReaderController) {
       togglePanel: toggleWorkspacePanel,
     },
     search: {
-      commandMatches, commandQuery, jumpToSearchResult, openWorkspaceSearchResult,
-      setCommandQuery, workspaceMatches,
+      commandMatches,
+      commandQuery,
+      jumpToSearchResult,
+      openWorkspaceSearchResult,
+      setCommandQuery,
+      workspaceMatches,
     },
     settings: {
       value: settings,
@@ -330,17 +380,41 @@ export function useReaderController(controller: ReaderController) {
       update: updateSettings,
     },
     overlays: {
-      commandOpen, moreMenuOpen, openMenuOpen, settingsOpen, urlOpen, urlValue,
-      closeCommandPalette, commandMode, openCommandPalette,
-      setActive: setActiveOverlay, setUrlValue, toggleMoreMenu, toggleOpenMenu,
+      commandOpen,
+      moreMenuOpen,
+      openMenuOpen,
+      settingsOpen,
+      urlOpen,
+      urlValue,
+      closeCommandPalette,
+      commandMode,
+      openCommandPalette,
+      setActive: setActiveOverlay,
+      setUrlValue,
+      toggleMoreMenu,
+      toggleOpenMenu,
     },
     feedback: {
-      cancelRemoteLoad, continueReading, dismissError, error: errorText, notice, remoteLoading,
-      remoteRetryUrl, restorableNavigation, resumeTarget, startFromTop,
+      cancelRemoteLoad,
+      continueReading,
+      dismissError,
+      error: errorText,
+      notice,
+      remoteLoading,
+      remoteRetryUrl,
+      restorableNavigation,
+      resumeTarget,
+      startFromTop,
     },
     input: {
-      dragActive, fileInput, handleDrop, handleFile, handleOpenFile, handlePaste,
-      setDragActive, shortcutLabels,
+      dragActive,
+      fileInput,
+      handleDrop,
+      handleFile,
+      handleOpenFile,
+      handlePaste,
+      setDragActive,
+      shortcutLabels,
     },
     recentResources: {
       items: recentResources,

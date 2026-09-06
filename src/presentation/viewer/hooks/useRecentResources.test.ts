@@ -30,16 +30,23 @@ describe('Recent Resource actions', () => {
     const input = options();
     const { result } = renderHook(() => useRecentResourceActions(input));
 
-    await act(() => result.current.open({
-      id: 'remote:https://example.com/a.md',
-      title: 'A',
-      kind: 'remote',
-      url: 'https://example.com/a.md',
-      openedAt: 1,
-    }));
+    await act(() =>
+      result.current.open({
+        id: 'remote:https://example.com/a.md',
+        title: 'A',
+        kind: 'remote',
+        url: 'https://example.com/a.md',
+        openedAt: 1,
+      }),
+    );
 
     expect(input.openRemote).toHaveBeenCalledWith(
-      'https://example.com/a.md', true, 'push', undefined, expect.any(AbortSignal), true,
+      'https://example.com/a.md',
+      true,
+      'push',
+      undefined,
+      expect.any(AbortSignal),
+      true,
     );
     expect(input.closeOverlay).toHaveBeenCalledOnce();
   });
@@ -48,22 +55,35 @@ describe('Recent Resource actions', () => {
     const handle = {} as FileSystemDirectoryHandle;
     const input = options();
     vi.mocked(input.controller.getWorkspace).mockResolvedValue({
-      id: 'workspace-a', kind: 'workspace', name: 'A', handle, savedAt: 1,
+      id: 'workspace-a',
+      kind: 'workspace',
+      name: 'A',
+      handle,
+      savedAt: 1,
     });
     const { result } = renderHook(() => useRecentResourceActions(input));
 
-    await act(() => result.current.open({
-      id: 'workspace:workspace-a',
-      title: 'A',
-      kind: 'workspace',
-      workspaceId: 'workspace-a',
-      lastFilePath: 'docs/design.md',
-      openedAt: 1,
-    }));
+    await act(() =>
+      result.current.open({
+        id: 'workspace:workspace-a',
+        title: 'A',
+        kind: 'workspace',
+        workspaceId: 'workspace-a',
+        lastFilePath: 'docs/design.md',
+        openedAt: 1,
+      }),
+    );
 
     expect(input.controller.requestRead).toHaveBeenCalledWith(handle);
     expect(input.activateWorkspace).toHaveBeenCalledWith(
-      handle, 'docs/design.md', 'workspace-a', 'push', false, undefined, expect.any(AbortSignal), true,
+      handle,
+      'docs/design.md',
+      'workspace-a',
+      'push',
+      false,
+      undefined,
+      expect.any(AbortSignal),
+      true,
     );
   });
 
@@ -71,13 +91,15 @@ describe('Recent Resource actions', () => {
     const input = options();
     const { result } = renderHook(() => useRecentResourceActions(input));
 
-    await act(() => result.current.open({
-      id: 'local-file:missing',
-      title: 'Missing.md',
-      kind: 'local-file',
-      fileId: 'missing',
-      openedAt: 1,
-    }));
+    await act(() =>
+      result.current.open({
+        id: 'local-file:missing',
+        title: 'Missing.md',
+        kind: 'local-file',
+        fileId: 'missing',
+        openedAt: 1,
+      }),
+    );
 
     expect(input.showError).toHaveBeenCalledWith({ code: 'file-read-failed', retryable: true });
     expect(input.openLocalHandle).not.toHaveBeenCalled();
@@ -99,13 +121,15 @@ describe('Recent Resource actions', () => {
     });
     const { result } = renderHook(() => useRecentResourceActions(input));
 
-    await act(() => result.current.open({
-      id: 'workspace:workspace-a',
-      title: 'A',
-      kind: 'workspace',
-      workspaceId: 'workspace-a',
-      openedAt: 1,
-    }));
+    await act(() =>
+      result.current.open({
+        id: 'workspace:workspace-a',
+        title: 'A',
+        kind: 'workspace',
+        workspaceId: 'workspace-a',
+        openedAt: 1,
+      }),
+    );
 
     expect(input.controller.requestRead).not.toHaveBeenCalled();
     expect(input.activateWorkspace).not.toHaveBeenCalled();

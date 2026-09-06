@@ -18,14 +18,21 @@ export function useReaderNavigation(
   const onTraverseRef = useRef(onTraverse);
   onTraverseRef.current = onTraverse;
 
-  useEffect(() => controller.subscribe((next, intent) => {
-    setSnapshot(next);
-    if (intent === 'traverse') onTraverseRef.current(next.current);
-  }), [controller]);
+  useEffect(
+    () =>
+      controller.subscribe((next, intent) => {
+        setSnapshot(next);
+        if (intent === 'traverse') onTraverseRef.current(next.current);
+      }),
+    [controller],
+  );
 
-  const record = useCallback((target: NavigationTarget, intent: Exclude<NavigationIntent, 'traverse'>) => {
-    controller[intent](target);
-  }, [controller]);
+  const record = useCallback(
+    (target: NavigationTarget, intent: Exclude<NavigationIntent, 'traverse'>) => {
+      controller[intent](target);
+    },
+    [controller],
+  );
 
   return {
     ...snapshot,

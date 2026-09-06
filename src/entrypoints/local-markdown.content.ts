@@ -1,7 +1,13 @@
 import {
-  createLocalMarkdownImport, isLocalMarkdownUrl, isNavigateLocalMarkdownWorkspaceMessage,
-  isOpenLocalMarkdownResponse, localMarkdownPathWithinDirectory, localMarkdownWorkspaceFileUrl,
-  localMarkdownWorkspaceHash, localMarkdownWorkspaceRoute, OPEN_LOCAL_MARKDOWN,
+  createLocalMarkdownImport,
+  isLocalMarkdownUrl,
+  isNavigateLocalMarkdownWorkspaceMessage,
+  isOpenLocalMarkdownResponse,
+  localMarkdownPathWithinDirectory,
+  localMarkdownWorkspaceFileUrl,
+  localMarkdownWorkspaceHash,
+  localMarkdownWorkspaceRoute,
+  OPEN_LOCAL_MARKDOWN,
   SELECT_LOCAL_MARKDOWN_WORKSPACE_FILE,
 } from '../core/localMarkdown';
 
@@ -34,23 +40,25 @@ function mountReader(viewerUrl: string, sourceUrl: string): void {
     activeFilePath = event.data.filePath;
     const source = new URL(sourceUrl);
     const target = new URL(targetUrl);
-    const nextHash = source.pathname === target.pathname
-      ? ''
-      : localMarkdownWorkspaceHash(event.data);
+    const nextHash = source.pathname === target.pathname ? '' : localMarkdownWorkspaceHash(event.data);
     if (location.hash.slice(1) !== nextHash) location.hash = nextHash;
   });
   window.addEventListener('hashchange', () => {
     if (!activeWorkspaceName) return;
     const route = localMarkdownWorkspaceRoute(location.href);
-    const filePath = route?.workspaceName === activeWorkspaceName
-      ? route.filePath
-      : localMarkdownPathWithinDirectory(sourceUrl, activeWorkspaceName);
+    const filePath =
+      route?.workspaceName === activeWorkspaceName
+        ? route.filePath
+        : localMarkdownPathWithinDirectory(sourceUrl, activeWorkspaceName);
     if (!filePath || filePath === activeFilePath) return;
     activeFilePath = filePath;
-    iframe.contentWindow?.postMessage({
-      type: SELECT_LOCAL_MARKDOWN_WORKSPACE_FILE,
-      filePath,
-    }, '*');
+    iframe.contentWindow?.postMessage(
+      {
+        type: SELECT_LOCAL_MARKDOWN_WORKSPACE_FILE,
+        filePath,
+      },
+      '*',
+    );
   });
 }
 
@@ -83,7 +91,8 @@ export default defineContentScript({
         document.documentElement.style.visibility = 'visible';
       }
     };
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => void open(), { once: true });
+    if (document.readyState === 'loading')
+      document.addEventListener('DOMContentLoaded', () => void open(), { once: true });
     else void open();
   },
 });

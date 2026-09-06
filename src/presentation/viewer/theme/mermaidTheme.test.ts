@@ -25,7 +25,8 @@ describe('Mermaid visual theme', () => {
       '--font-reading-sans': 'Quire Sans',
     };
     const getPropertyValue = vi.fn((token: string) => values[token] ?? '');
-    const computedStyle = vi.spyOn(window, 'getComputedStyle')
+    const computedStyle = vi
+      .spyOn(window, 'getComputedStyle')
       .mockReturnValue({ getPropertyValue } as unknown as CSSStyleDeclaration);
 
     const resolved = resolveMermaidTheme(document.documentElement, 'light');

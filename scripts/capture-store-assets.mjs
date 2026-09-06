@@ -14,7 +14,13 @@ const screenshotSets = [
     appLocale: 'en',
     fixtureDirectory: 'en',
     workspaceName: 'Quire Sample Library',
-    labels: { open: 'Open', openFolder: 'Open folder', toggleWorkspace: 'Toggle file workspace', command: 'Command center', settings: 'Reader settings' },
+    labels: {
+      open: 'Open',
+      openFolder: 'Open folder',
+      toggleWorkspace: 'Toggle file workspace',
+      command: 'Command center',
+      settings: 'Reader settings',
+    },
     readerTitle: 'A calm place for Markdown',
     technicalFile: 'Architecture.md',
     technicalTitle: 'Architecture at a glance',
@@ -25,7 +31,13 @@ const screenshotSets = [
     appLocale: 'zh-CN',
     fixtureDirectory: 'zh-CN',
     workspaceName: 'Quire 示例文档库',
-    labels: { open: '打开', openFolder: '打开文件夹', toggleWorkspace: '切换文件工作区', command: '命令中心', settings: '阅读设置' },
+    labels: {
+      open: '打开',
+      openFolder: '打开文件夹',
+      toggleWorkspace: '切换文件工作区',
+      command: '命令中心',
+      settings: '阅读设置',
+    },
     readerTitle: '安静阅读 Markdown',
     technicalFile: '架构说明.md',
     technicalTitle: '架构一目了然',
@@ -39,8 +51,9 @@ async function readFixtureFiles(directory, prefix = '') {
   for (const entry of entries) {
     const path = prefix ? `${prefix}/${entry.name}` : entry.name;
     const absolutePath = join(directory, entry.name);
-    if (entry.isDirectory()) files.push(...await readFixtureFiles(absolutePath, path));
-    else if (/\.(md|markdown|mdx)$/i.test(entry.name)) files.push({ path, contents: await readFile(absolutePath, 'utf8') });
+    if (entry.isDirectory()) files.push(...(await readFixtureFiles(absolutePath, path)));
+    else if (/\.(md|markdown|mdx)$/i.test(entry.name))
+      files.push({ path, contents: await readFile(absolutePath, 'utf8') });
   }
   return files;
 }
@@ -56,76 +69,93 @@ async function captureLocalizedSet(config) {
     locale: config.browserLocale,
     viewport: { width: 1280, height: 800 },
     colorScheme: 'light',
-    args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`, `--lang=${config.browserLocale}`],
+    args: [
+      `--disable-extensions-except=${extensionPath}`,
+      `--load-extension=${extensionPath}`,
+      `--lang=${config.browserLocale}`,
+    ],
   });
 
   try {
     let [worker] = context.serviceWorkers();
     worker ??= await context.waitForEvent('serviceworker');
     const extensionId = new URL(worker.url()).host;
-    await worker.evaluate(async ({ appLocale }) => {
-      await chrome.storage.local.clear();
-      await chrome.storage.local.set({
-        'reader-settings': {
-          version: 4,
-          settings: {
-            locale: appLocale,
-            theme: 'light',
-            fontFamily: 'sans',
-            fontSize: 18,
-            lineHeight: 1.76,
-            contentWidth: 760,
-            wideView: false,
-            showReadingProgress: true,
-            showOutline: true,
-            autoRefresh: true,
-            enableKatex: true,
-            enableMermaid: true,
-            enableHtml: false,
-            loadRemoteImages: true,
-            remoteImageReferrerPolicy: 'no-referrer',
-            customCss: '',
-          },
-        },
-      });
-    }, { appLocale: config.appLocale });
-
-    const page = await context.newPage();
-    await page.addInitScript(({ workspaceName, files }) => {
-      const write = async (handle, contents) => {
-        const writable = await handle.createWritable();
-        await writable.write(contents);
-        await writable.close();
-      };
-      Object.defineProperty(window, 'showDirectoryPicker', {
-        configurable: true,
-        value: async () => {
-          const root = await navigator.storage.getDirectory();
-          try { await root.removeEntry(workspaceName, { recursive: true }); } catch { /* first capture */ }
-          const workspace = await root.getDirectoryHandle(workspaceName, { create: true });
-          for (const file of files) {
-            const segments = file.path.split('/');
-            const name = segments.pop();
-            let directory = workspace;
-            for (const segment of segments) directory = await directory.getDirectoryHandle(segment, { create: true });
-            await write(await directory.getFileHandle(name, { create: true }), file.contents);
-          }
-          return workspace;
-        },
-      });
-    }, { workspaceName: config.workspaceName, files });
-
-    const setTheme = async (theme) => {
-      await worker.evaluate(async ({ theme: nextTheme }) => {
-        const key = 'reader-settings';
-        const stored = await chrome.storage.local.get(key);
+    await worker.evaluate(
+      async ({ appLocale }) => {
+        await chrome.storage.local.clear();
         await chrome.storage.local.set({
-          [key]: {
-            ...stored[key],
-            settings: { ...stored[key].settings, theme: nextTheme },
+          'reader-settings': {
+            version: 4,
+            settings: {
+              locale: appLocale,
+              theme: 'light',
+              fontFamily: 'sans',
+              fontSize: 18,
+              lineHeight: 1.76,
+              contentWidth: 760,
+              wideView: false,
+              showReadingProgress: true,
+              showOutline: true,
+              autoRefresh: true,
+              enableKatex: true,
+              enableMermaid: true,
+              enableHtml: false,
+              loadRemoteImages: true,
+              remoteImageReferrerPolicy: 'no-referrer',
+              customCss: '',
+            },
           },
         });
-      }, { theme });
+      },
+      { appLocale: config.appLocale },
+    );
+
+    const page = await context.newPage();
+    await page.addInitScript(
+      ({ workspaceName, files }) => {
+        const write = async (handle, contents) => {
+          const writable = await handle.createWritable();
+          await writable.write(contents);
+          await writable.close();
+        };
+        Object.defineProperty(window, 'showDirectoryPicker', {
+          configurable: true,
+          value: async () => {
+            const root = await navigator.storage.getDirectory();
+            try {
+              await root.removeEntry(workspaceName, { recursive: true });
+            } catch {
+              /* first capture */
+            }
+            const workspace = await root.getDirectoryHandle(workspaceName, { create: true });
+            for (const file of files) {
+              const segments = file.path.split('/');
+              const name = segments.pop();
+              let directory = workspace;
+              for (const segment of segments) directory = await directory.getDirectoryHandle(segment, { create: true });
+              await write(await directory.getFileHandle(name, { create: true }), file.contents);
+            }
+            return workspace;
+          },
+        });
+      },
+      { workspaceName: config.workspaceName, files },
+    );
+
+    const setTheme = async (theme) => {
+      await worker.evaluate(
+        async ({ theme: nextTheme }) => {
+          const key = 'reader-settings';
+          const stored = await chrome.storage.local.get(key);
+          await chrome.storage.local.set({
+            [key]: {
+              ...stored[key],
+              settings: { ...stored[key].settings, theme: nextTheme },
+            },
+          });
+        },
+        { theme },
+      );
       await page.reload();
       await page.waitForFunction((expectedTheme) => document.documentElement.dataset.theme === expectedTheme, theme);
       await page.getByRole('heading', { level: 1, name: config.readerTitle }).waitFor();
@@ -185,7 +215,9 @@ try {
   const icon = await artwork.newPage();
   await icon.setViewportSize({ width: 128, height: 128 });
   const iconData = (await readFile(resolve('public/icon/96.png'))).toString('base64');
-  await icon.setContent(`<style>*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:transparent}body{display:grid;place-items:center}img{width:96px;height:96px}</style><img src="data:image/png;base64,${iconData}">`);
+  await icon.setContent(
+    `<style>*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:transparent}body{display:grid;place-items:center}img{width:96px;height:96px}</style><img src="data:image/png;base64,${iconData}">`,
+  );
   await icon.screenshot({ path: resolve(assets, 'icon-128.png'), omitBackground: true });
 } finally {
   await artwork.close();

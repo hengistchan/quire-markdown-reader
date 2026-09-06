@@ -32,7 +32,8 @@ export function isNavigationTarget(value: unknown): value is NavigationTarget {
   if (!value || typeof value !== 'object') return false;
   const document = (value as NavigationTarget).document;
   if (!document || typeof document !== 'object' || typeof document.kind !== 'string') return false;
-  if (document.kind === 'workspace-file') return typeof document.workspaceId === 'string' && typeof document.filePath === 'string';
+  if (document.kind === 'workspace-file')
+    return typeof document.workspaceId === 'string' && typeof document.filePath === 'string';
   if (document.kind === 'local-file') return typeof document.fileId === 'string';
   if (document.kind === 'remote') return typeof document.url === 'string';
   return document.kind === 'imported' && typeof document.sessionId === 'string';
@@ -42,8 +43,9 @@ export function sameNavigationTarget(left: NavigationTarget | undefined, right: 
   if (!left || left.fragment !== right.fragment || left.scrollPosition !== right.scrollPosition) return false;
   if (left.document.kind !== right.document.kind) return false;
   if (left.document.kind === 'workspace-file' && right.document.kind === 'workspace-file') {
-    return left.document.workspaceId === right.document.workspaceId
-      && left.document.filePath === right.document.filePath;
+    return (
+      left.document.workspaceId === right.document.workspaceId && left.document.filePath === right.document.filePath
+    );
   }
   if (left.document.kind === 'local-file' && right.document.kind === 'local-file') {
     return left.document.fileId === right.document.fileId;
@@ -51,6 +53,9 @@ export function sameNavigationTarget(left: NavigationTarget | undefined, right: 
   if (left.document.kind === 'remote' && right.document.kind === 'remote') {
     return left.document.url === right.document.url;
   }
-  return left.document.kind === 'imported' && right.document.kind === 'imported'
-    && left.document.sessionId === right.document.sessionId;
+  return (
+    left.document.kind === 'imported' &&
+    right.document.kind === 'imported' &&
+    left.document.sessionId === right.document.sessionId
+  );
 }

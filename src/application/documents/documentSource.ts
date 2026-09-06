@@ -27,8 +27,7 @@ export interface DocumentSnapshot {
 }
 
 export type DocumentRefreshResult =
-  | { changed: false; snapshot: DocumentSnapshot }
-  | { changed: true; snapshot: DocumentSnapshot };
+  { changed: false; snapshot: DocumentSnapshot } | { changed: true; snapshot: DocumentSnapshot };
 
 export type LinkResolution =
   | { type: 'fragment'; fragment: string }

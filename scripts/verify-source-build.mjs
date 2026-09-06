@@ -25,7 +25,12 @@ async function fingerprints(root, directory = root) {
       for (const [name, hash] of await fingerprints(root, path)) result.set(name, hash);
     } else {
       const relative = path.slice(root.length + 1);
-      result.set(relative, createHash('sha256').update(await readFile(path)).digest('hex'));
+      result.set(
+        relative,
+        createHash('sha256')
+          .update(await readFile(path))
+          .digest('hex'),
+      );
     }
   }
   return result;
@@ -38,7 +43,11 @@ try {
   run('npm', ['run', 'build:firefox'], scratch);
   const rebuilt = await fingerprints(resolve(scratch, '.output/firefox-mv2'));
   const packaged = await fingerprints(expected);
-  assert.deepEqual([...rebuilt], [...packaged], 'The Firefox build reconstructed from the source archive must match the packaged build tree byte-for-byte');
+  assert.deepEqual(
+    [...rebuilt],
+    [...packaged],
+    'The Firefox build reconstructed from the source archive must match the packaged build tree byte-for-byte',
+  );
   console.log(`Reproduced ${rebuilt.size} Firefox package files byte-for-byte from the source archive.`);
 } finally {
   await rm(scratch, { recursive: true, force: true });

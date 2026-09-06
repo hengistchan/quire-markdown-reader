@@ -22,7 +22,7 @@ export function useReaderOverlay() {
     setActive,
     open: (name: Exclude<ActiveOverlay, null>) => setActive(name),
     close: () => setActive(null),
-    toggle: (name: Exclude<ActiveOverlay, null>) => setActive((current) => current === name ? null : name),
+    toggle: (name: Exclude<ActiveOverlay, null>) => setActive((current) => (current === name ? null : name)),
     openMenuOpen,
     moreMenuOpen,
     commandOpen: active === 'command',

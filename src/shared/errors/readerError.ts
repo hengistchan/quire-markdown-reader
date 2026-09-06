@@ -29,22 +29,38 @@ export interface ReaderError {
 
 export function readerErrorMessage(error: ReaderError, t: (key: TranslationKey) => string): string {
   switch (error.code) {
-    case 'invalid-url': return t('invalidUrl');
-    case 'permission-denied': return t('permissionDenied');
-    case 'permission-required': return t('permissionRequired');
-    case 'imported-unavailable': return t('importedUnavailable');
-    case 'file-type-invalid': return t('fileTypeError');
-    case 'file-read-failed': return t('fileReadError');
-    case 'folder-unsupported': return t('folderUnsupported');
-    case 'workspace-read-failed': return t('folderReadError');
-    case 'workspace-empty': return t('noMarkdown');
-    case 'workspace-scan-limit': return t('workspaceScanLimit');
-    case 'linked-file-missing': return t('linkedFileMissing');
-    case 'remote-timeout': return t('remoteTimeout');
-    case 'remote-too-large': return t('remoteTooLarge');
-    case 'remote-http-error': return `${t('remoteServerError')} ${error.details?.status ?? ''}.`;
-    case 'remote-network-error': return t('remoteReadError');
-    default: return t('resourceUnavailable');
+    case 'invalid-url':
+      return t('invalidUrl');
+    case 'permission-denied':
+      return t('permissionDenied');
+    case 'permission-required':
+      return t('permissionRequired');
+    case 'imported-unavailable':
+      return t('importedUnavailable');
+    case 'file-type-invalid':
+      return t('fileTypeError');
+    case 'file-read-failed':
+      return t('fileReadError');
+    case 'folder-unsupported':
+      return t('folderUnsupported');
+    case 'workspace-read-failed':
+      return t('folderReadError');
+    case 'workspace-empty':
+      return t('noMarkdown');
+    case 'workspace-scan-limit':
+      return t('workspaceScanLimit');
+    case 'linked-file-missing':
+      return t('linkedFileMissing');
+    case 'remote-timeout':
+      return t('remoteTimeout');
+    case 'remote-too-large':
+      return t('remoteTooLarge');
+    case 'remote-http-error':
+      return `${t('remoteServerError')} ${error.details?.status ?? ''}.`;
+    case 'remote-network-error':
+      return t('remoteReadError');
+    default:
+      return t('resourceUnavailable');
   }
 }
 

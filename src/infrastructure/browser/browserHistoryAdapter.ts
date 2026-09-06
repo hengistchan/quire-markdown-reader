@@ -1,7 +1,10 @@
 import type { BrowserHistoryEntry, BrowserHistoryPort } from '../../application/navigation/browserHistory';
 import {
-  isNavigationTarget, type LegacyIndexedQuireHistoryState, type LegacyQuireHistoryState,
-  type NavigationTarget, type QuireHistoryState,
+  isNavigationTarget,
+  type LegacyIndexedQuireHistoryState,
+  type LegacyQuireHistoryState,
+  type NavigationTarget,
+  type QuireHistoryState,
 } from '../../domain/navigation/navigationTarget';
 
 interface LegacyWorkspaceHistoryState {
@@ -41,17 +44,26 @@ function targetFromLocation(location: Location): NavigationTarget | undefined {
 function entryFromState(state: unknown): BrowserHistoryEntry | undefined {
   if (state && typeof state === 'object') {
     const current = state as Partial<QuireHistoryState>;
-    if (current.version === 3
-      && typeof current.index === 'number' && Number.isInteger(current.index) && current.index >= 0
-      && typeof current.maxIndex === 'number' && Number.isInteger(current.maxIndex)
-      && current.maxIndex >= current.index
-      && (current.target === undefined || isNavigationTarget(current.target))) {
+    if (
+      current.version === 3 &&
+      typeof current.index === 'number' &&
+      Number.isInteger(current.index) &&
+      current.index >= 0 &&
+      typeof current.maxIndex === 'number' &&
+      Number.isInteger(current.maxIndex) &&
+      current.maxIndex >= current.index &&
+      (current.target === undefined || isNavigationTarget(current.target))
+    ) {
       return { target: current.target, index: current.index, maxIndex: current.maxIndex };
     }
     const versionTwo = state as Partial<LegacyIndexedQuireHistoryState>;
-    if (versionTwo.version === 2
-      && typeof versionTwo.index === 'number' && Number.isInteger(versionTwo.index) && versionTwo.index >= 0
-      && (versionTwo.target === undefined || isNavigationTarget(versionTwo.target))) {
+    if (
+      versionTwo.version === 2 &&
+      typeof versionTwo.index === 'number' &&
+      Number.isInteger(versionTwo.index) &&
+      versionTwo.index >= 0 &&
+      (versionTwo.target === undefined || isNavigationTarget(versionTwo.target))
+    ) {
       return { target: versionTwo.target, index: versionTwo.index, maxIndex: versionTwo.index };
     }
     const versionOne = state as Partial<LegacyQuireHistoryState>;
@@ -60,10 +72,14 @@ function entryFromState(state: unknown): BrowserHistoryEntry | undefined {
     }
     const legacy = (state as LegacyWorkspaceHistoryState).quireWorkspaceNavigation;
     if (legacy && typeof legacy.workspaceId === 'string' && typeof legacy.filePath === 'string') {
-      return { index: 0, maxIndex: 0, target: {
-        document: { kind: 'workspace-file', workspaceId: legacy.workspaceId, filePath: legacy.filePath },
-        fragment: typeof legacy.fragment === 'string' ? legacy.fragment : undefined,
-      } };
+      return {
+        index: 0,
+        maxIndex: 0,
+        target: {
+          document: { kind: 'workspace-file', workspaceId: legacy.workspaceId, filePath: legacy.filePath },
+          fragment: typeof legacy.fragment === 'string' ? legacy.fragment : undefined,
+        },
+      };
     }
   }
   return undefined;
@@ -77,8 +93,13 @@ export class BrowserHistoryAdapter implements BrowserHistoryPort {
   ) {}
 
   current(): BrowserHistoryEntry {
-    return entryFromState(this.browserHistory.state)
-      ?? { target: targetFromLocation(this.browserLocation), index: 0, maxIndex: 0 };
+    return (
+      entryFromState(this.browserHistory.state) ?? {
+        target: targetFromLocation(this.browserLocation),
+        index: 0,
+        maxIndex: 0,
+      }
+    );
   }
 
   push(entry: BrowserHistoryEntry): void {
@@ -99,9 +120,13 @@ export class BrowserHistoryAdapter implements BrowserHistoryPort {
 
   subscribe(listener: (entry: BrowserHistoryEntry) => void): () => void {
     const onPopState = (event: PopStateEvent) => {
-      listener(entryFromState(event.state) ?? {
-        target: targetFromLocation(this.browserLocation), index: 0, maxIndex: 0,
-      });
+      listener(
+        entryFromState(event.state) ?? {
+          target: targetFromLocation(this.browserLocation),
+          index: 0,
+          maxIndex: 0,
+        },
+      );
     };
     this.browserWindow.addEventListener('popstate', onPopState);
     return () => this.browserWindow.removeEventListener('popstate', onPopState);

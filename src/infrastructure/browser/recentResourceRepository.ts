@@ -1,10 +1,10 @@
 import type {
-  RecentResource, RecentResourceInput, RecentResourceRepository,
+  RecentResource,
+  RecentResourceInput,
+  RecentResourceRepository,
 } from '../../application/ports/recentResourceRepository';
 
-export type {
-  RecentResource, RecentResourceInput,
-} from '../../application/ports/recentResourceRepository';
+export type { RecentResource, RecentResourceInput } from '../../application/ports/recentResourceRepository';
 
 interface PersistedRecentResources {
   version: 1;
@@ -20,11 +20,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function normalizeResource(value: unknown): RecentResource | undefined {
-  if (!isRecord(value)
-    || typeof value.id !== 'string'
-    || typeof value.title !== 'string'
-    || typeof value.openedAt !== 'number'
-    || !Number.isFinite(value.openedAt)) return undefined;
+  if (
+    !isRecord(value) ||
+    typeof value.id !== 'string' ||
+    typeof value.title !== 'string' ||
+    typeof value.openedAt !== 'number' ||
+    !Number.isFinite(value.openedAt)
+  )
+    return undefined;
 
   const base = { id: value.id, title: value.title, openedAt: value.openedAt };
   if (value.kind === 'workspace' && typeof value.workspaceId === 'string') {
@@ -99,16 +102,12 @@ export async function removeRecentResource(id: string): Promise<RecentResource[]
   return next;
 }
 
-export async function updateRecentWorkspaceDocument(
-  workspaceId: string,
-  filePath: string,
-): Promise<RecentResource[]> {
+export async function updateRecentWorkspaceDocument(workspaceId: string, filePath: string): Promise<RecentResource[]> {
   const current = await loadRecentResources();
   let changed = false;
   const next = current.map((resource) => {
-    if (resource.kind !== 'workspace'
-      || resource.workspaceId !== workspaceId
-      || resource.lastFilePath === filePath) return resource;
+    if (resource.kind !== 'workspace' || resource.workspaceId !== workspaceId || resource.lastFilePath === filePath)
+      return resource;
     changed = true;
     return { ...resource, lastFilePath: filePath };
   });

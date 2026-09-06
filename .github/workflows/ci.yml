@@ -2,8 +2,12 @@ name: CI
 
 on:
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -15,22 +19,6 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .node-version
           cache: npm
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: sudo apt-get update && sudo apt-get install -y xdotool
-      - run: npm run compile
-      - run: npm test
-      - run: npm run build
-      - run: npm run zip
-      - run: npm run bundle:verify
-      - run: npm run package:verify
-      - run: npm run source:verify
-      - run: npm run store:verify
-      - run: npm run test:e2e:chromium
-      - run: npm run test:visual
-      - name: Test Firefox action and context menu
-        run: npm run test:e2e:firefox:context
-      - name: Test the native Firefox shortcut
-        run: xvfb-run -a npm run test:e2e:firefox:native
+      - uses: ./.github/actions/verify

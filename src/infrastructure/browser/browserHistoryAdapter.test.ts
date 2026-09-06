@@ -21,18 +21,12 @@ describe('BrowserHistoryAdapter', () => {
   });
 
   it.each([
-    [
-      { document: { kind: 'local-file' as const, fileId: 'local-1' } },
-      '?local=local-1',
-    ],
+    [{ document: { kind: 'local-file' as const, fileId: 'local-1' } }, '?local=local-1'],
     [
       { document: { kind: 'remote' as const, url: 'https://example.com/guide.md?mode=full' } },
       '?remote=https%3A%2F%2Fexample.com%2Fguide.md%3Fmode%3Dfull',
     ],
-    [
-      { document: { kind: 'imported' as const, sessionId: 'session 1' } },
-      '?imported=session+1',
-    ],
+    [{ document: { kind: 'imported' as const, sessionId: 'session 1' } }, '?imported=session+1'],
   ])('writes and restores a non-workspace target: %s', (target, search) => {
     const adapter = new BrowserHistoryAdapter(window);
     adapter.replace({ target, index: 0, maxIndex: 0 });

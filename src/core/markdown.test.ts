@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { getMarkdownRenderer, renderMarkdown, renderMarkdownDocument, renderPlainText } from './markdown';
+import {
+  getMarkdownRenderer,
+  loadMarkdownFeatureRuntime,
+  renderMarkdown,
+  renderMarkdownDocument,
+  renderPlainText,
+} from './markdown';
 import { defaultSettings } from '../shared/defaultSettings';
 
 describe('renderMarkdown', () => {
@@ -24,7 +30,9 @@ describe('renderMarkdown', () => {
 
   it('reuses renderer instances for the same feature combination', () => {
     expect(getMarkdownRenderer(defaultSettings)).toBe(getMarkdownRenderer({ ...defaultSettings }));
-    expect(getMarkdownRenderer(defaultSettings)).not.toBe(getMarkdownRenderer({ ...defaultSettings, enableMermaid: false }));
+    expect(getMarkdownRenderer(defaultSettings)).not.toBe(
+      getMarkdownRenderer({ ...defaultSettings, enableMermaid: false }),
+    );
   });
 
   it('sanitizes scripts even when raw HTML is enabled', () => {
@@ -38,17 +46,21 @@ describe('renderMarkdown', () => {
   });
 
   it('renders sanitized GitHub README HTML with the default settings', () => {
-    const html = renderMarkdown(`
+    const html = renderMarkdown(
+      `
 <h1 align="center">
   <img src="Meta.png" alt="Meta Kennel" width="200">
   <br>Meta Kernel<br>
 </h1>
 
 <h3 align="center">Another Mihomo Kernel.</h3>
-`, defaultSettings);
+`,
+      defaultSettings,
+    );
 
     expect(html).toContain('<h1 align="center">');
-    expect(html).toContain('src="Meta.png"');
+    expect(html).toContain('data-resource-src="Meta.png"');
+    expect(html).not.toContain(' src="Meta.png"');
     expect(html).toContain('alt="Meta Kennel"');
     expect(html).toContain('width="200"');
     expect(html).toContain('<br>Meta Kernel<br>');
@@ -62,24 +74,29 @@ describe('renderMarkdown', () => {
   });
 
   it('repairs smart-quoted raw HTML attributes and Markdown-wrapped URLs', () => {
-    const html = renderMarkdown(`
+    const html = renderMarkdown(
+      `
 <h1 align=“center”> <img src=“Meta.png” alt=“Meta Kennel” width=“200”> <br>Meta Kernel<br> </h1>
 
 <h3 align=“center”>Another Mihomo Kernel.</h3>
 
 <p align=“center”> <a href=“[Report](https://goreportcard.com/report/github.com/MetaCubeX/mihomo)”> <img src=“[Badge](https://goreportcard.com/badge/github.com/MetaCubeX/mihomo?style=flat-square)”> </a> </p>
-`, {
-      ...defaultSettings,
-      enableHtml: true,
-    });
+`,
+      {
+        ...defaultSettings,
+        enableHtml: true,
+      },
+    );
 
     expect(html).toContain('<h1 align="center">');
-    expect(html).toContain('src="Meta.png"');
+    expect(html).toContain('data-resource-src="Meta.png"');
     expect(html).toContain('alt="Meta Kennel"');
     expect(html).toContain('width="200"');
     expect(html).toContain('<h3 align="center">Another Mihomo Kernel.</h3>');
     expect(html).toContain('href="https://goreportcard.com/report/github.com/MetaCubeX/mihomo"');
-    expect(html).toContain('src="https://goreportcard.com/badge/github.com/MetaCubeX/mihomo?style=flat-square"');
+    expect(html).toContain(
+      'data-resource-src="https://goreportcard.com/badge/github.com/MetaCubeX/mihomo?style=flat-square"',
+    );
     expect(html).not.toContain('[Report]');
     expect(html).not.toContain('[Badge]');
   });
@@ -109,9 +126,19 @@ describe('renderMarkdown', () => {
     expect(html).not.toContain('<script>');
   });
 
-  it('renders KaTeX expressions when enabled', () => {
-    const html = renderMarkdown('The answer is $x^2$.', defaultSettings);
+  it('renders KaTeX expressions after loading the optional mathematics runtime', async () => {
+    const source = 'The answer is $x^2$.';
+    const runtime = await loadMarkdownFeatureRuntime(source, defaultSettings);
+    const html = renderMarkdown(source, defaultSettings, runtime);
     expect(html).toContain('katex');
+  });
+
+  it('highlights fenced code after loading the optional syntax runtime', async () => {
+    const source = '```ts\nconst answer = 42;\n```';
+    const runtime = await loadMarkdownFeatureRuntime(source, defaultSettings);
+    const html = renderMarkdown(source, defaultSettings, runtime);
+    expect(html).toContain('hljs-keyword');
+    expect(html).toContain('hljs-number');
   });
 
   it.each([
@@ -137,6 +164,35 @@ describe('renderMarkdown', () => {
     const html = renderMarkdown('![Diagram](./diagram.png)', defaultSettings);
     expect(html).toContain('loading="lazy"');
     expect(html).toContain('decoding="async"');
+    expect(html).toContain('data-resource-src="./diagram.png"');
+    expect(html).not.toContain(' src="./diagram.png"');
+  });
+
+  it('blocks remote image URLs before sanitized HTML enters the live document', () => {
+    const html = renderMarkdown('![Tracking pixel](https://example.com/pixel.png)', {
+      ...defaultSettings,
+      loadRemoteImages: false,
+    });
+    expect(html).toContain('data-resource-src="https://example.com/pixel.png"');
+    expect(html).toContain('data-resource-state="blocked"');
+    expect(html).not.toContain(' src="https://example.com/pixel.png"');
+  });
+
+  it('removes raw HTML media elements that could initiate uncontrolled requests', () => {
+    const html = renderMarkdown(
+      `
+<video src="https://example.com/video.mp4" poster="https://example.com/poster.png"></video>
+<svg><image href="https://example.com/pixel.png"></image></svg>
+`,
+      {
+        ...defaultSettings,
+        enableHtml: true,
+        loadRemoteImages: false,
+      },
+    );
+    expect(html).not.toContain('<video');
+    expect(html).not.toContain('<image');
+    expect(html).not.toContain('example.com');
   });
 
   it('renders imported page text literally instead of interpreting Markdown or HTML', () => {
@@ -148,4 +204,4 @@ describe('renderMarkdown', () => {
     expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
     expect(html).toContain('data-source-line-start="1"');
   });
-  });
+});

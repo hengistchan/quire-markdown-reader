@@ -1,6 +1,4 @@
-import type {
-  DocumentRefreshResult, DocumentSnapshot, DocumentSource, LinkResolution,
-} from './documentSource';
+import type { DocumentRefreshResult, DocumentSnapshot, DocumentSource, LinkResolution } from './documentSource';
 import type { ResolvedAsset } from './documentResource';
 
 export class DocumentService {
@@ -42,8 +40,10 @@ export class DocumentService {
   }
 
   resolveAsset(href: string, signal?: AbortSignal): Promise<ResolvedAsset> {
-    return this.currentSource?.resolveAsset(href, signal)
-      ?? Promise.resolve({ type: 'unavailable', reason: 'missing-source' });
+    return (
+      this.currentSource?.resolveAsset(href, signal) ??
+      Promise.resolve({ type: 'unavailable', reason: 'missing-source' })
+    );
   }
 
   resolveLink(href: string): LinkResolution {

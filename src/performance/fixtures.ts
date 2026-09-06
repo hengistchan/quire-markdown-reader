@@ -23,7 +23,10 @@ export function codeFenceDocument(count = PERFORMANCE_FIXTURE_SIZES.codeFences):
 }
 
 export function mermaidDocument(count = PERFORMANCE_FIXTURE_SIZES.mermaidDiagrams): string {
-  return Array.from({ length: count }, (_, index) => `\`\`\`mermaid\nflowchart LR\n  A${index} --> B${index}\n\`\`\``).join('\n\n');
+  return Array.from(
+    { length: count },
+    (_, index) => `\`\`\`mermaid\nflowchart LR\n  A${index} --> B${index}\n\`\`\``,
+  ).join('\n\n');
 }
 
 export function imageDocument(count = PERFORMANCE_FIXTURE_SIZES.relativeImages): string {

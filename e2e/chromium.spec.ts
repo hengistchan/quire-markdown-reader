@@ -13,10 +13,13 @@ async function extensionId(context: BrowserContext): Promise<string> {
   return new URL(worker.url()).host;
 }
 
-async function installWorkspacePicker(page: Page): Promise<void> {
-  await page.addInitScript(() => {
+async function installWorkspacePicker(
+  page: Page,
+  initialHandlePermissions: Record<string, PermissionState> = {},
+): Promise<void> {
+  await page.addInitScript((initialPermissions) => {
     let denyDirectory = false;
-    const handlePermissions = new Map<string, PermissionState>();
+    const handlePermissions = new Map<string, PermissionState>(Object.entries(initialPermissions));
     const handlePermissionRequests = new Map<string, number>();
     let remotePermission = true;
     let remotePermissionRequests = 0;
@@ -27,7 +30,9 @@ async function installWorkspacePicker(page: Page): Promise<void> {
     let releaseDelayedFileRead: (() => void) | undefined;
     Object.defineProperty(window, '__quireDenyDirectoryPicker', {
       configurable: true,
-      value: () => { denyDirectory = true; },
+      value: () => {
+        denyDirectory = true;
+      },
     });
     Object.defineProperty(window, '__quireSetHandlePermission', {
       configurable: true,
@@ -39,7 +44,9 @@ async function installWorkspacePicker(page: Page): Promise<void> {
     });
     Object.defineProperty(window, '__quireSetRemotePermission', {
       configurable: true,
-      value: (granted: boolean) => { remotePermission = granted; },
+      value: (granted: boolean) => {
+        remotePermission = granted;
+      },
     });
     Object.defineProperty(window, '__quireRemoteRequestCount', {
       configurable: true,
@@ -49,7 +56,9 @@ async function installWorkspacePicker(page: Page): Promise<void> {
       configurable: true,
       value: (name: string) => {
         delayedFileName = name;
-        delayedFileReadGate = new Promise<void>((resolve) => { releaseDelayedFileRead = resolve; });
+        delayedFileReadGate = new Promise<void>((resolve) => {
+          releaseDelayedFileRead = resolve;
+        });
       },
     });
     Object.defineProperty(window, '__quireDelayedFileReadCounts', {
@@ -78,15 +87,31 @@ async function installWorkspacePicker(page: Page): Promise<void> {
           throw new DOMException('The user denied access.', 'NotAllowedError');
         }
         const root = await navigator.storage.getDirectory();
-        try { await root.removeEntry('Quire E2E', { recursive: true }); } catch { /* first run */ }
+        try {
+          await root.removeEntry('Quire E2E', { recursive: true });
+        } catch {
+          /* first run */
+        }
         const workspace = await root.getDirectoryHandle('Quire E2E', { create: true });
         const docs = await workspace.getDirectoryHandle('docs', { create: true });
         const assets = await workspace.getDirectoryHandle('assets', { create: true });
         const dependencies = await workspace.getDirectoryHandle('node_modules', { create: true });
-        await write(await workspace.getFileHandle('README.md', { create: true }), '# Workspace Home\n\n![Quire mark](assets/mark.svg)\n\n```mermaid\nflowchart LR\n  Source --> Reader\n```\n\n```mermaid\nsequenceDiagram\n  Browser->>Quire: Open Markdown\n  Quire-->>Browser: Render SVG\n```\n\n[Open guide](docs/guide.md#section-16)');
-        const longOutline = Array.from({ length: 32 }, (_, index) => `## Section ${index + 1}\n\nOutline content ${index + 1}.`).join('\n\n');
-        await write(await docs.getFileHandle('guide.md', { create: true }), `# Nested Guide\n\nBefore refresh.\n\n${longOutline}`);
-        await write(await assets.getFileHandle('mark.svg', { create: true }), '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" rx="8" fill="#5266d7"/></svg>');
+        await write(
+          await workspace.getFileHandle('README.md', { create: true }),
+          '# Workspace Home\n\n![Quire mark](assets/mark.svg)\n\n```mermaid\nflowchart LR\n  Source --> Reader\n```\n\n```mermaid\nsequenceDiagram\n  Browser->>Quire: Open Markdown\n  Quire-->>Browser: Render SVG\n```\n\n[Open guide](docs/guide.md#section-16)',
+        );
+        const longOutline = Array.from(
+          { length: 32 },
+          (_, index) => `## Section ${index + 1}\n\nOutline content ${index + 1}.`,
+        ).join('\n\n');
+        await write(
+          await docs.getFileHandle('guide.md', { create: true }),
+          `# Nested Guide\n\nBefore refresh.\n\n${longOutline}`,
+        );
+        await write(
+          await assets.getFileHandle('mark.svg', { create: true }),
+          '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" rx="8" fill="#5266d7"/></svg>',
+        );
         await write(await dependencies.getFileHandle('ignored.md', { create: true }), '# Must not be scanned');
         return workspace;
       },
@@ -146,7 +171,7 @@ async function installWorkspacePicker(page: Page): Promise<void> {
       };
       chrome.permissions.contains = async () => remotePermission;
     }
-  });
+  }, initialHandlePermissions);
 }
 
 async function openRemote(page: Page, url: string): Promise<void> {
@@ -175,27 +200,30 @@ async function delayFileRead(page: Page, name: string): Promise<DelayedFileReadC
 }
 
 async function delayedFileReadCounts(page: Page): Promise<DelayedFileReadCounts> {
-  return page.evaluate(() => (
-    window as unknown as { __quireDelayedFileReadCounts(): DelayedFileReadCounts }
-  ).__quireDelayedFileReadCounts());
+  return page.evaluate(() =>
+    (window as unknown as { __quireDelayedFileReadCounts(): DelayedFileReadCounts }).__quireDelayedFileReadCounts(),
+  );
 }
 
 async function releaseFileRead(page: Page): Promise<void> {
-  await page.evaluate(() => (
-    window as unknown as { __quireReleaseFileRead(): void }
-  ).__quireReleaseFileRead());
+  await page.evaluate(() => (window as unknown as { __quireReleaseFileRead(): void }).__quireReleaseFileRead());
 }
 
 async function pasteMarkdownFile(page: Page, name: string, markdown: string): Promise<void> {
-  await page.locator('.app-shell').evaluate((element, input) => {
-    const transfer = new DataTransfer();
-    transfer.items.add(new File([input.markdown], input.name, { type: 'text/markdown' }));
-    element.dispatchEvent(new ClipboardEvent('paste', {
-      bubbles: true,
-      cancelable: true,
-      clipboardData: transfer,
-    }));
-  }, { name, markdown });
+  await page.locator('.app-shell').evaluate(
+    (element, input) => {
+      const transfer = new DataTransfer();
+      transfer.items.add(new File([input.markdown], input.name, { type: 'text/markdown' }));
+      element.dispatchEvent(
+        new ClipboardEvent('paste', {
+          bubbles: true,
+          cancelable: true,
+          clipboardData: transfer,
+        }),
+      );
+    },
+    { name, markdown },
+  );
 }
 
 test('runs the complete reader flow as an installed Chromium extension', async () => {
@@ -214,7 +242,9 @@ test('runs the complete reader flow as an installed Chromium extension', async (
     const localWorkspacePath = join(profile, 'mihomo');
     await mkdir(join(localWorkspacePath, 'docs'), { recursive: true });
     const localMarkdownPath = join(localWorkspacePath, 'README.md');
-    await writeFile(localMarkdownPath, `<h1 align="center">
+    await writeFile(
+      localMarkdownPath,
+      `<h1 align="center">
   <img src="Meta.png" alt="Meta Kennel" width="200">
   <br>Meta Kernel<br>
 </h1>
@@ -227,11 +257,15 @@ Opened from a local absolute path.
 
 ~~~ts
 const embedded = true;
-~~~`);
-    await writeFile(join(localWorkspacePath, 'Meta.png'), Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+X8WzAAAAAElFTkSuQmCC',
-      'base64',
-    ));
+~~~`,
+    );
+    await writeFile(
+      join(localWorkspacePath, 'Meta.png'),
+      Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+X8WzAAAAAElFTkSuQmCC',
+        'base64',
+      ),
+    );
     await writeFile(join(localWorkspacePath, 'docs', 'guide.md'), '# Embedded workspace guide');
     const localMarkdownUrl = pathToFileURL(localMarkdownPath).href;
 
@@ -279,23 +313,43 @@ const embedded = true;
     const wideControl = page.getByRole('button', { name: 'Use standard reading width' });
     const topbarSearch = page.locator('.topbar-actions').getByRole('button', { name: 'Command center' });
     const [openBox, wideBox, searchBox, wideReaderBox] = await Promise.all([
-      openControl.boundingBox(), wideControl.boundingBox(), topbarSearch.boundingBox(), page.locator('.markdown-body').boundingBox(),
+      openControl.boundingBox(),
+      wideControl.boundingBox(),
+      topbarSearch.boundingBox(),
+      page.locator('.markdown-body').boundingBox(),
     ]);
     expect(wideBox!.x).toBeGreaterThan(openBox!.x + openBox!.width - 1);
     expect(wideBox!.x + wideBox!.width).toBeLessThanOrEqual(searchBox!.x + 1);
     await wideControl.click();
-    await expect(page.getByRole('button', { name: 'Use wider reading width' })).toHaveAttribute('aria-pressed', 'false');
-    await expect.poll(async () => (await page.locator('.markdown-body').boundingBox())!.width).toBeLessThan(wideReaderBox!.width);
+    await expect(page.getByRole('button', { name: 'Use wider reading width' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+    await expect
+      .poll(async () => (await page.locator('.markdown-body').boundingBox())!.width)
+      .toBeLessThan(wideReaderBox!.width);
     await page.getByRole('button', { name: 'Use wider reading width' }).click();
 
     await page.getByRole('button', { name: 'Reader settings' }).click();
     const pageWidth = page.getByRole('slider', { name: 'Page width' });
     await pageWidth.fill('970');
     await pageWidth.fill('980');
+    await page.getByText('Advanced', { exact: true }).click();
+    const customCss = page.getByLabel('Custom CSS');
+    await customCss.fill('} .app-shell { display: none } @scope (.markdown-body) {');
+    await expect(customCss).toHaveAttribute('aria-invalid', 'true');
+    await expect(
+      page.getByText('This CSS is not applied because it can escape the document scope or load an external resource.'),
+    ).toBeVisible();
+    await expect(page.locator('.app-shell')).toBeVisible();
+    await customCss.fill('');
+    await expect(customCss).toHaveAttribute('aria-invalid', 'false');
     await page.getByRole('button', { name: 'Close settings' }).click();
     const maxCustomReaderBox = await page.locator('.markdown-body').boundingBox();
     await page.getByRole('button', { name: 'Use wider reading width' }).click();
-    await expect.poll(async () => (await page.locator('.markdown-body').boundingBox())!.width).toBeGreaterThan(maxCustomReaderBox!.width);
+    await expect
+      .poll(async () => (await page.locator('.markdown-body').boundingBox())!.width)
+      .toBeGreaterThan(maxCustomReaderBox!.width);
 
     await openControl.click();
     await page.getByRole('button', { name: 'Open folder' }).click();
@@ -325,7 +379,7 @@ const embedded = true;
     expect((await folderName.boundingBox())?.width).toBeGreaterThan(24);
     const panelBox = await page.locator('.context-panel').boundingBox();
     const statusBox = await page.locator('.context-foot').boundingBox();
-    expect(Math.abs((panelBox!.y + panelBox!.height) - (statusBox!.y + statusBox!.height))).toBeLessThan(2);
+    expect(Math.abs(panelBox!.y + panelBox!.height - (statusBox!.y + statusBox!.height))).toBeLessThan(2);
     await expect(page.locator('.markdown-body img')).toHaveAttribute('src', /^blob:/);
     await page.evaluate(async () => {
       const root = await navigator.storage.getDirectory();
@@ -458,18 +512,26 @@ const embedded = true;
     const outlineNavigation = outline.locator('.outline-navigation');
     expect(await outlineNavigation.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
     await expect(outlineNavigation.locator('button')).toHaveCount(33);
-    const outlineRowHeights = await outlineNavigation.locator('button').evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().height));
+    const outlineRowHeights = await outlineNavigation
+      .locator('button')
+      .evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().height));
     expect(Math.min(...outlineRowHeights)).toBeGreaterThanOrEqual(30);
     await page.evaluate(() => scrollTo({ top: 0, behavior: 'instant' }));
     await outlineNavigation.getByRole('button', { name: 'Section 24' }).click();
-    await expect.poll(() => page.locator('#section-24').evaluate((element) => Math.abs(element.getBoundingClientRect().top - 92))).toBeLessThanOrEqual(2);
+    await expect
+      .poll(() => page.locator('#section-24').evaluate((element) => Math.abs(element.getBoundingClientRect().top - 92)))
+      .toBeLessThanOrEqual(2);
     await expect(page.locator('#section-24')).toBeFocused();
-    await outlineNavigation.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    await outlineNavigation.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
     const pageScrollBeforeChaining = await page.evaluate(() => scrollY);
     await outlineNavigation.hover();
     await page.mouse.wheel(0, 480);
     await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(pageScrollBeforeChaining);
-    await outlineNavigation.evaluate((element) => { element.scrollTop = 0; });
+    await outlineNavigation.evaluate((element) => {
+      element.scrollTop = 0;
+    });
     await outlineNavigation.hover();
     await page.mouse.wheel(0, 480);
     await expect.poll(() => outlineNavigation.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
@@ -481,9 +543,9 @@ const embedded = true;
     await page.setViewportSize({ width: 1280, height: 800 });
 
     await page.evaluate(() => scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
-    await expect.poll(() => page.evaluate(() => Math.abs(
-      scrollY - (document.documentElement.scrollHeight - innerHeight),
-    ))).toBeLessThanOrEqual(2);
+    await expect
+      .poll(() => page.evaluate(() => Math.abs(scrollY - (document.documentElement.scrollHeight - innerHeight))))
+      .toBeLessThanOrEqual(2);
     const bottomLayout = await page.evaluate(() => {
       const stage = document.querySelector<HTMLElement>('.reader-stage');
       const tooltip = document.querySelector<HTMLElement>('body > .mermaidTooltip');
@@ -533,7 +595,9 @@ const embedded = true;
     await expect(reopened.locator('.document-identity strong')).toHaveText('guide');
     await expect(reopened.getByRole('heading', { level: 1, name: /Nested Guide/ })).toBeVisible();
 
-    await reopened.evaluate(() => (window as unknown as { __quireDenyDirectoryPicker: () => void }).__quireDenyDirectoryPicker());
+    await reopened.evaluate(() =>
+      (window as unknown as { __quireDenyDirectoryPicker: () => void }).__quireDenyDirectoryPicker(),
+    );
     await reopened.getByRole('button', { name: 'Open', exact: true }).click();
     await reopened.getByRole('button', { name: 'Open folder' }).click();
     await expect(reopened.getByRole('alert')).toContainText('Access was not granted');
@@ -556,10 +620,26 @@ const embedded = true;
     await documentSearch.getByRole('button', { name: /After refresh/ }).click();
     await expect(reopened.locator('mark[data-quire-search-hit]')).toHaveText('After refresh');
 
+    let remoteImageRequests = 0;
     server = createServer((request, response) => {
       if (request.url === '/remote.md') {
-        response.writeHead(200, { 'content-type': 'text/markdown', 'access-control-allow-origin': '*', etag: '"quire-e2e"' });
-        response.end('# Remote Guide\n\nFetched with an origin-scoped permission.\n\n[Next remote document](next.md)');
+        response.writeHead(200, {
+          'content-type': 'text/markdown',
+          'access-control-allow-origin': '*',
+          etag: '"quire-e2e"',
+        });
+        response.end(
+          '# Remote Guide\n\nFetched with an origin-scoped permission.\n\n![Remote pixel](pixel.png)\n\n[Next remote document](next.md)',
+        );
+      } else if (request.url === '/pixel.png') {
+        remoteImageRequests += 1;
+        response.writeHead(200, { 'content-type': 'image/png', 'access-control-allow-origin': '*' });
+        response.end(
+          Buffer.from(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+X8WzAAAAAElFTkSuQmCC',
+            'base64',
+          ),
+        );
       } else if (request.url === '/next.md') {
         setTimeout(() => {
           response.writeHead(200, { 'content-type': 'text/markdown', 'access-control-allow-origin': '*' });
@@ -578,8 +658,25 @@ const embedded = true;
     await reopened.getByRole('button', { name: 'Open URL' }).click();
     const remoteUrl = `http://127.0.0.1:${address.port}/remote.md`;
     await reopened.getByPlaceholder('https://example.com/guide.md').fill(remoteUrl);
-    await reopened.getByRole('dialog', { name: 'Open Markdown from the web' }).getByRole('button', { name: 'Open' }).click();
+    await reopened
+      .getByRole('dialog', { name: 'Open Markdown from the web' })
+      .getByRole('button', { name: 'Open' })
+      .click();
     await expect(reopened.getByText('Fetched with an origin-scoped permission.')).toBeVisible();
+    const remoteImage = reopened.getByRole('img', { name: 'Remote pixel' });
+    await expect(remoteImage).toHaveAttribute('data-resource-state', 'blocked');
+    await expect(remoteImage).not.toHaveAttribute('src', /.+/);
+    await reopened.waitForTimeout(250);
+    expect(remoteImageRequests).toBe(0);
+
+    await reopened.getByRole('button', { name: 'Reader settings' }).click();
+    await reopened.getByText('Advanced', { exact: true }).click();
+    await reopened.getByRole('checkbox', { name: /Remote images/ }).check();
+    await reopened.getByRole('button', { name: 'Close settings' }).click();
+    await remoteImage.scrollIntoViewIfNeeded();
+    await expect(remoteImage).toHaveAttribute('src', `http://127.0.0.1:${address.port}/pixel.png`);
+    await expect.poll(() => remoteImageRequests).toBe(1);
+
     await reopened.getByRole('link', { name: 'Next remote document' }).click();
     await expect(reopened.getByRole('status')).toContainText('Loading Markdown…');
     await expect(reopened.getByText('The linked network document finished loading.')).toBeVisible();
@@ -650,32 +747,42 @@ test('reopens persisted Recent Resources with workspace permission and last-docu
     await expect(resourceRows.nth(1)).toContainText('recent.md');
     await expect(resourceRows.nth(2)).toContainText('Quire E2E');
 
-    await page.evaluate(() => (
-      window as unknown as { __quireSetHandlePermission(name: string, state: PermissionState): void }
-    ).__quireSetHandlePermission('Quire E2E', 'prompt'));
-    const requestsBefore = await page.evaluate(
-      () => (window as unknown as { __quireHandleRequestCount(name: string): number }).__quireHandleRequestCount('Quire E2E'),
+    await page.evaluate(() =>
+      (
+        window as unknown as { __quireSetHandlePermission(name: string, state: PermissionState): void }
+      ).__quireSetHandlePermission('Quire E2E', 'prompt'),
+    );
+    const requestsBefore = await page.evaluate(() =>
+      (window as unknown as { __quireHandleRequestCount(name: string): number }).__quireHandleRequestCount('Quire E2E'),
     );
     await menu.getByRole('button', { name: /Quire E2E Workspace/ }).click();
     await expect(page.locator('.document-identity strong')).toHaveText('guide');
     await expect(page.getByText('Before refresh.')).toBeVisible();
-    expect(await page.evaluate(
-      () => (window as unknown as { __quireHandleRequestCount(name: string): number }).__quireHandleRequestCount('Quire E2E'),
-    )).toBe(requestsBefore + 1);
+    expect(
+      await page.evaluate(() =>
+        (window as unknown as { __quireHandleRequestCount(name: string): number }).__quireHandleRequestCount(
+          'Quire E2E',
+        ),
+      ),
+    ).toBe(requestsBefore + 1);
 
     const reopened = await context.newPage();
-    await installWorkspacePicker(reopened);
+    await installWorkspacePicker(reopened, { 'Quire E2E': 'prompt' });
     await reopened.goto(`chrome-extension://${id}/viewer.html`);
-    await reopened.evaluate(() => (
-      window as unknown as { __quireSetHandlePermission(name: string, state: PermissionState): void }
-    ).__quireSetHandlePermission('Quire E2E', 'prompt'));
     await reopened.getByRole('button', { name: 'Open', exact: true }).click();
-    await reopened.locator('.open-menu').getByRole('button', { name: /Quire E2E Workspace/ }).click();
+    await reopened
+      .locator('.open-menu')
+      .getByRole('button', { name: /Quire E2E Workspace/ })
+      .click();
     await expect(reopened.locator('.document-identity strong')).toHaveText('guide');
     await expect(reopened.getByText('Before refresh.')).toBeVisible();
-    expect(await reopened.evaluate(
-      () => (window as unknown as { __quireHandleRequestCount(name: string): number }).__quireHandleRequestCount('Quire E2E'),
-    )).toBe(1);
+    expect(
+      await reopened.evaluate(() =>
+        (window as unknown as { __quireHandleRequestCount(name: string): number }).__quireHandleRequestCount(
+          'Quire E2E',
+        ),
+      ),
+    ).toBe(1);
   } finally {
     await context?.close();
     if (server) await new Promise<void>((done) => server!.close(() => done()));
@@ -701,7 +808,9 @@ test('keeps installed document history coherent across races, reloads, sources, 
         if (delayNextB) {
           delayNextB = false;
           let finished = false;
-          response.on('close', () => { if (!finished) delayedBClosed = true; });
+          response.on('close', () => {
+            if (!finished) delayedBClosed = true;
+          });
           setTimeout(() => {
             if (response.destroyed) return;
             finished = true;
@@ -810,70 +919,96 @@ test('keeps installed document history coherent across races, reloads, sources, 
     await expect(mixedPage.locator('.document-identity strong')).toHaveText('B');
     expect(await mixedPage.evaluate(() => history.length)).toBe(mixedHistoryLength);
 
-    const workspaceRequestsBefore = await mixedPage.evaluate(
-      () => (window as unknown as { __quireHandleRequestCount(name: string): number }).__quireHandleRequestCount('Quire E2E'),
+    const workspaceRequestsBefore = await mixedPage.evaluate(() =>
+      (window as unknown as { __quireHandleRequestCount(name: string): number }).__quireHandleRequestCount('Quire E2E'),
     );
-    await mixedPage.evaluate(() => (
-      window as unknown as { __quireSetHandlePermission(name: string, state: PermissionState): void }
-    ).__quireSetHandlePermission('Quire E2E', 'prompt'));
+    await mixedPage.evaluate(() =>
+      (
+        window as unknown as { __quireSetHandlePermission(name: string, state: PermissionState): void }
+      ).__quireSetHandlePermission('Quire E2E', 'prompt'),
+    );
     await mixedPage.getByRole('button', { name: 'Previous document' }).click();
     const workspaceAlert = mixedPage.getByRole('alert');
     await expect(workspaceAlert).toContainText('needs your permission');
-    expect(await mixedPage.evaluate(
-      () => (window as unknown as { __quireHandleRequestCount(name: string): number }).__quireHandleRequestCount('Quire E2E'),
-    )).toBe(workspaceRequestsBefore);
+    expect(
+      await mixedPage.evaluate(() =>
+        (window as unknown as { __quireHandleRequestCount(name: string): number }).__quireHandleRequestCount(
+          'Quire E2E',
+        ),
+      ),
+    ).toBe(workspaceRequestsBefore);
     await workspaceAlert.getByRole('button', { name: 'Restore access' }).click();
     await expect(mixedPage.locator('.document-identity strong')).toHaveText('README');
-    expect(await mixedPage.evaluate(
-      () => (window as unknown as { __quireHandleRequestCount(name: string): number }).__quireHandleRequestCount('Quire E2E'),
-    )).toBe(workspaceRequestsBefore + 1);
+    expect(
+      await mixedPage.evaluate(() =>
+        (window as unknown as { __quireHandleRequestCount(name: string): number }).__quireHandleRequestCount(
+          'Quire E2E',
+        ),
+      ),
+    ).toBe(workspaceRequestsBefore + 1);
 
     await mixedPage.getByRole('button', { name: 'Next document' }).click();
     await expect(mixedPage.locator('.document-identity strong')).toHaveText('B');
     await mixedPage.getByRole('button', { name: 'Next document' }).click();
     await expect(mixedPage.locator('.document-identity strong')).toHaveText('Local C');
-    const localRequestsBefore = await mixedPage.evaluate(
-      () => (window as unknown as { __quireHandleRequestCount(name: string): number }).__quireHandleRequestCount('Local C.md'),
+    const localRequestsBefore = await mixedPage.evaluate(() =>
+      (window as unknown as { __quireHandleRequestCount(name: string): number }).__quireHandleRequestCount(
+        'Local C.md',
+      ),
     );
-    await mixedPage.evaluate(() => (
-      window as unknown as { __quireSetHandlePermission(name: string, state: PermissionState): void }
-    ).__quireSetHandlePermission('Local C.md', 'prompt'));
+    await mixedPage.evaluate(() =>
+      (
+        window as unknown as { __quireSetHandlePermission(name: string, state: PermissionState): void }
+      ).__quireSetHandlePermission('Local C.md', 'prompt'),
+    );
     await openRemote(mixedPage, `${baseUrl}/A.md`);
     await expect(mixedPage.locator('.document-identity strong')).toHaveText('A');
     await mixedPage.getByRole('button', { name: 'Previous document' }).click();
     const localAlert = mixedPage.getByRole('alert');
     await expect(localAlert).toContainText('needs your permission');
-    expect(await mixedPage.evaluate(
-      () => (window as unknown as { __quireHandleRequestCount(name: string): number }).__quireHandleRequestCount('Local C.md'),
-    )).toBe(localRequestsBefore);
+    expect(
+      await mixedPage.evaluate(() =>
+        (window as unknown as { __quireHandleRequestCount(name: string): number }).__quireHandleRequestCount(
+          'Local C.md',
+        ),
+      ),
+    ).toBe(localRequestsBefore);
     await localAlert.getByRole('button', { name: 'Restore access' }).click();
     await expect(mixedPage.locator('.document-identity strong')).toHaveText('Local C');
-    expect(await mixedPage.evaluate(
-      () => (window as unknown as { __quireHandleRequestCount(name: string): number }).__quireHandleRequestCount('Local C.md'),
-    )).toBe(localRequestsBefore + 1);
+    expect(
+      await mixedPage.evaluate(() =>
+        (window as unknown as { __quireHandleRequestCount(name: string): number }).__quireHandleRequestCount(
+          'Local C.md',
+        ),
+      ),
+    ).toBe(localRequestsBefore + 1);
 
     await mixedPage.getByRole('button', { name: 'Next document' }).click();
     await expect(mixedPage.locator('.document-identity strong')).toHaveText('A');
     await mixedPage.getByRole('button', { name: 'Open', exact: true }).click();
     await mixedPage.getByRole('button', { name: 'Open file' }).click();
     await expect(mixedPage.locator('.document-identity strong')).toHaveText('Local C');
-    const remoteRequestsBefore = await mixedPage.evaluate(
-      () => (window as unknown as { __quireRemoteRequestCount(): number }).__quireRemoteRequestCount(),
+    const remoteRequestsBefore = await mixedPage.evaluate(() =>
+      (window as unknown as { __quireRemoteRequestCount(): number }).__quireRemoteRequestCount(),
     );
-    await mixedPage.evaluate(() => (
-      window as unknown as { __quireSetRemotePermission(granted: boolean): void }
-    ).__quireSetRemotePermission(false));
+    await mixedPage.evaluate(() =>
+      (window as unknown as { __quireSetRemotePermission(granted: boolean): void }).__quireSetRemotePermission(false),
+    );
     await mixedPage.getByRole('button', { name: 'Previous document' }).click();
     const remoteAlert = mixedPage.getByRole('alert');
     await expect(remoteAlert).toContainText('needs your permission');
-    expect(await mixedPage.evaluate(
-      () => (window as unknown as { __quireRemoteRequestCount(): number }).__quireRemoteRequestCount(),
-    )).toBe(remoteRequestsBefore);
+    expect(
+      await mixedPage.evaluate(() =>
+        (window as unknown as { __quireRemoteRequestCount(): number }).__quireRemoteRequestCount(),
+      ),
+    ).toBe(remoteRequestsBefore);
     await remoteAlert.getByRole('button', { name: 'Restore access' }).click();
     await expect(mixedPage.locator('.document-identity strong')).toHaveText('A');
-    expect(await mixedPage.evaluate(
-      () => (window as unknown as { __quireRemoteRequestCount(): number }).__quireRemoteRequestCount(),
-    )).toBe(remoteRequestsBefore + 1);
+    expect(
+      await mixedPage.evaluate(() =>
+        (window as unknown as { __quireRemoteRequestCount(): number }).__quireRemoteRequestCount(),
+      ),
+    ).toBe(remoteRequestsBefore + 1);
 
     const importedPage = await context.newPage();
     await installWorkspacePicker(importedPage);
@@ -965,7 +1100,9 @@ for (const race of [
       await expect(page.locator('.document-identity strong')).toHaveText('B');
       await expect(page.getByText('Remote B wins the navigation race.')).toBeVisible();
       await expect(page).toHaveURL(new RegExp(`remote=${encodeURIComponent(`${baseUrl}/B.md`)}`));
-      await expect(page.getByRole('heading', { level: 1, name: race.source === 'Workspace' ? 'Workspace Home' : 'Local C' })).toHaveCount(0);
+      await expect(
+        page.getByRole('heading', { level: 1, name: race.source === 'Workspace' ? 'Workspace Home' : 'Local C' }),
+      ).toHaveCount(0);
     } finally {
       if (page && !page.isClosed()) await releaseFileRead(page).catch(() => undefined);
       await context?.close();

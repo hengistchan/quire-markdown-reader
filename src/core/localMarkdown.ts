@@ -45,9 +45,11 @@ function isSafeWorkspaceName(value: string): boolean {
 
 function isSafeMarkdownFilePath(value: string): boolean {
   const segments = value.split('/');
-  return segments.length > 0
-    && segments.every((segment) => Boolean(segment) && segment !== '.' && segment !== '..' && !/[\\\0]/.test(segment))
-    && /\.(?:md|markdown|mdx)$/i.test(value);
+  return (
+    segments.length > 0 &&
+    segments.every((segment) => Boolean(segment) && segment !== '.' && segment !== '..' && !/[\\\0]/.test(segment)) &&
+    /\.(?:md|markdown|mdx)$/i.test(value)
+  );
 }
 
 export function isLocalMarkdownUrl(value: string): boolean {
@@ -81,8 +83,13 @@ export function localMarkdownPathWithinDirectory(value: string, directoryName: s
   }
 }
 
-export function localMarkdownWorkspaceFileUrl(value: string, workspaceName: string, filePath: string): string | undefined {
-  if (!isLocalMarkdownUrl(value) || !isSafeWorkspaceName(workspaceName) || !isSafeMarkdownFilePath(filePath)) return undefined;
+export function localMarkdownWorkspaceFileUrl(
+  value: string,
+  workspaceName: string,
+  filePath: string,
+): string | undefined {
+  if (!isLocalMarkdownUrl(value) || !isSafeWorkspaceName(workspaceName) || !isSafeMarkdownFilePath(filePath))
+    return undefined;
   const currentPath = localMarkdownPathWithinDirectory(value, workspaceName);
   if (!currentPath) return undefined;
   try {
@@ -120,19 +127,30 @@ export function localMarkdownWorkspaceRoute(value: string): LocalMarkdownWorkspa
   }
 }
 
-export function isNavigateLocalMarkdownWorkspaceMessage(value: unknown): value is NavigateLocalMarkdownWorkspaceMessage {
+export function isNavigateLocalMarkdownWorkspaceMessage(
+  value: unknown,
+): value is NavigateLocalMarkdownWorkspaceMessage {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Partial<NavigateLocalMarkdownWorkspaceMessage>;
-  return candidate.type === NAVIGATE_LOCAL_MARKDOWN_WORKSPACE
-    && typeof candidate.workspaceName === 'string' && isSafeWorkspaceName(candidate.workspaceName)
-    && typeof candidate.filePath === 'string' && isSafeMarkdownFilePath(candidate.filePath);
+  return (
+    candidate.type === NAVIGATE_LOCAL_MARKDOWN_WORKSPACE &&
+    typeof candidate.workspaceName === 'string' &&
+    isSafeWorkspaceName(candidate.workspaceName) &&
+    typeof candidate.filePath === 'string' &&
+    isSafeMarkdownFilePath(candidate.filePath)
+  );
 }
 
-export function isSelectLocalMarkdownWorkspaceFileMessage(value: unknown): value is SelectLocalMarkdownWorkspaceFileMessage {
+export function isSelectLocalMarkdownWorkspaceFileMessage(
+  value: unknown,
+): value is SelectLocalMarkdownWorkspaceFileMessage {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Partial<SelectLocalMarkdownWorkspaceFileMessage>;
-  return candidate.type === SELECT_LOCAL_MARKDOWN_WORKSPACE_FILE
-    && typeof candidate.filePath === 'string' && isSafeMarkdownFilePath(candidate.filePath);
+  return (
+    candidate.type === SELECT_LOCAL_MARKDOWN_WORKSPACE_FILE &&
+    typeof candidate.filePath === 'string' &&
+    isSafeMarkdownFilePath(candidate.filePath)
+  );
 }
 
 export function createLocalMarkdownImport(value: string, page: Document): ImportedDocument | undefined {
@@ -149,11 +167,13 @@ export function isOpenLocalMarkdownMessage(value: unknown): value is OpenLocalMa
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Partial<OpenLocalMarkdownMessage>;
   const document = candidate.document;
-  return candidate.type === OPEN_LOCAL_MARKDOWN
-    && typeof document?.title === 'string'
-    && typeof document.markdown === 'string'
-    && typeof document.sourceUrl === 'string'
-    && isLocalMarkdownUrl(document.sourceUrl);
+  return (
+    candidate.type === OPEN_LOCAL_MARKDOWN &&
+    typeof document?.title === 'string' &&
+    typeof document.markdown === 'string' &&
+    typeof document.sourceUrl === 'string' &&
+    isLocalMarkdownUrl(document.sourceUrl)
+  );
 }
 
 export function isOpenLocalMarkdownResponse(value: unknown): value is OpenLocalMarkdownResponse {
@@ -171,7 +191,12 @@ export function isOpenLocalMarkdownResponse(value: unknown): value is OpenLocalM
 export function isReadLocalMarkdownAssetMessage(value: unknown): value is ReadLocalMarkdownAssetMessage {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Partial<ReadLocalMarkdownAssetMessage>;
-  if (candidate.type !== READ_LOCAL_MARKDOWN_ASSET || typeof candidate.sourceUrl !== 'string' || typeof candidate.href !== 'string') return false;
+  if (
+    candidate.type !== READ_LOCAL_MARKDOWN_ASSET ||
+    typeof candidate.sourceUrl !== 'string' ||
+    typeof candidate.href !== 'string'
+  )
+    return false;
   if (!isLocalMarkdownUrl(candidate.sourceUrl) || /^(?:[a-z][a-z\d+.-]*:|\/\/|#)/i.test(candidate.href)) return false;
   try {
     const target = new URL(candidate.href, candidate.sourceUrl);
@@ -181,7 +206,9 @@ export function isReadLocalMarkdownAssetMessage(value: unknown): value is ReadLo
   }
 }
 
-export function isReadLocalMarkdownAssetResponse(value: unknown): value is ReadLocalMarkdownAssetResponse & { dataUrl: string } {
+export function isReadLocalMarkdownAssetResponse(
+  value: unknown,
+): value is ReadLocalMarkdownAssetResponse & { dataUrl: string } {
   if (!value || typeof value !== 'object') return false;
   const dataUrl = (value as ReadLocalMarkdownAssetResponse).dataUrl;
   return typeof dataUrl === 'string' && /^data:[^,]+;base64,/i.test(dataUrl);

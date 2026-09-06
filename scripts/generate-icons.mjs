@@ -9,7 +9,9 @@ try {
   for (const size of [16, 32, 48, 96, 128]) {
     const page = await browser.newPage({ viewport: { width: size, height: size } });
     const encoded = Buffer.from(svg).toString('base64');
-    await page.setContent(`<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}img{display:block;width:100%;height:100%}</style><img src="data:image/svg+xml;base64,${encoded}">`);
+    await page.setContent(
+      `<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}img{display:block;width:100%;height:100%}</style><img src="data:image/svg+xml;base64,${encoded}">`,
+    );
     await page.locator('img').evaluate((image) => image.decode());
     await page.screenshot({ path: resolve(`public/icon/${size}.png`), omitBackground: true });
     await page.close();

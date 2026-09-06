@@ -22,9 +22,7 @@ function revealSearchResult(article: HTMLElement, result: DocumentSearchResult, 
       const rightSpan = Number(right.dataset.sourceLineEnd) - Number(right.dataset.sourceLineStart);
       return leftSpan - rightSpan;
     });
-  const target = candidates[0]
-    ?? (result.headingId ? document.getElementById(result.headingId) : undefined)
-    ?? article;
+  const target = candidates[0] ?? (result.headingId ? document.getElementById(result.headingId) : undefined) ?? article;
   target.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
   const needle = query.trim().toLocaleLowerCase();
@@ -67,13 +65,12 @@ export function useReaderSearch(options: ReaderSearchOptions) {
   const workspaceMatches = useMemo(() => {
     const needle = deferredQuery.trim().toLocaleLowerCase();
     if (!needle || !options.workspace) return [];
-    return options.workspace.files
-      .filter((file) => file.path.toLocaleLowerCase().includes(needle))
-      .slice(0, 8);
+    return options.workspace.files.filter((file) => file.path.toLocaleLowerCase().includes(needle)).slice(0, 8);
   }, [deferredQuery, options.workspace]);
-  const filteredFiles = fileFilter.trim() && options.workspace
-    ? options.workspace.files.filter((file) => file.path.toLowerCase().includes(fileFilter.trim().toLowerCase()))
-    : [];
+  const filteredFiles =
+    fileFilter.trim() && options.workspace
+      ? options.workspace.files.filter((file) => file.path.toLowerCase().includes(fileFilter.trim().toLowerCase()))
+      : [];
 
   const jumpToSearchResult = (result: DocumentSearchResult) => {
     const query = commandQuery;

@@ -1,6 +1,10 @@
 import type { ImportedDocument, RemoteDocumentState } from '../../shared/types';
 import type {
-  DocumentIdentity, DocumentRefreshResult, DocumentSnapshot, DocumentSource, LinkResolution,
+  DocumentIdentity,
+  DocumentRefreshResult,
+  DocumentSnapshot,
+  DocumentSource,
+  LinkResolution,
 } from '../../application/documents/documentSource';
 import type { ResolvedAsset } from '../../application/documents/documentResource';
 import { isMarkdownLink, isRelativeUrl, isRemoteUrl, linkFragment } from '../../core/paths';
@@ -43,7 +47,9 @@ async function readTextWithLimit(response: Response, limit: number, signal: Abor
 
   const chunks: Uint8Array[] = [];
   let total = 0;
-  const cancelReader = () => { void reader.cancel(signal.reason).catch(() => undefined); };
+  const cancelReader = () => {
+    void reader.cancel(signal.reason).catch(() => undefined);
+  };
   signal.addEventListener('abort', cancelReader, { once: true });
   try {
     while (true) {
@@ -175,9 +181,10 @@ export class RemoteDocumentSource implements DocumentSource {
   dispose(): void {}
 
   private snapshot(document: ImportedDocument, state: RemoteDocumentState): DocumentSnapshot {
-    const identity = state.url === this.identity.stableId
-      ? this.identity
-      : { ...this.identity, stableId: state.url, displayName: document.title };
+    const identity =
+      state.url === this.identity.stableId
+        ? this.identity
+        : { ...this.identity, stableId: state.url, displayName: document.title };
     return {
       identity,
       title: document.title,

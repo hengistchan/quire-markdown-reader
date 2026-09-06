@@ -15,17 +15,20 @@ interface MermaidConfigMock {
 const mermaidMocks = vi.hoisted(() => ({
   state: { darkMode: false },
   render: async (options?: { nodes?: HTMLElement[] }) => {
-    for (const node of options?.nodes ?? []) node.innerHTML = `<svg role="img" aria-label="Rendered Mermaid diagram" data-dark-mode="${mermaidMocks.state.darkMode}"></svg>`;
+    for (const node of options?.nodes ?? [])
+      node.innerHTML = `<svg role="img" aria-label="Rendered Mermaid diagram" data-dark-mode="${mermaidMocks.state.darkMode}"></svg>`;
   },
   run: vi.fn(),
 }));
 
-vi.mock('mermaid', () => ({ default: {
-  initialize: (config: MermaidConfigMock) => {
-    mermaidMocks.state.darkMode = Boolean(config.themeVariables?.darkMode);
+vi.mock('mermaid', () => ({
+  default: {
+    initialize: (config: MermaidConfigMock) => {
+      mermaidMocks.state.darkMode = Boolean(config.themeVariables?.darkMode);
+    },
+    run: (options: unknown) => mermaidMocks.run(options),
   },
-  run: (options: unknown) => mermaidMocks.run(options),
-} }));
+}));
 
 function installBrowser(
   overrides: Record<string, unknown> = {},
@@ -68,12 +71,16 @@ describe('Quire viewer experience', () => {
   beforeEach(async () => {
     await deleteHandoffDatabase();
     history.replaceState(null, '', '/');
-    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
+    );
     vi.stubGlobal('scrollTo', vi.fn());
     Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() });
     mermaidMocks.state.darkMode = false;
     mermaidMocks.run.mockReset();
     mermaidMocks.run.mockImplementation(mermaidMocks.render);
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'setActiveWorkspace').mockResolvedValue();
   });
 
   afterEach(() => {
@@ -106,14 +113,23 @@ describe('Quire viewer experience', () => {
     await user.click(outlineToggle);
     expect(document.querySelector('.context-panel')).toBeNull();
     await user.click(document.querySelector<HTMLElement>('.open-trigger')!);
-    await user.click(within(document.querySelector<HTMLElement>('.open-menu')!).getByText('Open URL').closest('button')!);
+    await user.click(
+      within(document.querySelector<HTMLElement>('.open-menu')!).getByText('Open URL').closest('button')!,
+    );
 
     const urlDialog = document.querySelector<HTMLElement>('.url-dialog')!;
-    await user.type(within(urlDialog).getByPlaceholderText('https://example.com/guide.md'), 'https://docs.example.com/readme.md');
+    await user.type(
+      within(urlDialog).getByPlaceholderText('https://example.com/guide.md'),
+      'https://docs.example.com/readme.md',
+    );
     await user.click(within(urlDialog).getByText('Open'));
 
-    await waitFor(() => expect(api.permissions.request).toHaveBeenCalledWith({ origins: ['https://docs.example.com/*'] }));
-    await waitFor(() => expect(document.querySelector('[role="alert"]')?.textContent).toContain('Access was not granted'));
+    await waitFor(() =>
+      expect(api.permissions.request).toHaveBeenCalledWith({ origins: ['https://docs.example.com/*'] }),
+    );
+    await waitFor(() =>
+      expect(document.querySelector('[role="alert"]')?.textContent).toContain('Access was not granted'),
+    );
   });
 
   it('consumes only the handoff ID from its own URL and removes it from the address', async () => {
@@ -136,14 +152,20 @@ describe('Quire viewer experience', () => {
     expect(new URLSearchParams(location.search).get('imported')).toBeTruthy();
     await expect(takeDocumentHandoff('viewer-a')).resolves.toBeUndefined();
     await expect(takeDocumentHandoff('viewer-b')).resolves.toEqual({
-      title: 'Session B.md', markdown: '# Session B\n\nOther document.',
+      title: 'Session B.md',
+      markdown: '# Session B\n\nOther document.',
     });
   });
 
   it('shows immediate loading feedback while a remote Markdown request is pending', async () => {
     let finishRequest: (response: Response) => void = () => undefined;
-    const pendingResponse = new Promise<Response>((resolve) => { finishRequest = resolve; });
-    vi.stubGlobal('fetch', vi.fn(() => pendingResponse));
+    const pendingResponse = new Promise<Response>((resolve) => {
+      finishRequest = resolve;
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => pendingResponse),
+    );
     installBrowser({ permissions: { request: vi.fn(async () => true) } });
     const user = userEvent.setup();
     render(<App />);
@@ -151,7 +173,10 @@ describe('Quire viewer experience', () => {
     await user.click(await screen.findByRole('button', { name: 'Open' }));
     await user.click(screen.getByRole('button', { name: /Open URL/ }));
     const dialog = screen.getByRole('dialog', { name: 'Open Markdown from the web' });
-    await user.type(within(dialog).getByPlaceholderText('https://example.com/guide.md'), 'https://docs.example.com/guide.md');
+    await user.type(
+      within(dialog).getByPlaceholderText('https://example.com/guide.md'),
+      'https://docs.example.com/guide.md',
+    );
     await user.click(within(dialog).getByRole('button', { name: 'Open' }));
 
     expect((await screen.findByRole('status')).textContent).toContain('Loading Markdown…');
@@ -164,9 +189,12 @@ describe('Quire viewer experience', () => {
   });
 
   it('lets the user cancel a pending remote request without showing a failure', async () => {
-    const fetcher = vi.fn((_url: string | URL | Request, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
-      init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true });
-    }));
+    const fetcher = vi.fn(
+      (_url: string | URL | Request, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true });
+        }),
+    );
     vi.stubGlobal('fetch', fetcher);
     installBrowser({ permissions: { request: vi.fn(async () => true) } });
     const user = userEvent.setup();
@@ -175,7 +203,10 @@ describe('Quire viewer experience', () => {
     await user.click(await screen.findByRole('button', { name: 'Open' }));
     await user.click(screen.getByRole('button', { name: /Open URL/ }));
     const dialog = screen.getByRole('dialog', { name: 'Open Markdown from the web' });
-    await user.type(within(dialog).getByPlaceholderText('https://example.com/guide.md'), 'https://docs.example.com/slow.md');
+    await user.type(
+      within(dialog).getByPlaceholderText('https://example.com/guide.md'),
+      'https://docs.example.com/slow.md',
+    );
     await user.click(within(dialog).getByRole('button', { name: 'Open' }));
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
 
@@ -195,10 +226,14 @@ describe('Quire viewer experience', () => {
         if (bRequestCount === 2) {
           return new Promise<Response>((resolve, reject) => {
             resolveDelayedB = resolve;
-            init?.signal?.addEventListener('abort', () => {
-              delayedBAborted = true;
-              reject(init.signal?.reason);
-            }, { once: true });
+            init?.signal?.addEventListener(
+              'abort',
+              () => {
+                delayedBAborted = true;
+                reject(init.signal?.reason);
+              },
+              { once: true },
+            );
           });
         }
         return Promise.resolve(new Response('# Remote B\n\nRemote B body.'));
@@ -206,17 +241,22 @@ describe('Quire viewer experience', () => {
       return Promise.resolve(new Response('# Remote A\n\n[Open B](https://docs.example.com/B.md)'));
     });
     vi.stubGlobal('fetch', fetcher);
-    installBrowser({ permissions: {
-      request: vi.fn(async () => true),
-      contains: vi.fn(async () => true),
-    } });
+    installBrowser({
+      permissions: {
+        request: vi.fn(async () => true),
+        contains: vi.fn(async () => true),
+      },
+    });
     const user = userEvent.setup();
     render(<App />);
 
     await user.click(await screen.findByRole('button', { name: 'Open' }));
     await user.click(screen.getByRole('button', { name: /Open URL/ }));
     const dialog = screen.getByRole('dialog', { name: 'Open Markdown from the web' });
-    await user.type(within(dialog).getByPlaceholderText('https://example.com/guide.md'), 'https://docs.example.com/A.md');
+    await user.type(
+      within(dialog).getByPlaceholderText('https://example.com/guide.md'),
+      'https://docs.example.com/A.md',
+    );
     await user.click(within(dialog).getByRole('button', { name: 'Open' }));
     await user.click(await screen.findByRole('link', { name: 'Open B' }));
     await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Remote B body.'));
@@ -228,9 +268,13 @@ describe('Quire viewer experience', () => {
     expect(new URLSearchParams(location.search).get('remote')).toBe('https://docs.example.com/B.md');
 
     await user.click(screen.getByRole('button', { name: 'Previous document' }));
-    await waitFor(() => expect(new URLSearchParams(location.search).get('remote')).toBe('https://docs.example.com/A.md'));
+    await waitFor(() =>
+      expect(new URLSearchParams(location.search).get('remote')).toBe('https://docs.example.com/A.md'),
+    );
     await user.click(screen.getByRole('button', { name: 'Previous document' }));
-    await waitFor(() => expect(document.querySelector('.document-identity strong')?.textContent).toBe('Welcome to Quire'));
+    await waitFor(() =>
+      expect(document.querySelector('.document-identity strong')?.textContent).toBe('Welcome to Quire'),
+    );
     resolveDelayedB(new Response('# Late Remote B\n\nThis response must never win.'));
 
     await waitFor(() => expect(delayedBAborted).toBe(true));
@@ -242,7 +286,8 @@ describe('Quire viewer experience', () => {
   });
 
   it('offers a retry after a remote network failure', async () => {
-    const fetcher = vi.fn()
+    const fetcher = vi
+      .fn()
       .mockRejectedValueOnce(new TypeError('Offline'))
       .mockResolvedValueOnce(new Response('# Retried\n\nThe retry succeeded.'));
     vi.stubGlobal('fetch', fetcher);
@@ -253,7 +298,10 @@ describe('Quire viewer experience', () => {
     await user.click(await screen.findByRole('button', { name: 'Open' }));
     await user.click(screen.getByRole('button', { name: /Open URL/ }));
     const dialog = screen.getByRole('dialog', { name: 'Open Markdown from the web' });
-    await user.type(within(dialog).getByPlaceholderText('https://example.com/guide.md'), 'https://docs.example.com/retry.md');
+    await user.type(
+      within(dialog).getByPlaceholderText('https://example.com/guide.md'),
+      'https://docs.example.com/retry.md',
+    );
     await user.click(within(dialog).getByRole('button', { name: 'Open' }));
 
     await user.click(await screen.findByRole('button', { name: 'Retry' }));
@@ -268,7 +316,9 @@ describe('Quire viewer experience', () => {
 
     const wideButton = await screen.findByRole('button', { name: 'Use standard reading width' });
     const openButton = screen.getByRole('button', { name: 'Open' });
-    const searchButton = within(document.querySelector<HTMLElement>('.topbar-actions')!).getByRole('button', { name: 'Command center' });
+    const searchButton = within(document.querySelector<HTMLElement>('.topbar-actions')!).getByRole('button', {
+      name: 'Command center',
+    });
     expect(openButton.compareDocumentPosition(wideButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(wideButton.compareDocumentPosition(searchButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(wideButton.getAttribute('aria-pressed')).toBe('true');
@@ -285,11 +335,15 @@ describe('Quire viewer experience', () => {
 
     const enableWideButton = screen.getByRole('button', { name: 'Use wider reading width' });
     expect(enableWideButton.getAttribute('aria-pressed')).toBe('false');
-    await waitFor(() => expect(local.set).toHaveBeenCalledWith(expect.objectContaining({
-      'reader-settings': expect.objectContaining({
-        settings: expect.objectContaining({ contentWidth: 980, wideView: false }),
-      }),
-    })));
+    await waitFor(() =>
+      expect(local.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          'reader-settings': expect.objectContaining({
+            settings: expect.objectContaining({ contentWidth: 980, wideView: false }),
+          }),
+        }),
+      ),
+    );
 
     await user.click(enableWideButton);
     expect(document.querySelector<HTMLElement>('.app-shell')?.style.getPropertyValue('--reader-width')).toBe('1200px');
@@ -298,26 +352,32 @@ describe('Quire viewer experience', () => {
   });
 
   it('collapses and expands every folder in the workspace tree', async () => {
-    const fileHandle = (name: string, markdown: string) => ({
-      kind: 'file',
-      name,
-      getFile: vi.fn(async () => ({
-        name, lastModified: 1, size: markdown.length, text: async () => markdown,
-      }) as unknown as File),
-    } as unknown as FileSystemFileHandle);
+    const fileHandle = (name: string, markdown: string) =>
+      ({
+        kind: 'file',
+        name,
+        getFile: vi.fn(
+          async () =>
+            ({
+              name,
+              lastModified: 1,
+              size: markdown.length,
+              text: async () => markdown,
+            }) as unknown as File,
+        ),
+      }) as unknown as FileSystemFileHandle;
     const directoryHandle = (
       name: string,
       entries: Array<[string, FileSystemFileHandle | FileSystemDirectoryHandle]>,
-    ) => ({
-      kind: 'directory',
-      name,
-      entries: async function* () {
-        for (const entry of entries) yield entry;
-      },
-    } as unknown as FileSystemDirectoryHandle);
-    const nested = directoryHandle('nested', [
-      ['details.md', fileHandle('details.md', '# Details')],
-    ]);
+    ) =>
+      ({
+        kind: 'directory',
+        name,
+        entries: async function* () {
+          for (const entry of entries) yield entry;
+        },
+      }) as unknown as FileSystemDirectoryHandle;
+    const nested = directoryHandle('nested', [['details.md', fileHandle('details.md', '# Details')]]);
     const docs = directoryHandle('docs', [
       ['guide.md', fileHandle('guide.md', '# Guide')],
       ['nested', nested],
@@ -327,7 +387,10 @@ describe('Quire viewer experience', () => {
       ['docs', docs],
     ]);
     vi.spyOn(IndexedDBHandleRepository.prototype, 'saveWorkspace').mockResolvedValue('workspace-tree');
-    vi.stubGlobal('showDirectoryPicker', vi.fn(async () => workspace));
+    vi.stubGlobal(
+      'showDirectoryPicker',
+      vi.fn(async () => workspace),
+    );
     installBrowser();
     const user = userEvent.setup();
     render(<App />);
@@ -358,23 +421,36 @@ describe('Quire viewer experience', () => {
 
     expect(await screen.findByText('修改后立即应用到当前文档。')).toBeTruthy();
     expect(screen.getByRole('button', { name: '打开' })).toBeTruthy();
-    await waitFor(() => expect(document.querySelector('.markdown-body')?.textContent).toContain('Quire 将 Markdown 变成专注的阅读空间'));
+    await waitFor(() =>
+      expect(document.querySelector('.markdown-body')?.textContent).toContain('Quire 将 Markdown 变成专注的阅读空间'),
+    );
     expect(screen.getByLabelText('文档导航')).toBeTruthy();
-    await waitFor(() => expect(local.set).toHaveBeenCalledWith(expect.objectContaining({
-      'reader-settings': expect.objectContaining({
-        settings: expect.objectContaining({ locale: 'zh-CN' }),
-      }),
-    })));
+    await waitFor(() =>
+      expect(local.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          'reader-settings': expect.objectContaining({
+            settings: expect.objectContaining({ locale: 'zh-CN' }),
+          }),
+        }),
+      ),
+    );
   });
 
   it('follows live operating-system theme changes in system mode', async () => {
     let dark = false;
     let onChange: (() => void) | undefined;
-    vi.stubGlobal('matchMedia', vi.fn(() => ({
-      get matches() { return dark; },
-      addEventListener: vi.fn((_type: string, listener: () => void) => { onChange = listener; }),
-      removeEventListener: vi.fn(),
-    })));
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn(() => ({
+        get matches() {
+          return dark;
+        },
+        addEventListener: vi.fn((_type: string, listener: () => void) => {
+          onChange = listener;
+        }),
+        removeEventListener: vi.fn(),
+      })),
+    );
     installBrowser();
     render(<App />);
 
@@ -410,21 +486,35 @@ describe('Quire viewer experience', () => {
   it('resumes the routed workspace file after the browser asks for access again', async () => {
     const markdown = '# Routed guide\n\n## Tasks\n';
     const file = {
-      kind: 'file', name: 'guide.md',
-      getFile: vi.fn(async () => ({ name: 'guide.md', lastModified: 1, size: markdown.length, text: async () => markdown }) as unknown as File),
+      kind: 'file',
+      name: 'guide.md',
+      getFile: vi.fn(
+        async () =>
+          ({ name: 'guide.md', lastModified: 1, size: markdown.length, text: async () => markdown }) as unknown as File,
+      ),
     } as unknown as FileSystemFileHandle;
     const docs = {
-      kind: 'directory', name: 'docs',
-      entries: async function* () { yield ['guide.md', file] as [string, FileSystemFileHandle]; },
+      kind: 'directory',
+      name: 'docs',
+      entries: async function* () {
+        yield ['guide.md', file] as [string, FileSystemFileHandle];
+      },
     } as unknown as FileSystemDirectoryHandle;
     const workspace = {
-      kind: 'directory', name: 'notes',
+      kind: 'directory',
+      name: 'notes',
       queryPermission: vi.fn(async () => 'prompt' as PermissionState),
       requestPermission: vi.fn(async () => 'granted' as PermissionState),
-      entries: async function* () { yield ['docs', docs] as [string, FileSystemDirectoryHandle]; },
+      entries: async function* () {
+        yield ['docs', docs] as [string, FileSystemDirectoryHandle];
+      },
     } as unknown as FileSystemDirectoryHandle;
     vi.spyOn(IndexedDBHandleRepository.prototype, 'getWorkspace').mockResolvedValue({
-      id: 'routed', kind: 'workspace', name: 'notes', handle: workspace, savedAt: 1,
+      id: 'routed',
+      kind: 'workspace',
+      name: 'notes',
+      handle: workspace,
+      savedAt: 1,
     });
     vi.spyOn(IndexedDBHandleRepository.prototype, 'saveWorkspace').mockResolvedValue('routed');
     history.replaceState(null, '', '/viewer.html?workspace=routed&file=docs%2Fguide.md#tasks');
@@ -446,14 +536,21 @@ describe('Quire viewer experience', () => {
   it('restores separate same-named workspaces from recent documents', async () => {
     const workspaceHandle = (fileName: string, markdown: string) => {
       const file = {
-        kind: 'file', name: fileName,
-        getFile: vi.fn(async () => ({ name: fileName, lastModified: 1, size: markdown.length, text: async () => markdown }) as unknown as File),
+        kind: 'file',
+        name: fileName,
+        getFile: vi.fn(
+          async () =>
+            ({ name: fileName, lastModified: 1, size: markdown.length, text: async () => markdown }) as unknown as File,
+        ),
       } as unknown as FileSystemFileHandle;
       return {
-        kind: 'directory', name: 'docs',
+        kind: 'directory',
+        name: 'docs',
         queryPermission: vi.fn(async () => 'granted' as PermissionState),
         requestPermission: vi.fn(async () => 'granted' as PermissionState),
-        entries: async function* () { yield [fileName, file] as [string, FileSystemFileHandle]; },
+        entries: async function* () {
+          yield [fileName, file] as [string, FileSystemFileHandle];
+        },
       } as unknown as FileSystemDirectoryHandle;
     };
     const handles = {
@@ -467,14 +564,56 @@ describe('Quire viewer experience', () => {
       handle: handles[id as keyof typeof handles],
       savedAt: 1,
     }));
-    vi.spyOn(IndexedDBHandleRepository.prototype, 'saveWorkspace').mockImplementation(async (_handle, id) => id ?? 'generated');
-    installBrowser({}, { version: 2, items: [
-      { id: 'workspace-file:first:first.md', title: 'first.md', kind: 'workspace-file', workspaceId: 'first', filePath: 'first.md', openedAt: 2, scrollPosition: 320, headingId: 'first-workspace' },
-      { id: 'workspace-file:second:second.md', title: 'second.md', kind: 'workspace-file', workspaceId: 'second', filePath: 'second.md', openedAt: 1 },
-    ] }, { version: 1, items: [
-      { id: 'workspace:first', title: 'docs', kind: 'workspace', workspaceId: 'first', lastFilePath: 'first.md', openedAt: 2 },
-      { id: 'workspace:second', title: 'docs', kind: 'workspace', workspaceId: 'second', lastFilePath: 'second.md', openedAt: 1 },
-    ] });
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'saveWorkspace').mockImplementation(
+      async (_handle, id) => id ?? 'generated',
+    );
+    installBrowser(
+      {},
+      {
+        version: 2,
+        items: [
+          {
+            id: 'workspace-file:first:first.md',
+            title: 'first.md',
+            kind: 'workspace-file',
+            workspaceId: 'first',
+            filePath: 'first.md',
+            openedAt: 2,
+            scrollPosition: 320,
+            headingId: 'first-workspace',
+          },
+          {
+            id: 'workspace-file:second:second.md',
+            title: 'second.md',
+            kind: 'workspace-file',
+            workspaceId: 'second',
+            filePath: 'second.md',
+            openedAt: 1,
+          },
+        ],
+      },
+      {
+        version: 1,
+        items: [
+          {
+            id: 'workspace:first',
+            title: 'docs',
+            kind: 'workspace',
+            workspaceId: 'first',
+            lastFilePath: 'first.md',
+            openedAt: 2,
+          },
+          {
+            id: 'workspace:second',
+            title: 'docs',
+            kind: 'workspace',
+            workspaceId: 'second',
+            lastFilePath: 'second.md',
+            openedAt: 1,
+          },
+        ],
+      },
+    );
     const user = userEvent.setup();
     render(<App />);
 
@@ -484,7 +623,9 @@ describe('Quire viewer experience', () => {
     await user.click(firstCommand.getAllByRole('button', { name: /docs Workspace/ })[0]!);
     await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('First workspace'));
     await user.click(screen.getByRole('button', { name: 'Continue reading' }));
-    await waitFor(() => expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' }));
+    await waitFor(() =>
+      expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' }),
+    );
 
     fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
     const commandCenter = within(await screen.findByRole('dialog', { name: 'Command center' }));
@@ -492,28 +633,36 @@ describe('Quire viewer experience', () => {
     await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Second workspace'));
     expect(screen.getByRole('button', { name: 'Previous document' }).hasAttribute('disabled')).toBe(false);
 
-    fireEvent.popState(window, { state: {
-      quireWorkspaceNavigation: { workspaceId: 'first', filePath: 'first.md' },
-    } });
+    fireEvent.popState(window, {
+      state: {
+        quireWorkspaceNavigation: { workspaceId: 'first', filePath: 'first.md' },
+      },
+    });
     await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('First workspace'));
     expect(screen.getByRole('button', { name: 'Next document' }).hasAttribute('disabled')).toBe(false);
   });
 
   it('keeps explicit workspace resources separate from internal document reading history', async () => {
     const workspaceHandle = (name: string, files: Record<string, string>) => {
-      const handles = Object.entries(files).map(([fileName, markdown]) => [
-        fileName,
-        {
-          kind: 'file',
-          name: fileName,
-          getFile: vi.fn(async () => ({
-            name: fileName,
-            lastModified: 1,
-            size: markdown.length,
-            text: async () => markdown,
-          }) as unknown as File),
-        } as unknown as FileSystemFileHandle,
-      ] as const);
+      const handles = Object.entries(files).map(
+        ([fileName, markdown]) =>
+          [
+            fileName,
+            {
+              kind: 'file',
+              name: fileName,
+              getFile: vi.fn(
+                async () =>
+                  ({
+                    name: fileName,
+                    lastModified: 1,
+                    size: markdown.length,
+                    text: async () => markdown,
+                  }) as unknown as File,
+              ),
+            } as unknown as FileSystemFileHandle,
+          ] as const,
+      );
       return {
         kind: 'directory',
         name,
@@ -531,18 +680,19 @@ describe('Quire viewer experience', () => {
     const second = workspaceHandle('Workspace B', {
       'README.md': '# Workspace B readme\n\nSecond workspace body.',
     });
-    const ids = new Map<FileSystemDirectoryHandle, string>([[first, 'workspace-a'], [second, 'workspace-b']]);
+    const ids = new Map<FileSystemDirectoryHandle, string>([
+      [first, 'workspace-a'],
+      [second, 'workspace-b'],
+    ]);
     vi.spyOn(IndexedDBHandleRepository.prototype, 'getActiveWorkspace').mockResolvedValue(undefined);
-    vi.spyOn(IndexedDBHandleRepository.prototype, 'saveWorkspace').mockImplementation(async (handle, existingId) => (
-      existingId ?? ids.get(handle) ?? 'generated'
-    ));
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'saveWorkspace').mockImplementation(
+      async (handle, existingId) => existingId ?? ids.get(handle) ?? 'generated',
+    );
     vi.spyOn(IndexedDBHandleRepository.prototype, 'getWorkspace').mockImplementation(async (id) => {
       const handle = id === 'workspace-a' ? first : id === 'workspace-b' ? second : undefined;
       return handle ? { id, kind: 'workspace', name: handle.name, handle, savedAt: 1 } : undefined;
     });
-    vi.stubGlobal('showDirectoryPicker', vi.fn()
-      .mockResolvedValueOnce(first)
-      .mockResolvedValueOnce(second));
+    vi.stubGlobal('showDirectoryPicker', vi.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(second));
     const { local } = installBrowser();
     const user = userEvent.setup();
     render(<App />);
@@ -560,10 +710,7 @@ describe('Quire viewer experience', () => {
     await user.click(screen.getByRole('button', { name: 'Open' }));
     const menu = within(document.querySelector<HTMLElement>('.open-menu')!);
     const recentButtons = menu.getAllByRole('button', { name: /Workspace [AB] Workspace/ });
-    expect(recentButtons.map((button) => button.textContent)).toEqual([
-      'Workspace BWorkspace',
-      'Workspace AWorkspace',
-    ]);
+    expect(recentButtons.map((button) => button.textContent)).toEqual(['Workspace BWorkspace', 'Workspace AWorkspace']);
     expect(menu.getAllByRole('button', { name: /Workspace A Workspace/ })).toHaveLength(1);
 
     await user.click(menu.getByRole('button', { name: 'Remove from recent: Workspace B' }));
@@ -578,60 +725,98 @@ describe('Quire viewer experience', () => {
 
     await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Last document body.'));
     expect(first.requestPermission).toHaveBeenCalledOnce();
-    await waitFor(() => expect(local.set).toHaveBeenCalledWith(expect.objectContaining({
-      'recent-resources': expect.objectContaining({
-        version: 1,
-        items: expect.arrayContaining([
-          expect.objectContaining({
-            id: 'workspace:workspace-a',
-            lastFilePath: 'design.md',
+    await waitFor(() =>
+      expect(local.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          'recent-resources': expect.objectContaining({
+            version: 1,
+            items: expect.arrayContaining([
+              expect.objectContaining({
+                id: 'workspace:workspace-a',
+                lastFilePath: 'design.md',
+              }),
+            ]),
           }),
-        ]),
-      }),
-    })));
+        }),
+      ),
+    );
   });
 
   it('keeps mixed workspace, remote, and local navigation aligned with browser history', async () => {
     const workspaceMarkdown = '# Workspace A\n\nWorkspace body.';
     const workspaceFile = {
-      kind: 'file', name: 'A.md',
-      getFile: vi.fn(async () => ({
-        name: 'A.md', lastModified: 1, size: workspaceMarkdown.length,
-        text: async () => workspaceMarkdown,
-      }) as unknown as File),
+      kind: 'file',
+      name: 'A.md',
+      getFile: vi.fn(
+        async () =>
+          ({
+            name: 'A.md',
+            lastModified: 1,
+            size: workspaceMarkdown.length,
+            text: async () => workspaceMarkdown,
+          }) as unknown as File,
+      ),
     } as unknown as FileSystemFileHandle;
     const workspaceHandle = {
-      kind: 'directory', name: 'mixed-workspace',
+      kind: 'directory',
+      name: 'mixed-workspace',
       queryPermission: vi.fn(async () => 'granted' as PermissionState),
       requestPermission: vi.fn(async () => 'granted' as PermissionState),
-      entries: async function* () { yield ['A.md', workspaceFile] as [string, FileSystemFileHandle]; },
+      entries: async function* () {
+        yield ['A.md', workspaceFile] as [string, FileSystemFileHandle];
+      },
     } as unknown as FileSystemDirectoryHandle;
     const localMarkdown = '# Local C\n\nLocal body.';
     const localHandle = {
-      kind: 'file', name: 'C.md',
+      kind: 'file',
+      name: 'C.md',
       queryPermission: vi.fn(async () => 'granted' as PermissionState),
       requestPermission: vi.fn(async () => 'granted' as PermissionState),
-      getFile: vi.fn(async () => ({
-        name: 'C.md', lastModified: 2, size: localMarkdown.length,
-        text: async () => localMarkdown,
-      }) as unknown as File),
+      getFile: vi.fn(
+        async () =>
+          ({
+            name: 'C.md',
+            lastModified: 2,
+            size: localMarkdown.length,
+            text: async () => localMarkdown,
+          }) as unknown as File,
+      ),
     } as unknown as FileSystemFileHandle;
     vi.spyOn(IndexedDBHandleRepository.prototype, 'getActiveWorkspace').mockResolvedValue(undefined);
     vi.spyOn(IndexedDBHandleRepository.prototype, 'saveWorkspace').mockResolvedValue('workspace-a');
     vi.spyOn(IndexedDBHandleRepository.prototype, 'getWorkspace').mockResolvedValue({
-      id: 'workspace-a', kind: 'workspace', name: 'mixed-workspace', handle: workspaceHandle, savedAt: 1,
+      id: 'workspace-a',
+      kind: 'workspace',
+      name: 'mixed-workspace',
+      handle: workspaceHandle,
+      savedAt: 1,
     });
     vi.spyOn(IndexedDBHandleRepository.prototype, 'saveFile').mockResolvedValue('local-c');
     vi.spyOn(IndexedDBHandleRepository.prototype, 'getFile').mockResolvedValue({
-      id: 'local-c', kind: 'file', name: 'C.md', handle: localHandle, savedAt: 1,
+      id: 'local-c',
+      kind: 'file',
+      name: 'C.md',
+      handle: localHandle,
+      savedAt: 1,
     });
-    vi.stubGlobal('showDirectoryPicker', vi.fn(async () => workspaceHandle));
-    vi.stubGlobal('showOpenFilePicker', vi.fn(async () => [localHandle]));
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('# Remote B\n\nRemote body.')));
-    installBrowser({ permissions: {
-      request: vi.fn(async () => true),
-      contains: vi.fn(async () => true),
-    } });
+    vi.stubGlobal(
+      'showDirectoryPicker',
+      vi.fn(async () => workspaceHandle),
+    );
+    vi.stubGlobal(
+      'showOpenFilePicker',
+      vi.fn(async () => [localHandle]),
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('# Remote B\n\nRemote body.')),
+    );
+    installBrowser({
+      permissions: {
+        request: vi.fn(async () => true),
+        contains: vi.fn(async () => true),
+      },
+    });
     const user = userEvent.setup();
     render(<App />);
 
@@ -644,7 +829,10 @@ describe('Quire viewer experience', () => {
     await user.click(screen.getByRole('button', { name: 'Open' }));
     await user.click(screen.getByRole('button', { name: /Open URL/ }));
     const dialog = screen.getByRole('dialog', { name: 'Open Markdown from the web' });
-    await user.type(within(dialog).getByPlaceholderText('https://example.com/guide.md'), 'https://docs.example.com/B.md');
+    await user.type(
+      within(dialog).getByPlaceholderText('https://example.com/guide.md'),
+      'https://docs.example.com/B.md',
+    );
     await user.click(within(dialog).getByRole('button', { name: 'Open' }));
     await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Remote body.'));
     expect(document.querySelector('.document-identity strong')?.textContent).toBe('B');
@@ -676,23 +864,31 @@ describe('Quire viewer experience', () => {
   });
 
   it('restores remote documents and fragments through back and forward', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
-      const url = String(input);
-      return url.includes('/B.md')
-        ? new Response('# Remote B\n\n## Part\n\nSecond remote body.')
-        : new Response('# Remote A\n\n[Open B](https://docs.example.com/B.md#part)');
-    }));
-    installBrowser({ permissions: {
-      request: vi.fn(async () => true),
-      contains: vi.fn(async () => true),
-    } });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        return url.includes('/B.md')
+          ? new Response('# Remote B\n\n## Part\n\nSecond remote body.')
+          : new Response('# Remote A\n\n[Open B](https://docs.example.com/B.md#part)');
+      }),
+    );
+    installBrowser({
+      permissions: {
+        request: vi.fn(async () => true),
+        contains: vi.fn(async () => true),
+      },
+    });
     const user = userEvent.setup();
     render(<App />);
 
     await user.click(await screen.findByRole('button', { name: 'Open' }));
     await user.click(screen.getByRole('button', { name: /Open URL/ }));
     const dialog = screen.getByRole('dialog', { name: 'Open Markdown from the web' });
-    await user.type(within(dialog).getByPlaceholderText('https://example.com/guide.md'), 'https://docs.example.com/A.md');
+    await user.type(
+      within(dialog).getByPlaceholderText('https://example.com/guide.md'),
+      'https://docs.example.com/A.md',
+    );
     await user.click(within(dialog).getByRole('button', { name: 'Open' }));
     await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Remote A'));
 
@@ -721,27 +917,33 @@ describe('Quire viewer experience', () => {
   });
 
   it('restores local files through back and forward', async () => {
-    const createHandle = (name: string, markdown: string) => ({
-      kind: 'file', name,
-      queryPermission: vi.fn(async () => 'granted' as PermissionState),
-      requestPermission: vi.fn(async () => 'granted' as PermissionState),
-      getFile: vi.fn(async () => ({
-        name, lastModified: 1, size: markdown.length, text: async () => markdown,
-      }) as unknown as File),
-    } as unknown as FileSystemFileHandle);
+    const createHandle = (name: string, markdown: string) =>
+      ({
+        kind: 'file',
+        name,
+        queryPermission: vi.fn(async () => 'granted' as PermissionState),
+        requestPermission: vi.fn(async () => 'granted' as PermissionState),
+        getFile: vi.fn(
+          async () =>
+            ({
+              name,
+              lastModified: 1,
+              size: markdown.length,
+              text: async () => markdown,
+            }) as unknown as File,
+        ),
+      }) as unknown as FileSystemFileHandle;
     const first = createHandle('A.md', '# Local A\n\nFirst local body.');
     const second = createHandle('B.md', '# Local B\n\nSecond local body.');
     vi.spyOn(IndexedDBHandleRepository.prototype, 'getActiveWorkspace').mockResolvedValue(undefined);
-    vi.spyOn(IndexedDBHandleRepository.prototype, 'saveFile').mockImplementation(async (handle, existingId) => (
-      existingId ?? (handle === first ? 'local-a' : 'local-b')
-    ));
+    vi.spyOn(IndexedDBHandleRepository.prototype, 'saveFile').mockImplementation(
+      async (handle, existingId) => existingId ?? (handle === first ? 'local-a' : 'local-b'),
+    );
     vi.spyOn(IndexedDBHandleRepository.prototype, 'getFile').mockImplementation(async (id) => {
       const handle = id === 'local-a' ? first : id === 'local-b' ? second : undefined;
       return handle ? { id, kind: 'file', name: handle.name, handle, savedAt: 1 } : undefined;
     });
-    vi.stubGlobal('showOpenFilePicker', vi.fn()
-      .mockResolvedValueOnce([first])
-      .mockResolvedValueOnce([second]));
+    vi.stubGlobal('showOpenFilePicker', vi.fn().mockResolvedValueOnce([first]).mockResolvedValueOnce([second]));
     installBrowser();
     const user = userEvent.setup();
     render(<App />);
@@ -768,24 +970,43 @@ describe('Quire viewer experience', () => {
   it('shows an unavailable document instead of stale content when a local history handle is lost', async () => {
     const markdown = '# Local A\n\nLocal history body.';
     const handle = {
-      kind: 'file', name: 'A.md',
+      kind: 'file',
+      name: 'A.md',
       queryPermission: vi.fn(async () => 'granted' as PermissionState),
       requestPermission: vi.fn(async () => 'granted' as PermissionState),
-      getFile: vi.fn(async () => ({
-        name: 'A.md', lastModified: 1, size: markdown.length, text: async () => markdown,
-      }) as unknown as File),
+      getFile: vi.fn(
+        async () =>
+          ({
+            name: 'A.md',
+            lastModified: 1,
+            size: markdown.length,
+            text: async () => markdown,
+          }) as unknown as File,
+      ),
     } as unknown as FileSystemFileHandle;
     vi.spyOn(IndexedDBHandleRepository.prototype, 'getActiveWorkspace').mockResolvedValue(undefined);
     vi.spyOn(IndexedDBHandleRepository.prototype, 'saveFile').mockResolvedValue('local-a');
     const getFile = vi.spyOn(IndexedDBHandleRepository.prototype, 'getFile').mockResolvedValue({
-      id: 'local-a', kind: 'file', name: 'A.md', handle, savedAt: 1,
+      id: 'local-a',
+      kind: 'file',
+      name: 'A.md',
+      handle,
+      savedAt: 1,
     });
-    vi.stubGlobal('showOpenFilePicker', vi.fn(async () => [handle]));
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('# Remote B\n\nRemote history body.')));
-    installBrowser({ permissions: {
-      request: vi.fn(async () => true),
-      contains: vi.fn(async () => true),
-    } });
+    vi.stubGlobal(
+      'showOpenFilePicker',
+      vi.fn(async () => [handle]),
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('# Remote B\n\nRemote history body.')),
+    );
+    installBrowser({
+      permissions: {
+        request: vi.fn(async () => true),
+        contains: vi.fn(async () => true),
+      },
+    });
     const user = userEvent.setup();
     render(<App />);
 
@@ -795,7 +1016,10 @@ describe('Quire viewer experience', () => {
     await user.click(screen.getByRole('button', { name: 'Open' }));
     await user.click(screen.getByRole('button', { name: /Open URL/ }));
     const dialog = screen.getByRole('dialog', { name: 'Open Markdown from the web' });
-    await user.type(within(dialog).getByPlaceholderText('https://example.com/guide.md'), 'https://docs.example.com/B.md');
+    await user.type(
+      within(dialog).getByPlaceholderText('https://example.com/guide.md'),
+      'https://docs.example.com/B.md',
+    );
     await user.click(within(dialog).getByRole('button', { name: 'Open' }));
     await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Remote history body.'));
 
@@ -811,10 +1035,17 @@ describe('Quire viewer experience', () => {
   it('waits for an explicit user action before restoring revoked workspace permission', async () => {
     const markdown = '# Workspace A\n\nWorkspace permission body.';
     const file = {
-      kind: 'file', name: 'A.md',
-      getFile: vi.fn(async () => ({
-        name: 'A.md', lastModified: 1, size: markdown.length, text: async () => markdown,
-      }) as unknown as File),
+      kind: 'file',
+      name: 'A.md',
+      getFile: vi.fn(
+        async () =>
+          ({
+            name: 'A.md',
+            lastModified: 1,
+            size: markdown.length,
+            text: async () => markdown,
+          }) as unknown as File,
+      ),
     } as unknown as FileSystemFileHandle;
     let permission: PermissionState = 'granted';
     const requestPermission = vi.fn(async () => {
@@ -822,22 +1053,37 @@ describe('Quire viewer experience', () => {
       return permission;
     });
     const handle = {
-      kind: 'directory', name: 'workspace-a',
+      kind: 'directory',
+      name: 'workspace-a',
       queryPermission: vi.fn(async () => permission),
       requestPermission,
-      entries: async function* () { yield ['A.md', file] as [string, FileSystemFileHandle]; },
+      entries: async function* () {
+        yield ['A.md', file] as [string, FileSystemFileHandle];
+      },
     } as unknown as FileSystemDirectoryHandle;
     vi.spyOn(IndexedDBHandleRepository.prototype, 'getActiveWorkspace').mockResolvedValue(undefined);
     vi.spyOn(IndexedDBHandleRepository.prototype, 'saveWorkspace').mockResolvedValue('workspace-a');
     vi.spyOn(IndexedDBHandleRepository.prototype, 'getWorkspace').mockResolvedValue({
-      id: 'workspace-a', kind: 'workspace', name: 'workspace-a', handle, savedAt: 1,
+      id: 'workspace-a',
+      kind: 'workspace',
+      name: 'workspace-a',
+      handle,
+      savedAt: 1,
     });
-    vi.stubGlobal('showDirectoryPicker', vi.fn(async () => handle));
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('# Remote B\n\nRemote after workspace.')));
-    installBrowser({ permissions: {
-      request: vi.fn(async () => true),
-      contains: vi.fn(async () => true),
-    } });
+    vi.stubGlobal(
+      'showDirectoryPicker',
+      vi.fn(async () => handle),
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('# Remote B\n\nRemote after workspace.')),
+    );
+    installBrowser({
+      permissions: {
+        request: vi.fn(async () => true),
+        contains: vi.fn(async () => true),
+      },
+    });
     const user = userEvent.setup();
     render(<App />);
 
@@ -847,7 +1093,10 @@ describe('Quire viewer experience', () => {
     await user.click(screen.getByRole('button', { name: 'Open' }));
     await user.click(screen.getByRole('button', { name: /Open URL/ }));
     const dialog = screen.getByRole('dialog', { name: 'Open Markdown from the web' });
-    await user.type(within(dialog).getByPlaceholderText('https://example.com/guide.md'), 'https://docs.example.com/B.md');
+    await user.type(
+      within(dialog).getByPlaceholderText('https://example.com/guide.md'),
+      'https://docs.example.com/B.md',
+    );
     await user.click(within(dialog).getByRole('button', { name: 'Open' }));
     await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Remote after workspace.'));
 
@@ -867,20 +1116,37 @@ describe('Quire viewer experience', () => {
   it('waits for an explicit user action before restoring revoked remote permission', async () => {
     const localMarkdown = '# Local B\n\nLocal after remote.';
     const localHandle = {
-      kind: 'file', name: 'B.md',
+      kind: 'file',
+      name: 'B.md',
       queryPermission: vi.fn(async () => 'granted' as PermissionState),
       requestPermission: vi.fn(async () => 'granted' as PermissionState),
-      getFile: vi.fn(async () => ({
-        name: 'B.md', lastModified: 1, size: localMarkdown.length, text: async () => localMarkdown,
-      }) as unknown as File),
+      getFile: vi.fn(
+        async () =>
+          ({
+            name: 'B.md',
+            lastModified: 1,
+            size: localMarkdown.length,
+            text: async () => localMarkdown,
+          }) as unknown as File,
+      ),
     } as unknown as FileSystemFileHandle;
     vi.spyOn(IndexedDBHandleRepository.prototype, 'getActiveWorkspace').mockResolvedValue(undefined);
     vi.spyOn(IndexedDBHandleRepository.prototype, 'saveFile').mockResolvedValue('local-b');
     vi.spyOn(IndexedDBHandleRepository.prototype, 'getFile').mockResolvedValue({
-      id: 'local-b', kind: 'file', name: 'B.md', handle: localHandle, savedAt: 1,
+      id: 'local-b',
+      kind: 'file',
+      name: 'B.md',
+      handle: localHandle,
+      savedAt: 1,
     });
-    vi.stubGlobal('showOpenFilePicker', vi.fn(async () => [localHandle]));
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('# Remote A\n\nRemote permission body.')));
+    vi.stubGlobal(
+      'showOpenFilePicker',
+      vi.fn(async () => [localHandle]),
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('# Remote A\n\nRemote permission body.')),
+    );
     const request = vi.fn(async () => true);
     const contains = vi.fn(async () => false);
     installBrowser({ permissions: { request, contains } });
@@ -890,7 +1156,10 @@ describe('Quire viewer experience', () => {
     await user.click(await screen.findByRole('button', { name: 'Open' }));
     await user.click(screen.getByRole('button', { name: /Open URL/ }));
     const dialog = screen.getByRole('dialog', { name: 'Open Markdown from the web' });
-    await user.type(within(dialog).getByPlaceholderText('https://example.com/guide.md'), 'https://docs.example.com/A.md');
+    await user.type(
+      within(dialog).getByPlaceholderText('https://example.com/guide.md'),
+      'https://docs.example.com/A.md',
+    );
     await user.click(within(dialog).getByRole('button', { name: 'Open' }));
     await waitFor(() => expect(document.querySelector('article')?.textContent).toContain('Remote permission body.'));
     expect(request).toHaveBeenCalledTimes(1);
@@ -960,30 +1229,44 @@ describe('Quire viewer experience', () => {
         this.record = { callback, targets: [] };
         observers.push(this.record);
       }
-      observe(target: Element) { this.record.targets.push(target); }
+      observe(target: Element) {
+        this.record.targets.push(target);
+      }
       unobserve() {}
       disconnect() {}
-      takeRecords(): IntersectionObserverEntry[] { return []; }
+      takeRecords(): IntersectionObserverEntry[] {
+        return [];
+      }
     }
     vi.stubGlobal('IntersectionObserver', TestIntersectionObserver);
-    installBrowser({ storage: { local: {
-      get: vi.fn(async (key: string) => key === 'reader-settings'
-        ? { 'reader-settings': { ...defaultSettings, enableMermaid: true } }
-        : { 'recent-documents': [] }),
-      set: vi.fn(async () => undefined),
-      remove: vi.fn(async () => undefined),
-    } } });
-    await createDocumentHandoff({
-      title: 'Lazy diagram.md',
-      markdown: '# Lazy diagram\n\n```mermaid\ngraph TD\nUniqueLazyNode-->B\n```',
-    }, { id: 'lazy-mermaid', now: Date.now() });
+    installBrowser({
+      storage: {
+        local: {
+          get: vi.fn(async (key: string) =>
+            key === 'reader-settings'
+              ? { 'reader-settings': { ...defaultSettings, enableMermaid: true } }
+              : { 'recent-documents': [] },
+          ),
+          set: vi.fn(async () => undefined),
+          remove: vi.fn(async () => undefined),
+        },
+      },
+    });
+    await createDocumentHandoff(
+      {
+        title: 'Lazy diagram.md',
+        markdown: '# Lazy diagram\n\n```mermaid\ngraph TD\nUniqueLazyNode-->B\n```',
+      },
+      { id: 'lazy-mermaid', now: Date.now() },
+    );
     history.replaceState(null, '', '/viewer.html?handoff=lazy-mermaid');
     render(<App />);
 
     let target: HTMLElement | undefined;
     await waitFor(() => {
-      target = [...document.querySelectorAll<HTMLElement>('.mermaid')]
-        .find((node) => decodeURIComponent(node.dataset.mermaidSource ?? '').includes('UniqueLazyNode'));
+      target = [...document.querySelectorAll<HTMLElement>('.mermaid')].find((node) =>
+        decodeURIComponent(node.dataset.mermaidSource ?? '').includes('UniqueLazyNode'),
+      );
       expect(target).toBeTruthy();
     });
     expect(mermaidMocks.run).not.toHaveBeenCalled();
@@ -1008,17 +1291,26 @@ describe('Quire viewer experience', () => {
 
   it('re-renders Mermaid with versioned base-theme variables when appearance changes', async () => {
     const themeNode = `ThemeNode${Date.now()}`;
-    installBrowser({ storage: { local: {
-      get: vi.fn(async (key: string) => key === 'reader-settings'
-        ? { 'reader-settings': { ...defaultSettings, enableMermaid: true, theme: 'light' } }
-        : { 'recent-documents': [] }),
-      set: vi.fn(async () => undefined),
-      remove: vi.fn(async () => undefined),
-    } } });
-    await createDocumentHandoff({
-      title: 'Theme diagram.md',
-      markdown: `# Theme diagram\n\n\`\`\`mermaid\nflowchart LR\n${themeNode}-->Dark\n\`\`\``,
-    }, { id: 'theme-mermaid', now: Date.now() });
+    installBrowser({
+      storage: {
+        local: {
+          get: vi.fn(async (key: string) =>
+            key === 'reader-settings'
+              ? { 'reader-settings': { ...defaultSettings, enableMermaid: true, theme: 'light' } }
+              : { 'recent-documents': [] },
+          ),
+          set: vi.fn(async () => undefined),
+          remove: vi.fn(async () => undefined),
+        },
+      },
+    });
+    await createDocumentHandoff(
+      {
+        title: 'Theme diagram.md',
+        markdown: `# Theme diagram\n\n\`\`\`mermaid\nflowchart LR\n${themeNode}-->Dark\n\`\`\``,
+      },
+      { id: 'theme-mermaid', now: Date.now() },
+    );
     history.replaceState(null, '', '/viewer.html?handoff=theme-mermaid');
     const user = userEvent.setup();
     render(<App />);
@@ -1081,7 +1373,9 @@ describe('Quire viewer experience', () => {
   it('preserves native find and implements the displayed open shortcuts', async () => {
     installBrowser();
     const openFilePicker = vi.fn(async () => []);
-    const openDirectoryPicker = vi.fn(async () => { throw new DOMException('Cancelled', 'AbortError'); });
+    const openDirectoryPicker = vi.fn(async () => {
+      throw new DOMException('Cancelled', 'AbortError');
+    });
     vi.stubGlobal('showOpenFilePicker', openFilePicker);
     vi.stubGlobal('showDirectoryPicker', openDirectoryPicker);
     render(<App />);
@@ -1102,10 +1396,13 @@ describe('Quire viewer experience', () => {
 
   it('jumps to and highlights a structured document search result', async () => {
     installBrowser();
-    await createDocumentHandoff({
-      title: 'Searchable.md',
-      markdown: '# Searchable\n\nIntro.\n\n## Details\n\nFind the needle in this paragraph.',
-    }, { id: 'search-document', now: Date.now() });
+    await createDocumentHandoff(
+      {
+        title: 'Searchable.md',
+        markdown: '# Searchable\n\nIntro.\n\n## Details\n\nFind the needle in this paragraph.',
+      },
+      { id: 'search-document', now: Date.now() },
+    );
     history.replaceState(null, '', '/viewer.html?handoff=search-document');
     const user = userEvent.setup();
     render(<App />);

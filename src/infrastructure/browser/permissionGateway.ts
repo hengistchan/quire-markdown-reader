@@ -2,7 +2,9 @@ import type { PermissionGateway } from '../../application/ports/permissionGatewa
 import { hostPermissionPattern } from '../../core/paths';
 
 export class BrowserPermissionGateway implements PermissionGateway {
-  constructor(private readonly api: typeof browser | undefined = typeof browser === 'undefined' ? undefined : browser) {}
+  constructor(
+    private readonly api: typeof browser | undefined = typeof browser === 'undefined' ? undefined : browser,
+  ) {}
 
   async hasRemoteOrigin(url: string): Promise<boolean> {
     if (!this.api) return true;
@@ -20,13 +22,13 @@ export class BrowserPermissionGateway implements PermissionGateway {
     const permissionHandle = handle as FileSystemHandle & {
       requestPermission?: (options: { mode: 'read' }) => Promise<PermissionState>;
     };
-    return await permissionHandle.requestPermission?.({ mode: 'read' }) ?? 'granted';
+    return (await permissionHandle.requestPermission?.({ mode: 'read' })) ?? 'granted';
   }
 
   async queryRead(handle: FileSystemHandle): Promise<PermissionState> {
     const permissionHandle = handle as FileSystemHandle & {
       queryPermission?: (options: { mode: 'read' }) => Promise<PermissionState>;
     };
-    return await permissionHandle.queryPermission?.({ mode: 'read' }) ?? 'granted';
+    return (await permissionHandle.queryPermission?.({ mode: 'read' })) ?? 'granted';
   }
 }

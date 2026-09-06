@@ -1,5 +1,9 @@
 import type {
-  DocumentIdentity, DocumentRefreshResult, DocumentSnapshot, DocumentSource, LinkResolution,
+  DocumentIdentity,
+  DocumentRefreshResult,
+  DocumentSnapshot,
+  DocumentSource,
+  LinkResolution,
 } from '../../application/documents/documentSource';
 import type { ResolvedAsset } from '../../application/documents/documentResource';
 import { getWorkspaceFileHandle, readWorkspaceFileSnapshot } from '../../core/files';
@@ -80,9 +84,7 @@ export class FileDocumentSource implements DocumentSource {
     if (!this.workspace || !isRelativeUrl(href)) return externalLink(href);
     if (!isMarkdownLink(href)) return { type: 'invalid' };
     const path = resolveWorkspacePath(this.file.path, href);
-    return path
-      ? { type: 'workspace-document', path, fragment: linkFragment(href) }
-      : { type: 'invalid' };
+    return path ? { type: 'workspace-document', path, fragment: linkFragment(href) } : { type: 'invalid' };
   }
 
   dispose(): void {

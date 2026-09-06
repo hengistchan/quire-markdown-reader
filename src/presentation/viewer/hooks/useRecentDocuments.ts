@@ -20,11 +20,7 @@ function recentId(session: DocumentSession): string | undefined {
   return undefined;
 }
 
-export function useRecentDocuments(
-  controller: ReaderController,
-  session: DocumentSession,
-  activeHeadingId?: string,
-) {
+export function useRecentDocuments(controller: ReaderController, session: DocumentSession, activeHeadingId?: string) {
   const [items, setItems] = useState<RecentItem[]>([]);
   const [resumeTarget, setResumeTarget] = useState<ResumeTarget>();
 
@@ -35,10 +31,13 @@ export function useRecentDocuments(
     setItems,
   );
 
-  const record = useCallback(async (item: RecentItemInput, signal?: AbortSignal) => {
-    const nextItems = await controller.rememberRecent(item);
-    if (!signal?.aborted) setItems(nextItems);
-  }, [controller]);
+  const record = useCallback(
+    async (item: RecentItemInput, signal?: AbortSignal) => {
+      const nextItems = await controller.rememberRecent(item);
+      if (!signal?.aborted) setItems(nextItems);
+    },
+    [controller],
+  );
 
   const prepareResume = useCallback((item: RecentItem) => {
     if ((item.scrollPosition ?? 0) > 80 || item.headingId) {

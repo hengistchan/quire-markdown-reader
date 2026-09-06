@@ -3,10 +3,12 @@ import { defineConfig } from 'wxt';
 function readerVendorChunk(id: string): string | undefined {
   if (!id.includes('/node_modules/')) return undefined;
   if (/\/(?:react|react-dom|scheduler)\//.test(id)) return 'react-vendor';
+  if (id.includes('/node_modules/markdown-it-texmath/')) return 'katex-vendor';
   if (id.includes('/node_modules/katex/')) return 'katex-vendor';
   if (id.includes('/node_modules/highlight.js/')) return 'highlight-vendor';
   if (id.includes('/node_modules/lucide-react/')) return 'icons-vendor';
-  if (/\/node_modules\/(?:markdown-it|markdown-it-anchor|markdown-it-deflist|markdown-it-texmath|@mdit|dompurify)\//.test(id)) return 'markdown-vendor';
+  if (/\/node_modules\/(?:markdown-it|markdown-it-anchor|markdown-it-deflist|@mdit|dompurify)\//.test(id))
+    return 'markdown-vendor';
   return undefined;
 }
 
@@ -22,7 +24,13 @@ export default defineConfig({
     },
   },
   zip: {
-    excludeSources: ['AGENTS.md', 'test-results/**'],
+    excludeSources: [
+      'AGENTS.md',
+      'coverage/**',
+      'test-results/**',
+      'e2e/visual.spec.ts-snapshots/**',
+      'store/assets/**',
+    ],
   },
   manifest: ({ browser }) => ({
     name: '__MSG_extName__',
@@ -56,15 +64,17 @@ export default defineConfig({
         description: '__MSG_commandDescription__',
       },
     },
-    ...(browser === 'firefox' ? {
-      browser_specific_settings: {
-        gecko: {
-          id: '{60628e87-7d17-444b-8862-499ed925bb7f}',
-          data_collection_permissions: {
-            required: ['none'],
+    ...(browser === 'firefox'
+      ? {
+          browser_specific_settings: {
+            gecko: {
+              id: '{60628e87-7d17-444b-8862-499ed925bb7f}',
+              data_collection_permissions: {
+                required: ['none'],
+              },
+            },
           },
-        },
-      },
-    } : {}),
+        }
+      : {}),
   }),
 });

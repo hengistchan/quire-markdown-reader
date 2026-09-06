@@ -1,0 +1,7 @@
+.output/
+.wxt/
+coverage/
+node_modules/
+test-results/
+e2e/visual.spec.ts-snapshots/
+store/assets/

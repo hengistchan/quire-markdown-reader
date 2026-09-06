@@ -11,7 +11,12 @@ function fakeHistory(current: BrowserHistoryEntry = { index: 0, maxIndex: 0 }) {
     replace: vi.fn(),
     back: vi.fn(),
     forward: vi.fn(),
-    subscribe: vi.fn((next) => { listener = next; return () => { listener = undefined; }; }),
+    subscribe: vi.fn((next) => {
+      listener = next;
+      return () => {
+        listener = undefined;
+      };
+    }),
   };
   return { port, traverse: (entry: BrowserHistoryEntry) => listener?.(entry) };
 }
@@ -64,10 +69,7 @@ describe('NavigationController', () => {
     expect(history.port.push).toHaveBeenCalledWith({ target: second, index: 1, maxIndex: 1 });
     expect(history.port.back).toHaveBeenCalledOnce();
     expect(history.port.forward).toHaveBeenCalledOnce();
-    expect(listener).toHaveBeenLastCalledWith(
-      { current: second, canGoBack: true, canGoForward: false },
-      'traverse',
-    );
+    expect(listener).toHaveBeenLastCalledWith({ current: second, canGoBack: true, canGoForward: false }, 'traverse');
   });
 
   it('pushes fragments through the same indexed history', () => {
@@ -78,7 +80,9 @@ describe('NavigationController', () => {
     expect(controller.pushFragment('install')).toEqual({ ...target, fragment: 'install' });
     expect(history.port.replace).toHaveBeenLastCalledWith({ target, index: 0, maxIndex: 1 });
     expect(history.port.push).toHaveBeenCalledWith({
-      target: { ...target, fragment: 'install' }, index: 1, maxIndex: 1,
+      target: { ...target, fragment: 'install' },
+      index: 1,
+      maxIndex: 1,
     });
     expect(controller.current()).toEqual({
       current: { ...target, fragment: 'install' },
@@ -132,10 +136,7 @@ describe('NavigationController', () => {
 
     history.traverse({ target, index: 1, maxIndex: 3 });
 
-    expect(listener).toHaveBeenLastCalledWith(
-      { current: target, canGoBack: true, canGoForward: true },
-      'traverse',
-    );
+    expect(listener).toHaveBeenLastCalledWith({ current: target, canGoBack: true, canGoForward: true }, 'traverse');
     expect(history.port.push).not.toHaveBeenCalled();
     expect(history.port.replace).not.toHaveBeenCalled();
   });

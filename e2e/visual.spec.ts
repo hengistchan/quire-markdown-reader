@@ -14,56 +14,66 @@ async function extensionId(context: BrowserContext): Promise<string> {
 }
 
 async function installThemeGallery(page: Page): Promise<void> {
-  await page.addInitScript(({ markdown, image }) => {
-    const write = async (handle: FileSystemFileHandle, contents: string) => {
-      const writable = await handle.createWritable();
-      await writable.write(contents);
-      await writable.close();
-    };
-    Object.defineProperty(window, 'showDirectoryPicker', {
-      configurable: true,
-      value: async () => {
-        const root = await navigator.storage.getDirectory();
-        try { await root.removeEntry('Quire Theme Gallery', { recursive: true }); } catch { /* first run */ }
-        const workspace = await root.getDirectoryHandle('Quire Theme Gallery', { create: true });
-        const assets = await workspace.getDirectoryHandle('assets', { create: true });
-        await write(await workspace.getFileHandle('theme-gallery.md', { create: true }), markdown);
-        await write(await assets.getFileHandle('quire-mark.svg', { create: true }), image);
-        return workspace;
-      },
-    });
-  }, { markdown: galleryMarkdown, image: galleryImage });
+  await page.addInitScript(
+    ({ markdown, image }) => {
+      const write = async (handle: FileSystemFileHandle, contents: string) => {
+        const writable = await handle.createWritable();
+        await writable.write(contents);
+        await writable.close();
+      };
+      Object.defineProperty(window, 'showDirectoryPicker', {
+        configurable: true,
+        value: async () => {
+          const root = await navigator.storage.getDirectory();
+          try {
+            await root.removeEntry('Quire Theme Gallery', { recursive: true });
+          } catch {
+            /* first run */
+          }
+          const workspace = await root.getDirectoryHandle('Quire Theme Gallery', { create: true });
+          const assets = await workspace.getDirectoryHandle('assets', { create: true });
+          await write(await workspace.getFileHandle('theme-gallery.md', { create: true }), markdown);
+          await write(await assets.getFileHandle('quire-mark.svg', { create: true }), image);
+          return workspace;
+        },
+      });
+    },
+    { markdown: galleryMarkdown, image: galleryImage },
+  );
 }
 
 async function setTheme(context: BrowserContext, theme: 'light' | 'dark'): Promise<void> {
   const id = await extensionId(context);
   const worker = context.serviceWorkers()[0]!;
-  await worker.evaluate(async ({ selectedTheme }) => {
-    await chrome.storage.local.clear();
-    await chrome.storage.local.set({
-      'reader-settings': {
-        version: 4,
-        settings: {
-          locale: 'en',
-          theme: selectedTheme,
-          fontFamily: 'sans',
-          fontSize: 18,
-          lineHeight: 1.76,
-          contentWidth: 760,
-          wideView: false,
-          showReadingProgress: true,
-          showOutline: true,
-          autoRefresh: true,
-          enableKatex: true,
-          enableMermaid: true,
-          enableHtml: true,
-          loadRemoteImages: true,
-          remoteImageReferrerPolicy: 'no-referrer',
-          customCss: '',
+  await worker.evaluate(
+    async ({ selectedTheme }) => {
+      await chrome.storage.local.clear();
+      await chrome.storage.local.set({
+        'reader-settings': {
+          version: 4,
+          settings: {
+            locale: 'en',
+            theme: selectedTheme,
+            fontFamily: 'sans',
+            fontSize: 18,
+            lineHeight: 1.76,
+            contentWidth: 760,
+            wideView: false,
+            showReadingProgress: true,
+            showOutline: true,
+            autoRefresh: true,
+            enableKatex: true,
+            enableMermaid: true,
+            enableHtml: true,
+            loadRemoteImages: true,
+            remoteImageReferrerPolicy: 'no-referrer',
+            customCss: '',
+          },
         },
-      },
-    });
-  }, { selectedTheme: theme });
+      });
+    },
+    { selectedTheme: theme },
+  );
   await context.pages()[0]?.goto(`chrome-extension://${id}/viewer.html`);
 }
 
@@ -72,7 +82,7 @@ async function capture(page: Page, name: string): Promise<void> {
   await expect(page).toHaveScreenshot(name, {
     animations: 'disabled',
     caret: 'hide',
-    maxDiffPixelRatio: .06,
+    maxDiffPixelRatio: 0.06,
   });
 }
 
@@ -89,7 +99,7 @@ for (const theme of ['light', 'dark'] as const) {
         colorScheme: theme,
         args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`, '--lang=en-US'],
       });
-      const page = context.pages()[0] ?? await context.newPage();
+      const page = context.pages()[0] ?? (await context.newPage());
       await installThemeGallery(page);
       await setTheme(context, theme);
       await page.getByRole('button', { name: 'Open', exact: true }).click();
@@ -131,17 +141,23 @@ for (const theme of ['light', 'dark'] as const) {
         const bounds = drawer.getBoundingClientRect();
         return bounds.right <= innerWidth + 1 && bounds.left <= innerWidth - bounds.width + 1;
       });
-      await page.locator('.settings-drawer').evaluate((drawer) => { drawer.style.animation = 'none'; });
+      await page.locator('.settings-drawer').evaluate((drawer) => {
+        drawer.style.animation = 'none';
+      });
       await capture(page, `settings-${theme}-1280x800.png`);
       await page.getByRole('button', { name: 'Close settings' }).click();
       await expect(page.locator('.settings-drawer')).toHaveCount(0);
 
       const flowchart = page.locator('#mermaid-flowchart + .diagram-shell .mermaid');
       await page.getByRole('img', { name: 'Quire visual system sample' }).scrollIntoViewIfNeeded();
-      await page.waitForFunction(() => {
-        const image = document.querySelector<HTMLImageElement>('img[alt="Quire visual system sample"]');
-        return Boolean(image?.complete && image.naturalWidth > 0);
-      }, undefined, { timeout: 5_000 });
+      await page.waitForFunction(
+        () => {
+          const image = document.querySelector<HTMLImageElement>('img[alt="Quire visual system sample"]');
+          return Boolean(image?.complete && image.naturalWidth > 0);
+        },
+        undefined,
+        { timeout: 5_000 },
+      );
       await expect(flowchart.locator('svg')).toHaveCount(1, { timeout: 10_000 });
       await expect(flowchart).toHaveAttribute('data-mermaid-theme', theme);
       await page.locator('#mermaid-flowchart').evaluate(async (element) => {
@@ -164,7 +180,14 @@ for (const theme of ['light', 'dark'] as const) {
           const overflow = await page.evaluate(() => {
             const failures: string[] = [];
             if (document.documentElement.scrollWidth > innerWidth + 1) failures.push('document');
-            for (const selector of ['.topbar', '.reader-stage', '.markdown-body', '.markdown-body table', '.code-shell', '.diagram-shell']) {
+            for (const selector of [
+              '.topbar',
+              '.reader-stage',
+              '.markdown-body',
+              '.markdown-body table',
+              '.code-shell',
+              '.diagram-shell',
+            ]) {
               for (const element of document.querySelectorAll<HTMLElement>(selector)) {
                 const bounds = element.getBoundingClientRect();
                 if (bounds.left < -1 || bounds.right > innerWidth + 1) failures.push(selector);
@@ -177,35 +200,45 @@ for (const theme of ['light', 'dark'] as const) {
           await page.getByRole('button', { name: 'Toggle file workspace' }).click();
           const panel = page.locator('.context-panel');
           await expect(panel).toBeVisible();
-          expect(await panel.evaluate((element) => element.getBoundingClientRect().right)).toBeLessThanOrEqual(width + 1);
+          expect(await panel.evaluate((element) => element.getBoundingClientRect().right)).toBeLessThanOrEqual(
+            width + 1,
+          );
           await page.getByRole('button', { name: 'Toggle file workspace' }).click();
 
           await page.getByRole('button', { name: 'Command center' }).first().click();
           const command = page.getByRole('dialog', { name: 'Command center' });
           await expect(command).toBeVisible();
-          expect(await command.evaluate((element) => {
-            const bounds = element.getBoundingClientRect();
-            return bounds.left >= -1 && bounds.right <= innerWidth + 1 && bounds.bottom <= innerHeight + 1;
-          })).toBe(true);
+          expect(
+            await command.evaluate((element) => {
+              const bounds = element.getBoundingClientRect();
+              return bounds.left >= -1 && bounds.right <= innerWidth + 1 && bounds.bottom <= innerHeight + 1;
+            }),
+          ).toBe(true);
           await page.keyboard.press('Escape');
 
           await page.getByRole('button', { name: 'Open', exact: true }).click();
           const openMenu = page.locator('.open-menu');
           await expect(openMenu).toBeVisible();
-          expect(await openMenu.evaluate((element) => {
-            const bounds = element.getBoundingClientRect();
-            return bounds.left >= -1 && bounds.right <= innerWidth + 1 && bounds.bottom <= innerHeight + 1;
-          })).toBe(true);
+          expect(
+            await openMenu.evaluate((element) => {
+              const bounds = element.getBoundingClientRect();
+              return bounds.left >= -1 && bounds.right <= innerWidth + 1 && bounds.bottom <= innerHeight + 1;
+            }),
+          ).toBe(true);
           await page.keyboard.press('Escape');
 
           await page.getByRole('button', { name: 'Reader settings' }).click();
           const responsiveDrawer = page.locator('.settings-drawer');
           await expect(responsiveDrawer).toBeVisible();
-          await responsiveDrawer.evaluate((drawer) => { drawer.style.animation = 'none'; });
-          expect(await responsiveDrawer.evaluate((element) => {
-            const bounds = element.getBoundingClientRect();
-            return bounds.left >= -1 && bounds.right <= innerWidth + 1;
-          })).toBe(true);
+          await responsiveDrawer.evaluate((drawer) => {
+            drawer.style.animation = 'none';
+          });
+          expect(
+            await responsiveDrawer.evaluate((element) => {
+              const bounds = element.getBoundingClientRect();
+              return bounds.left >= -1 && bounds.right <= innerWidth + 1;
+            }),
+          ).toBe(true);
           await page.getByRole('button', { name: 'Close settings' }).click();
         }
       }

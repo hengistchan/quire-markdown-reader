@@ -24,7 +24,9 @@ describe('IndexedDB transaction wrapper', () => {
     const database = await openTestDatabase();
     let completed = false;
     const promise = transact(database, STORE, 'readwrite', (store) => {
-      store.transaction.addEventListener('complete', () => { completed = true; });
+      store.transaction.addEventListener('complete', () => {
+        completed = true;
+      });
       return store.put('saved', 'key');
     });
 

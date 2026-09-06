@@ -74,7 +74,8 @@ export function useMermaidRuntime(
               node.dataset.mermaidTheme = readerTheme;
               node.removeAttribute('data-resource-error');
               mermaidSvgCache.set(cacheKey, node.innerHTML);
-              if (mermaidSvgCache.size > MERMAID_CACHE_LIMIT) mermaidSvgCache.delete(mermaidSvgCache.keys().next().value!);
+              if (mermaidSvgCache.size > MERMAID_CACHE_LIMIT)
+                mermaidSvgCache.delete(mermaidSvgCache.keys().next().value!);
               return;
             } catch (caught) {
               lastError = caught;
@@ -103,16 +104,22 @@ export function useMermaidRuntime(
     };
     const nodes = [...articleRef.current.querySelectorAll<HTMLElement>('.mermaid')];
     if ('IntersectionObserver' in window) {
-      observer = new IntersectionObserver((entries) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          observer?.unobserve(entry.target);
-          void renderNode(entry.target as HTMLElement);
-        }
-      }, { rootMargin: '500px 0px' });
+      observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            observer?.unobserve(entry.target);
+            void renderNode(entry.target as HTMLElement);
+          }
+        },
+        { rootMargin: '500px 0px' },
+      );
       for (const node of nodes) {
-        if (node.dataset.resourceState === 'ready' && node.querySelector('svg')
-          && node.dataset.mermaidTheme !== readerTheme) {
+        if (
+          node.dataset.resourceState === 'ready' &&
+          node.querySelector('svg') &&
+          node.dataset.mermaidTheme !== readerTheme
+        ) {
           void renderNode(node);
         } else {
           observer.observe(node);

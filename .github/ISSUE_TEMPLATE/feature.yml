@@ -1,6 +1,6 @@
 name: Feature request
 description: Propose an improvement to the read-only Markdown experience
-title: "feat: "
+title: 'feat: '
 labels: [enhancement]
 body:
   - type: textarea

@@ -8,7 +8,9 @@ import { importActiveTab, openViewer, readLocalMarkdownAsset, registerBrowserHan
 function event<T extends (...args: never[]) => unknown>() {
   let listener: T | undefined;
   return {
-    addListener: vi.fn((next: T) => { listener = next; }),
+    addListener: vi.fn((next: T) => {
+      listener = next;
+    }),
     fire: (...args: Parameters<T>) => listener?.(...args),
   };
 }
@@ -28,13 +30,28 @@ function extensionApi() {
         query: vi.fn(async () => [{ id: 1, title: 'Active' }]),
       },
       runtime: { getURL: vi.fn((path: string) => `moz-extension://quire${path}`), onInstalled, onMessage },
-      scripting: { executeScript: vi.fn(async () => [{ result: { title: 'Page', markdown: '# Page', sourceUrl: 'https://example.com', format: 'plain-text' as const } }]) },
+      scripting: {
+        executeScript: vi.fn(async () => [
+          {
+            result: {
+              title: 'Page',
+              markdown: '# Page',
+              sourceUrl: 'https://example.com',
+              format: 'plain-text' as const,
+            },
+          },
+        ]),
+      },
       i18n: { getMessage: vi.fn(() => 'Open in Quire') },
       contextMenus: { removeAll: vi.fn(async () => undefined), create: vi.fn(), onClicked: onContext },
       action: { onClicked: onAction },
       commands: { onCommand },
     } as unknown as typeof browser,
-    onInstalled, onAction, onCommand, onContext, onMessage,
+    onInstalled,
+    onAction,
+    onCommand,
+    onContext,
+    onMessage,
   };
 }
 
@@ -65,7 +82,10 @@ describe('extension entry actions', () => {
     expect(api.scripting.executeScript).toHaveBeenCalledWith(expect.objectContaining({ target: { tabId: 7 } }));
     const url = vi.mocked(api.tabs.create).mock.calls[0]?.[0].url ?? '';
     await expect(takeDocumentHandoff(handoffIdFromUrl(url))).resolves.toEqual({
-      title: 'Page', markdown: '# Page', sourceUrl: 'https://example.com', format: 'plain-text',
+      title: 'Page',
+      markdown: '# Page',
+      sourceUrl: 'https://example.com',
+      format: 'plain-text',
     });
   });
 
@@ -88,7 +108,10 @@ describe('extension entry actions', () => {
     await harness.onCommand.fire('ignored');
     await harness.onCommand.fire('open-reader');
     await harness.onContext.fire({ menuItemId: 'ignored' } as Browser.contextMenus.OnClickData);
-    await harness.onContext.fire({ menuItemId: 'open-in-quire' } as Browser.contextMenus.OnClickData, { id: 1 } as Browser.tabs.Tab);
+    await harness.onContext.fire(
+      { menuItemId: 'open-in-quire' } as Browser.contextMenus.OnClickData,
+      { id: 1 } as Browser.tabs.Tab,
+    );
     expect(harness.api.scripting.executeScript).toHaveBeenCalledTimes(3);
   });
 
@@ -97,10 +120,9 @@ describe('extension entry actions', () => {
     registerBrowserHandlers(harness.api);
     const document = { title: 'README.md', markdown: '# Local', sourceUrl: 'file:///tmp/README.md' };
 
-    const response = await harness.onMessage.fire(
-      { type: OPEN_LOCAL_MARKDOWN, document },
-      { tab: { id: 9 } } as Browser.runtime.MessageSender,
-    );
+    const response = await harness.onMessage.fire({ type: OPEN_LOCAL_MARKDOWN, document }, {
+      tab: { id: 9 },
+    } as Browser.runtime.MessageSender);
 
     const viewerUrl = (response as unknown as { viewerUrl?: string } | undefined)?.viewerUrl ?? '';
     expect(viewerUrl).toMatch(/^moz-extension:\/\/quire\/viewer\.html\?handoff=/);
@@ -110,16 +132,13 @@ describe('extension entry actions', () => {
   });
 
   it('encodes local relative assets for the isolated viewer', async () => {
-    const fetcher = vi.fn(async () => new Response(
-      new Uint8Array([0x89, 0x50]),
-      { headers: { 'content-type': 'image/png' } },
-    ));
+    const fetcher = vi.fn(
+      async () => new Response(new Uint8Array([0x89, 0x50]), { headers: { 'content-type': 'image/png' } }),
+    );
 
-    await expect(readLocalMarkdownAsset(
-      'file:///tmp/docs/README.md',
-      'Meta.png',
-      fetcher as typeof fetch,
-    )).resolves.toEqual({ dataUrl: 'data:image/png;base64,iVA=' });
+    await expect(
+      readLocalMarkdownAsset('file:///tmp/docs/README.md', 'Meta.png', fetcher as typeof fetch),
+    ).resolves.toEqual({ dataUrl: 'data:image/png;base64,iVA=' });
     expect(fetcher).toHaveBeenCalledWith('file:///tmp/docs/Meta.png');
   });
 
@@ -132,7 +151,10 @@ describe('extension entry actions', () => {
       { tab: { id: 9 } } as Browser.runtime.MessageSender,
     );
     await harness.onMessage.fire(
-      { type: OPEN_LOCAL_MARKDOWN, document: { title: 'README.md', markdown: '# Local', sourceUrl: 'file:///tmp/README.md' } },
+      {
+        type: OPEN_LOCAL_MARKDOWN,
+        document: { title: 'README.md', markdown: '# Local', sourceUrl: 'file:///tmp/README.md' },
+      },
       {} as Browser.runtime.MessageSender,
     );
 

@@ -4,6 +4,6 @@ export type ResolvedAsset =
   | { type: 'unavailable'; reason: string };
 
 export interface DocumentResourceResolver {
-  resolveAsset(href: string): Promise<ResolvedAsset>;
+  resolveAsset(href: string, signal?: AbortSignal): Promise<ResolvedAsset>;
   dispose(): void;
 }

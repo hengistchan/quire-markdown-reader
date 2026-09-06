@@ -1,14 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import { hostPermissionPattern, isMarkdownLink, isRelativeUrl, isRemoteUrl, linkFragment, resolveWorkspacePath } from './paths';
+import {
+  hostPermissionPattern,
+  isMarkdownLink,
+  isRelativeUrl,
+  isRemoteUrl,
+  linkFragment,
+  resolveWorkspacePath,
+} from './paths';
 
 describe('URL classification', () => {
   it.each(['https://example.com/readme.md', 'http://localhost:4173/guide'])('accepts remote URL %s', (value) => {
     expect(isRemoteUrl(value)).toBe(true);
   });
 
-  it.each(['file:///tmp/readme.md', 'javascript:alert(1)', '/guide.md', 'not a url'])('rejects remote URL %s', (value) => {
-    expect(isRemoteUrl(value)).toBe(false);
-  });
+  it.each(['file:///tmp/readme.md', 'javascript:alert(1)', '/guide.md', 'not a url'])(
+    'rejects remote URL %s',
+    (value) => {
+      expect(isRemoteUrl(value)).toBe(false);
+    },
+  );
 
   it.each(['guide.md', '../guide.md', '/root.md'])('recognizes relative workspace URL %s', (value) => {
     expect(isRelativeUrl(value)).toBe(true);

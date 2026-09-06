@@ -11,8 +11,14 @@ class FakeEnvironment implements RefreshEnvironment {
   isOnline = () => this.online;
   onVisibilityChange = (listener: () => void): Disposable => this.add(this.visibility, listener);
   onOnlineChange = (listener: () => void): Disposable => this.add(this.network, listener);
-  changeVisibility(visible: boolean) { this.visible = visible; for (const listener of this.visibility) listener(); }
-  changeOnline(online: boolean) { this.online = online; for (const listener of this.network) listener(); }
+  changeVisibility(visible: boolean) {
+    this.visible = visible;
+    for (const listener of this.visibility) listener();
+  }
+  changeOnline(online: boolean) {
+    this.online = online;
+    for (const listener of this.network) listener();
+  }
   private add(target: Set<() => void>, listener: () => void): Disposable {
     target.add(listener);
     return { dispose: () => target.delete(listener) };
@@ -41,9 +47,7 @@ describe('DefaultRefreshScheduler', () => {
 
   it('pauses remote refresh offline, resumes immediately, and backs off after failures', async () => {
     const environment = new FakeEnvironment();
-    const run = vi.fn()
-      .mockRejectedValueOnce(new Error('network'))
-      .mockResolvedValue(undefined);
+    const run = vi.fn().mockRejectedValueOnce(new Error('network')).mockResolvedValue(undefined);
     const disposable = new DefaultRefreshScheduler(environment).start({ kind: 'remote', run });
 
     await vi.advanceTimersByTimeAsync(30_000);

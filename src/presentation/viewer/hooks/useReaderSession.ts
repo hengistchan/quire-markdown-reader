@@ -1,14 +1,15 @@
 import { useEffect, useReducer } from 'react';
 import {
-  createWelcomeSession, documentSessionReducer, documentSourceUrl, type DocumentSession,
+  createWelcomeSession,
+  documentSessionReducer,
+  documentSourceUrl,
+  type DocumentSession,
 } from '../../../domain/documentSession';
 import type { Translator } from '../../../shared/i18n';
 
 export function useReaderSession(t: Translator) {
-  const [session, dispatch] = useReducer(
-    documentSessionReducer,
-    undefined,
-    () => createWelcomeSession(t('welcomeDocumentTitle'), t('welcomeDocument')),
+  const [session, dispatch] = useReducer(documentSessionReducer, undefined, () =>
+    createWelcomeSession(t('welcomeDocumentTitle'), t('welcomeDocument')),
   );
   const sourceUrl = documentSourceUrl(session);
   const documentFormat = session.kind === 'imported' ? session.format : 'markdown';

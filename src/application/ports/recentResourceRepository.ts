@@ -25,13 +25,12 @@ export interface RecentRemoteResource extends RecentResourceBase {
   url: string;
 }
 
-export type RecentResource =
-  | RecentWorkspaceResource
-  | RecentLocalFileResource
-  | RecentRemoteResource;
+export type RecentResource = RecentWorkspaceResource | RecentLocalFileResource | RecentRemoteResource;
 
 export type RecentResourceInput = RecentResource extends infer Resource
-  ? Resource extends RecentResource ? Omit<Resource, 'openedAt'> : never
+  ? Resource extends RecentResource
+    ? Omit<Resource, 'openedAt'>
+    : never
   : never;
 
 export interface RecentResourceRepository {

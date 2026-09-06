@@ -35,6 +35,7 @@ function installPointerCapture(element: HTMLElement): void {
 describe('document enhancements', () => {
   afterEach(() => {
     document.body.replaceChildren();
+    document.body.style.overflow = '';
     vi.useRealTimers();
   });
 
@@ -58,7 +59,9 @@ describe('document enhancements', () => {
   });
 
   it('falls back when Clipboard API writes are blocked by an embedding policy', async () => {
-    const writeText = vi.fn(async () => { throw new DOMException('Blocked', 'NotAllowedError'); });
+    const writeText = vi.fn(async () => {
+      throw new DOMException('Blocked', 'NotAllowedError');
+    });
     const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
     const originalExecCommand = Object.getOwnPropertyDescriptor(document, 'execCommand');
     const execCommand = vi.fn(() => true);
@@ -153,18 +156,45 @@ describe('document enhancements', () => {
     cleanup();
   });
 
-  it('closes the lightbox on Escape and restores body scroll', () => {
+  it('traps focus and restores page state when the lightbox closes on Escape', async () => {
     const article = createArticle('<div class="mermaid"><svg role="img"></svg></div>');
+    const alreadyInert = document.createElement('aside');
+    alreadyInert.inert = true;
+    document.body.append(alreadyInert);
+    document.body.style.overflow = 'clip';
     const cleanup = enhanceDocument(article, labels);
-    article.querySelector<HTMLButtonElement>('[data-diagram-action="expand"]')!.click();
+    const expand = article.querySelector<HTMLButtonElement>('[data-diagram-action="expand"]')!;
+    expand.focus();
+    expand.click();
 
     expect(document.querySelector('.diagram-lightbox-backdrop')).toBeTruthy();
     expect(document.body.style.overflow).toBe('hidden');
+    expect(article.inert).toBe(true);
+    expect(alreadyInert.inert).toBe(true);
+
+    const first = document.querySelector<HTMLButtonElement>('.diagram-lightbox [data-diagram-action="zoom-out"]')!;
+    const last = document.querySelector<HTMLButtonElement>('.diagram-lightbox [data-diagram-action="close"]')!;
+    last.focus();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+    expect(document.activeElement).toBe(first);
+    first.focus();
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'Tab',
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    expect(document.activeElement).toBe(last);
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
     expect(document.querySelector('.diagram-lightbox-backdrop')).toBeFalsy();
-    expect(document.body.style.overflow).toBe('');
+    expect(document.body.style.overflow).toBe('clip');
+    expect(article.inert).not.toBe(true);
+    expect(alreadyInert.inert).toBe(true);
+    expect(document.activeElement).toBe(expand);
     cleanup();
   });
 
@@ -243,7 +273,11 @@ describe('document enhancements', () => {
     // First pointer down
     svg.dispatchEvent(pointerEvent('pointerdown', rect.left + 100, rect.top + 50, 1));
     // Second pointer down (triggers pinch via gotpointercapture)
-    const gotCaptureEvent = new MouseEvent('gotpointercapture', { bubbles: true, clientX: rect.left + 160, clientY: rect.top + 50 });
+    const gotCaptureEvent = new MouseEvent('gotpointercapture', {
+      bubbles: true,
+      clientX: rect.left + 160,
+      clientY: rect.top + 50,
+    });
     Object.defineProperty(gotCaptureEvent, 'pointerId', { value: 2 });
     viewport.dispatchEvent(gotCaptureEvent);
 
@@ -293,7 +327,11 @@ describe('document enhancements', () => {
 
     const rect = viewport.getBoundingClientRect();
     svg.dispatchEvent(pointerEvent('pointerdown', rect.left + 100, rect.top + 50, 1));
-    const gotCaptureEvent = new MouseEvent('gotpointercapture', { bubbles: true, clientX: rect.left + 160, clientY: rect.top + 50 });
+    const gotCaptureEvent = new MouseEvent('gotpointercapture', {
+      bubbles: true,
+      clientX: rect.left + 160,
+      clientY: rect.top + 50,
+    });
     Object.defineProperty(gotCaptureEvent, 'pointerId', { value: 2 });
     viewport.dispatchEvent(gotCaptureEvent);
 

@@ -11,7 +11,9 @@ describe('ImportedDocumentSource', () => {
     );
 
     await expect(source.resolveAsset('Meta.png')).resolves.toEqual({
-      type: 'url', url: 'data:image/png;base64,iVBORw0KGgo=', disposable: false,
+      type: 'url',
+      url: 'data:image/png;base64,iVBORw0KGgo=',
+      disposable: false,
     });
     expect(sendMessage).toHaveBeenCalledWith({
       type: READ_LOCAL_MARKDOWN_ASSET,
@@ -27,7 +29,8 @@ describe('ImportedDocumentSource', () => {
     );
 
     await expect(source.resolveAsset('missing.png')).resolves.toEqual({
-      type: 'unavailable', reason: 'file-access-unavailable',
+      type: 'unavailable',
+      reason: 'file-access-unavailable',
     });
   });
 
@@ -39,7 +42,9 @@ describe('ImportedDocumentSource', () => {
     );
 
     await expect(source.resolveAsset('../logo.svg')).resolves.toEqual({
-      type: 'url', url: 'https://example.com/logo.svg', disposable: false,
+      type: 'url',
+      url: 'https://example.com/logo.svg',
+      disposable: false,
     });
     expect(sendMessage).not.toHaveBeenCalled();
   });

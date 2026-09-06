@@ -4,6 +4,25 @@ All notable changes to Quire are documented here. This project follows [Semantic
 
 ## [Unreleased]
 
+## [0.0.8] - 2026-09-06
+
+### Added
+
+- Added linting, formatting, coverage thresholds, dependency auditing, reusable CI verification, and a weekly security audit
+- Added keyboard focus trapping, background isolation, and focus restoration for dialogs, settings, and expanded Mermaid diagrams
+
+### Changed
+
+- Blocked remote document images by default and require an explicit reader setting before third-party image requests are allowed
+- Isolated custom document CSS to the Markdown reading surface and reject malformed, global, or external-resource rules
+- Deferred KaTeX and syntax-highlighting runtimes until a document needs them
+- Bounded workspace scans by total entries and activate a newly selected workspace only after its first document opens successfully
+- Reduced source-review archive size by excluding reproducible screenshots and store artwork
+
+### Security
+
+- Updated Markdown, sanitization, diagram, browser-build, and test dependencies and resolved all reported package vulnerabilities
+
 ## [0.0.7] - 2026-08-13
 
 ### Fixed

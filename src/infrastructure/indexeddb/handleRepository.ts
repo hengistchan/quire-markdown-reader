@@ -1,6 +1,8 @@
 import { openIndexedDatabase, transact as runTransaction } from './database';
 import type {
-  HandleRepository, PersistedFileHandle, PersistedWorkspaceHandle,
+  HandleRepository,
+  PersistedFileHandle,
+  PersistedWorkspaceHandle,
 } from '../../application/ports/handleRepository';
 
 export type { PersistedFileHandle, PersistedWorkspaceHandle } from '../../application/ports/handleRepository';
@@ -38,23 +40,33 @@ function write(value: unknown, key: IDBValidKey): Promise<IDBValidKey> {
   return transact('readwrite', (store) => store.put(value, key));
 }
 
-async function findMatchingHandle<T extends FileSystemHandle>(kind: PersistedHandle['kind'], handle: T): Promise<PersistedHandle | undefined> {
+async function findMatchingHandle<T extends FileSystemHandle>(
+  kind: PersistedHandle['kind'],
+  handle: T,
+): Promise<PersistedHandle | undefined> {
   const records = (await transact('readonly', (store) => store.getAll())) as unknown[];
   for (const candidate of records) {
     if (!candidate || typeof candidate !== 'object' || (candidate as PersistedHandle).kind !== kind) continue;
     const record = candidate as PersistedHandle;
-    if (typeof handle.isSameEntry === 'function' && await handle.isSameEntry(record.handle)) return record;
+    if (typeof handle.isSameEntry === 'function' && (await handle.isSameEntry(record.handle))) return record;
   }
   return undefined;
 }
 
 export async function saveWorkspaceHandle(handle: FileSystemDirectoryHandle, existingId?: string): Promise<string> {
-  const previous = existingId ? await loadWorkspaceRecord(existingId) : await findMatchingHandle('workspace', handle) as PersistedWorkspaceHandle | undefined;
+  const previous = existingId
+    ? await loadWorkspaceRecord(existingId)
+    : ((await findMatchingHandle('workspace', handle)) as PersistedWorkspaceHandle | undefined);
   const id = previous?.id ?? existingId ?? createId();
   const record: PersistedWorkspaceHandle = { id, kind: 'workspace', name: handle.name, handle, savedAt: Date.now() };
   await write(record, `${WORKSPACE_PREFIX}${id}`);
-  await write(id, ACTIVE_WORKSPACE);
   return id;
+}
+
+export async function setActiveWorkspaceHandle(id: string): Promise<void> {
+  const record = await loadWorkspaceRecord(id);
+  if (!record) throw new Error(`Workspace ${id} is not persisted.`);
+  await write(id, ACTIVE_WORKSPACE);
 }
 
 export async function loadWorkspaceRecord(id: string): Promise<PersistedWorkspaceHandle | undefined> {
@@ -69,6 +81,7 @@ export async function loadActiveWorkspace(): Promise<PersistedWorkspaceHandle | 
   const legacy = await read<FileSystemDirectoryHandle>(LEGACY_ACTIVE_HANDLE);
   if (!legacy) return undefined;
   const id = await saveWorkspaceHandle(legacy);
+  await setActiveWorkspaceHandle(id);
   return loadWorkspaceRecord(id);
 }
 
@@ -77,9 +90,14 @@ export async function loadWorkspaceHandle(id?: string): Promise<FileSystemDirect
 }
 
 export async function saveFileHandle(handle: FileSystemFileHandle, existingId?: string): Promise<string> {
-  const previous = existingId ? await loadFileRecord(existingId) : await findMatchingHandle('file', handle) as PersistedFileHandle | undefined;
+  const previous = existingId
+    ? await loadFileRecord(existingId)
+    : ((await findMatchingHandle('file', handle)) as PersistedFileHandle | undefined);
   const id = previous?.id ?? existingId ?? createId();
-  await write({ id, kind: 'file', name: handle.name, handle, savedAt: Date.now() } satisfies PersistedFileHandle, `${FILE_PREFIX}${id}`);
+  await write(
+    { id, kind: 'file', name: handle.name, handle, savedAt: Date.now() } satisfies PersistedFileHandle,
+    `${FILE_PREFIX}${id}`,
+  );
   return id;
 }
 
@@ -97,6 +115,10 @@ export async function clearWorkspaceHandle(): Promise<undefined> {
 export class IndexedDBHandleRepository implements HandleRepository {
   saveWorkspace(handle: FileSystemDirectoryHandle, existingId?: string): Promise<string> {
     return saveWorkspaceHandle(handle, existingId);
+  }
+
+  setActiveWorkspace(id: string): Promise<void> {
+    return setActiveWorkspaceHandle(id);
   }
 
   saveFile(handle: FileSystemFileHandle, existingId?: string): Promise<string> {

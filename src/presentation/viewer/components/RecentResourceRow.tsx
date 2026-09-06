@@ -18,31 +18,34 @@ export function RecentResourceIcon({ resource }: { resource: RecentResource }) {
   return <File />;
 }
 
-export function RecentResourceRow({ resource, t, onOpen, onRemove }: {
+export function RecentResourceRow({
+  resource,
+  t,
+  onOpen,
+  onRemove,
+}: {
   resource: RecentResource;
   t: Translator;
   onOpen: (resource: RecentResource) => void;
   onRemove: (id: string) => void;
 }) {
-  return <div className="recent-resource-row">
-    <button
-      className="recent-resource-main"
-      data-open-menu-primary="true"
-      onClick={() => onOpen(resource)}
-    >
-      <RecentResourceIcon resource={resource} />
-      <span>
-        <strong>{resource.title}</strong>
-        <small>{recentResourceDetail(resource, t)}</small>
-      </span>
-    </button>
-    <button
-      className="recent-resource-remove"
-      aria-label={`${t('removeFromRecent')}: ${resource.title}`}
-      title={t('removeFromRecent')}
-      onClick={() => onRemove(resource.id)}
-    >
-      <X />
-    </button>
-  </div>;
+  return (
+    <div className="recent-resource-row">
+      <button className="recent-resource-main" data-open-menu-primary="true" onClick={() => onOpen(resource)}>
+        <RecentResourceIcon resource={resource} />
+        <span>
+          <strong>{resource.title}</strong>
+          <small>{recentResourceDetail(resource, t)}</small>
+        </span>
+      </button>
+      <button
+        className="recent-resource-remove"
+        aria-label={`${t('removeFromRecent')}: ${resource.title}`}
+        title={t('removeFromRecent')}
+        onClick={() => onRemove(resource.id)}
+      >
+        <X />
+      </button>
+    </div>
+  );
 }

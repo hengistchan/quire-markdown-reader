@@ -1,6 +1,4 @@
-import type {
-  ImportedDocument, RemoteDocumentState, WorkspaceFile, WorkspaceSnapshot,
-} from '../shared/types';
+import type { ImportedDocument, RemoteDocumentState, WorkspaceFile, WorkspaceSnapshot } from '../shared/types';
 
 interface DocumentContent {
   title: string;
@@ -77,11 +75,22 @@ export function createImportedSession(document: ImportedDocument): ImportedDocum
   };
 }
 
-export function createFileSession(file: WorkspaceFile, markdown: string, lastModified: number, size: number): FileDocumentSession {
+export function createFileSession(
+  file: WorkspaceFile,
+  markdown: string,
+  lastModified: number,
+  size: number,
+): FileDocumentSession {
   return { kind: 'file', title: displayDocumentTitle(file.name), markdown, file, lastModified, size };
 }
 
-export function createWorkspaceSession(workspace: WorkspaceSnapshot, file: WorkspaceFile, markdown: string, lastModified: number, size: number): WorkspaceDocumentSession {
+export function createWorkspaceSession(
+  workspace: WorkspaceSnapshot,
+  file: WorkspaceFile,
+  markdown: string,
+  lastModified: number,
+  size: number,
+): WorkspaceDocumentSession {
   return { kind: 'workspace', title: displayDocumentTitle(file.name), markdown, workspace, file, lastModified, size };
 }
 
@@ -92,9 +101,7 @@ export function createRemoteSession(document: ImportedDocument, state: RemoteDoc
 export function documentSessionReducer(session: DocumentSession, action: DocumentSessionAction): DocumentSession {
   if (action.type === 'replace') return action.session;
   if (action.type === 'localize-welcome') {
-    return session.kind === 'welcome'
-      ? { ...session, title: action.title, markdown: action.markdown }
-      : session;
+    return session.kind === 'welcome' ? { ...session, title: action.title, markdown: action.markdown } : session;
   }
   if (action.type === 'refresh-local') {
     return session.kind === 'file' || session.kind === 'workspace'

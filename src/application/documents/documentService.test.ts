@@ -18,9 +18,12 @@ describe('DocumentService source lifecycle', () => {
   it('disposes the old source and all of its resources before opening another source', async () => {
     const revoked: string[] = [];
     const objectUrls = ['blob:first', 'blob:second'];
-    const first = source('First', vi.fn(() => {
-      for (const url of objectUrls) revoked.push(url);
-    }));
+    const first = source(
+      'First',
+      vi.fn(() => {
+        for (const url of objectUrls) revoked.push(url);
+      }),
+    );
     const second = source('Second');
     const service = new DocumentService();
 
@@ -54,7 +57,12 @@ describe('DocumentService source lifecycle', () => {
   it('rejects a cancelled load even when the source ignores the abort signal', async () => {
     let finish: ((value: DocumentSnapshot) => void) | undefined;
     const pending = source('Pending');
-    pending.load = vi.fn(() => new Promise<DocumentSnapshot>((resolve) => { finish = resolve; }));
+    pending.load = vi.fn(
+      () =>
+        new Promise<DocumentSnapshot>((resolve) => {
+          finish = resolve;
+        }),
+    );
     const service = new DocumentService();
     const operation = new AbortController();
 
@@ -75,7 +83,12 @@ describe('DocumentService source lifecycle', () => {
   it('ignores a refresh result after navigation replaces its source', async () => {
     let finish: ((value: DocumentRefreshResult) => void) | undefined;
     const first = source('First');
-    first.refresh = vi.fn(() => new Promise<DocumentRefreshResult>((resolve) => { finish = resolve; }));
+    first.refresh = vi.fn(
+      () =>
+        new Promise<DocumentRefreshResult>((resolve) => {
+          finish = resolve;
+        }),
+    );
     const second = source('Second');
     const service = new DocumentService();
     const firstSnapshot = await service.open(first);

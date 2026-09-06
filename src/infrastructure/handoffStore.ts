@@ -40,7 +40,10 @@ export async function cleanupExpiredDocumentHandoffs(now = Date.now()): Promise<
       if (isExpired(cursor.value as DocumentHandoff, now)) cursor.delete();
       cursor.continue();
     };
-    transaction.oncomplete = () => { database.close(); resolve(); };
+    transaction.oncomplete = () => {
+      database.close();
+      resolve();
+    };
     transaction.onerror = () => reject(transaction.error ?? new Error('Could not clean document handoffs.'));
     transaction.onabort = () => reject(transaction.error ?? new Error('Document handoff cleanup was aborted.'));
   });
@@ -61,7 +64,10 @@ export async function createDocumentHandoff(
   await new Promise<void>((resolve, reject) => {
     const transaction = database.transaction(STORE, 'readwrite');
     transaction.objectStore(STORE).put(handoff);
-    transaction.oncomplete = () => { database.close(); resolve(); };
+    transaction.oncomplete = () => {
+      database.close();
+      resolve();
+    };
     transaction.onerror = () => reject(transaction.error ?? new Error('Could not save document handoff.'));
     transaction.onabort = () => reject(transaction.error ?? new Error('Document handoff save was aborted.'));
   });
@@ -81,7 +87,10 @@ export async function takeDocumentHandoff(id: string, now = Date.now()): Promise
       if (handoff && !isExpired(handoff, now)) result = handoff.document;
       store.delete(id);
     };
-    transaction.oncomplete = () => { database.close(); resolve(result); };
+    transaction.oncomplete = () => {
+      database.close();
+      resolve(result);
+    };
     transaction.onerror = () => reject(transaction.error ?? new Error('Could not take document handoff.'));
     transaction.onabort = () => reject(transaction.error ?? new Error('Document handoff read was aborted.'));
   });

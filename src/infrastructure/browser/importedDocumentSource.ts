@@ -1,10 +1,12 @@
 import type {
-  DocumentIdentity, DocumentRefreshResult, DocumentSnapshot, DocumentSource, LinkResolution,
+  DocumentIdentity,
+  DocumentRefreshResult,
+  DocumentSnapshot,
+  DocumentSource,
+  LinkResolution,
 } from '../../application/documents/documentSource';
 import type { ResolvedAsset } from '../../application/documents/documentResource';
-import {
-  isReadLocalMarkdownAssetResponse, READ_LOCAL_MARKDOWN_ASSET,
-} from '../../core/localMarkdown';
+import { isReadLocalMarkdownAssetResponse, READ_LOCAL_MARKDOWN_ASSET } from '../../core/localMarkdown';
 import { isMarkdownLink, isRelativeUrl, isRemoteUrl, linkFragment } from '../../core/paths';
 import type { ImportedDocument } from '../../shared/types';
 
@@ -15,7 +17,9 @@ export class ImportedDocumentSource implements DocumentSource {
 
   constructor(
     private readonly document: ImportedDocument,
-    private readonly runtime: RuntimeMessenger | undefined = typeof browser === 'undefined' ? undefined : browser.runtime,
+    private readonly runtime: RuntimeMessenger | undefined = typeof browser === 'undefined'
+      ? undefined
+      : browser.runtime,
   ) {
     this.identity = {
       sourceKind: 'imported',

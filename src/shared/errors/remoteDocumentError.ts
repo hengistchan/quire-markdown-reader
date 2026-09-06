@@ -1,10 +1,5 @@
 export type RemoteDocumentErrorCode =
-  | 'invalid-url'
-  | 'http-error'
-  | 'too-large'
-  | 'network-error'
-  | 'timeout'
-  | 'cancelled';
+  'invalid-url' | 'http-error' | 'too-large' | 'network-error' | 'timeout' | 'cancelled';
 
 export class RemoteDocumentError extends Error {
   constructor(

@@ -48,7 +48,9 @@
 .settings-group[open] summary svg { transform: rotate(90deg); }
 .settings-group > div { padding: 0 22px 18px; }
 .settings-drawer textarea { width: 100%; min-height: 110px; resize: vertical; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--text-primary); background: var(--surface-document); font: var(--font-xs)/1.6 var(--font-mono); }
+.settings-drawer textarea[aria-invalid="true"] { border-color: var(--danger); outline: 1px solid var(--danger); }
 .setting-note { margin: 7px 0 0; color: var(--text-secondary); font-size: var(--font-xs); }
+.setting-note.error { color: var(--danger); font-weight: 700; }
 .settings-footer { display: grid; gap: 18px; padding: 20px 22px 26px; }
 .settings-footer button { width: 100%; min-height: 34px; border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--text-primary); background: transparent; cursor: pointer; font-size: var(--font-xs); }
 .settings-footer button:hover { border-color: var(--border-strong); background: var(--hover); }

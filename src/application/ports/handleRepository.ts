@@ -16,6 +16,7 @@ export interface PersistedFileHandle {
 
 export interface HandleRepository {
   saveWorkspace(handle: FileSystemDirectoryHandle, existingId?: string): Promise<string>;
+  setActiveWorkspace(id: string): Promise<void>;
   saveFile(handle: FileSystemFileHandle, existingId?: string): Promise<string>;
   getActiveWorkspace(): Promise<PersistedWorkspaceHandle | undefined>;
   getWorkspace(id: string): Promise<PersistedWorkspaceHandle | undefined>;

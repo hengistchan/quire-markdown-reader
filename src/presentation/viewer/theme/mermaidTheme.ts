@@ -6,10 +6,7 @@ export interface ResolvedMermaidTheme {
   themeVariables: Record<string, string | boolean>;
 }
 
-export function resolveMermaidTheme(
-  root: HTMLElement,
-  readerTheme: 'light' | 'dark',
-): ResolvedMermaidTheme {
+export function resolveMermaidTheme(root: HTMLElement, readerTheme: 'light' | 'dark'): ResolvedMermaidTheme {
   const styles = getComputedStyle(root);
   const read = (token: string, fallback: string) => styles.getPropertyValue(token).trim() || fallback;
   const surfaceDocument = read('--surface-document', 'transparent');

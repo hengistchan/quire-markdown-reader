@@ -14,24 +14,30 @@ export function useReaderSettings(controller: ReaderController) {
   const t = useMemo(() => createTranslator(locale), [locale]);
   const resolvedTheme = settings.theme === 'system' ? systemTheme : settings.theme;
 
-  const update = useCallback((patch: Partial<ReaderSettings>) => {
-    setSettings((current) => {
-      const next = { ...current, ...patch };
-      pending.current = next;
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => {
-        saveTimer.current = undefined;
-        pending.current = undefined;
-        void controller.saveSettings(next);
-      }, 200);
-      return next;
-    });
-  }, [controller]);
+  const update = useCallback(
+    (patch: Partial<ReaderSettings>) => {
+      setSettings((current) => {
+        const next = { ...current, ...patch };
+        pending.current = next;
+        if (saveTimer.current) clearTimeout(saveTimer.current);
+        saveTimer.current = setTimeout(() => {
+          saveTimer.current = undefined;
+          pending.current = undefined;
+          void controller.saveSettings(next);
+        }, 200);
+        return next;
+      });
+    },
+    [controller],
+  );
 
-  useEffect(() => () => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    if (pending.current) void controller.saveSettings(pending.current);
-  }, [controller]);
+  useEffect(
+    () => () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      if (pending.current) void controller.saveSettings(pending.current);
+    },
+    [controller],
+  );
 
   useEffect(() => {
     document.documentElement.dataset.theme = resolvedTheme;

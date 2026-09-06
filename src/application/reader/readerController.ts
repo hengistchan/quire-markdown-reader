@@ -3,24 +3,18 @@ import type { ResolvedAsset } from '../documents/documentResource';
 import type { DocumentService } from '../documents/documentService';
 import type { ImportedDocumentRegistry } from '../documents/importedDocumentRegistry';
 import type { NavigationTarget } from '../../domain/navigation/navigationTarget';
-import type {
-  NavigationController, NavigationListener, NavigationSnapshot,
-} from '../navigation/navigationController';
+import type { NavigationController, NavigationListener, NavigationSnapshot } from '../navigation/navigationController';
 import type { PersistedFileHandle, PersistedWorkspaceHandle } from '../ports/handleRepository';
 import type { HandleRepository } from '../ports/handleRepository';
 import type { HandoffRepository } from '../ports/handoffRepository';
 import type { RecentItem, RecentItemInput, RecentRepository } from '../ports/recentRepository';
-import type {
-  RecentResource, RecentResourceInput,
-} from '../ports/recentResourceRepository';
+import type { RecentResource, RecentResourceInput } from '../ports/recentResourceRepository';
 import type { RecentResourceService } from '../recent/recentResourceService';
 import type { SettingsRepository } from '../ports/settingsRepository';
 import type { PermissionGateway } from '../ports/permissionGateway';
 import type { WorkspaceGateway } from '../ports/workspaceGateway';
 import type { Disposable, RefreshScheduler, RefreshTask } from '../refresh/refreshScheduler';
-import type {
-  ImportedDocument, ReaderSettings, WorkspaceFile, WorkspaceSnapshot,
-} from '../../shared/types';
+import type { ImportedDocument, ReaderSettings, WorkspaceFile, WorkspaceSnapshot } from '../../shared/types';
 
 export interface ReaderInitialization {
   settings: ReaderSettings;
@@ -88,6 +82,10 @@ export class ReaderController {
     return this.dependencies.handleRepository.saveWorkspace(handle, id);
   }
 
+  setActiveWorkspace(id: string): Promise<void> {
+    return this.dependencies.handleRepository.setActiveWorkspace(id);
+  }
+
   saveFile(handle: FileSystemFileHandle, id?: string): Promise<string> {
     return this.dependencies.handleRepository.saveFile(handle, id);
   }
@@ -150,11 +148,17 @@ export class ReaderController {
   }
 
   openLocalFile(file: WorkspaceFile, signal?: AbortSignal) {
-    return this.dependencies.documentService.open(this.dependencies.documentSourceFactory.createLocalFile(file), signal);
+    return this.dependencies.documentService.open(
+      this.dependencies.documentSourceFactory.createLocalFile(file),
+      signal,
+    );
   }
 
   openWorkspaceFile(workspace: WorkspaceSnapshot, file: WorkspaceFile, signal?: AbortSignal) {
-    return this.dependencies.documentService.open(this.dependencies.documentSourceFactory.createWorkspaceFile(workspace, file), signal);
+    return this.dependencies.documentService.open(
+      this.dependencies.documentSourceFactory.createWorkspaceFile(workspace, file),
+      signal,
+    );
   }
 
   openRemote(url: string, signal?: AbortSignal) {
@@ -177,12 +181,24 @@ export class ReaderController {
     return this.dependencies.refreshScheduler.start(task);
   }
 
-  push(target: NavigationTarget): void { this.dependencies.navigationController.push(target); }
-  replace(target: NavigationTarget): void { this.dependencies.navigationController.replace(target); }
-  current(): NavigationSnapshot { return this.dependencies.navigationController.current(); }
-  pushFragment(fragment?: string): void { this.dependencies.navigationController.pushFragment(fragment); }
-  back(): void { this.dependencies.navigationController.back(); }
-  forward(): void { this.dependencies.navigationController.forward(); }
+  push(target: NavigationTarget): void {
+    this.dependencies.navigationController.push(target);
+  }
+  replace(target: NavigationTarget): void {
+    this.dependencies.navigationController.replace(target);
+  }
+  current(): NavigationSnapshot {
+    return this.dependencies.navigationController.current();
+  }
+  pushFragment(fragment?: string): void {
+    this.dependencies.navigationController.pushFragment(fragment);
+  }
+  back(): void {
+    this.dependencies.navigationController.back();
+  }
+  forward(): void {
+    this.dependencies.navigationController.forward();
+  }
   subscribe(listener: NavigationListener): () => void {
     return this.dependencies.navigationController.subscribe(listener);
   }

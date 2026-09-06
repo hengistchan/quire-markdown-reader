@@ -1,16 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { collectWorkspace, createTransientDirectoryHandle, getWorkspaceFileHandle, isMarkdownFile, readWorkspaceFileSnapshot, WorkspaceScanError } from './files';
+import {
+  collectWorkspace,
+  createTransientDirectoryHandle,
+  getWorkspaceFileHandle,
+  isMarkdownFile,
+  readWorkspaceFileSnapshot,
+  WorkspaceScanError,
+} from './files';
 
 function fileHandle(name: string, text = name, lastModified = 1): FileSystemFileHandle {
   return {
-    kind: 'file', name,
+    kind: 'file',
+    name,
     getFile: async () => ({ name, lastModified, size: text.length, text: async () => text }) as unknown as File,
   } as FileSystemFileHandle;
 }
 
 function directoryHandle(name: string, children: Record<string, FileSystemHandle>): FileSystemDirectoryHandle {
   return {
-    kind: 'directory', name,
+    kind: 'directory',
+    name,
     entries: async function* () {
       for (const entry of Object.entries(children)) yield entry as [string, FileSystemHandle];
     },
@@ -97,18 +106,17 @@ describe('workspace collection', () => {
 
     const workspace = await collectWorkspace(root);
 
-    expect(workspace.files.map((file) => file.path)).toEqual([
-      '.draft.md',
-      'public.md',
-    ]);
+    expect(workspace.files.map((file) => file.path)).toEqual(['.draft.md', 'public.md']);
     expect(workspace.tree.map((node) => node.path)).toEqual(['.draft.md', 'public.md']);
   });
 
   it('scans the supported 5000-file workspace boundary', async () => {
-    const children = Object.fromEntries(Array.from(
-      { length: 5_000 },
-      (_, index) => [`note-${String(index).padStart(4, '0')}.md`, fileHandle(`note-${index}.md`)],
-    ));
+    const children = Object.fromEntries(
+      Array.from({ length: 5_000 }, (_, index) => [
+        `note-${String(index).padStart(4, '0')}.md`,
+        fileHandle(`note-${index}.md`),
+      ]),
+    );
 
     const workspace = await collectWorkspace(directoryHandle('large-workspace', children));
 
@@ -117,20 +125,39 @@ describe('workspace collection', () => {
   }, 10_000);
 
   it.each([
-    ['max-files', { maxFiles: 1 }, directoryHandle('notes', { 'a.md': fileHandle('a.md'), 'b.md': fileHandle('b.md') })],
-    ['max-directories', { maxDirectories: 1 }, directoryHandle('notes', { docs: directoryHandle('docs', { 'a.md': fileHandle('a.md') }) })],
-    ['max-depth', { maxDepth: 0 }, directoryHandle('notes', { docs: directoryHandle('docs', { 'a.md': fileHandle('a.md') }) })],
+    [
+      'max-files',
+      { maxFiles: 1 },
+      directoryHandle('notes', { 'a.md': fileHandle('a.md'), 'b.md': fileHandle('b.md') }),
+    ],
+    [
+      'max-directories',
+      { maxDirectories: 1 },
+      directoryHandle('notes', { docs: directoryHandle('docs', { 'a.md': fileHandle('a.md') }) }),
+    ],
+    [
+      'max-depth',
+      { maxDepth: 0 },
+      directoryHandle('notes', { docs: directoryHandle('docs', { 'a.md': fileHandle('a.md') }) }),
+    ],
+    [
+      'max-entries',
+      { maxEntries: 1 },
+      directoryHandle('notes', { 'ignored.txt': fileHandle('ignored.txt'), 'a.md': fileHandle('a.md') }),
+    ],
   ] as const)('stops safely at the %s scan boundary', async (code, options, root) => {
     await expect(collectWorkspace(root, options)).rejects.toMatchObject({
-      name: 'WorkspaceScanError', code,
+      name: 'WorkspaceScanError',
+      code,
     } satisfies Partial<WorkspaceScanError>);
   });
 
   it('honors cancellation before scanning directory contents', async () => {
     const controller = new AbortController();
     controller.abort();
-    await expect(collectWorkspace(directoryHandle('notes', { 'a.md': fileHandle('a.md') }), { signal: controller.signal }))
-      .rejects.toMatchObject({ name: 'WorkspaceScanError', code: 'cancelled' } satisfies Partial<WorkspaceScanError>);
+    await expect(
+      collectWorkspace(directoryHandle('notes', { 'a.md': fileHandle('a.md') }), { signal: controller.signal }),
+    ).rejects.toMatchObject({ name: 'WorkspaceScanError', code: 'cancelled' } satisfies Partial<WorkspaceScanError>);
   });
 
   it('opens a nested handle by normalized workspace path', async () => {
@@ -143,6 +170,10 @@ describe('workspace collection', () => {
   it('returns content and last-modified metadata for refresh checks', async () => {
     const handle = fileHandle('guide.md', '# Updated', 42);
     const file = { id: 'guide.md', name: 'guide.md', path: 'guide.md', depth: 0, handle };
-    await expect(readWorkspaceFileSnapshot(file)).resolves.toEqual({ markdown: '# Updated', lastModified: 42, size: 9 });
+    await expect(readWorkspaceFileSnapshot(file)).resolves.toEqual({
+      markdown: '# Updated',
+      lastModified: 42,
+      size: 9,
+    });
   });
 });

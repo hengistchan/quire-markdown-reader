@@ -1,9 +1,6 @@
 import MarkdownIt from 'markdown-it';
 import type { RenderRule } from 'markdown-it/lib/renderer.mjs';
 import anchor from 'markdown-it-anchor';
-import texmath from 'markdown-it-texmath';
-import katex from 'katex';
-import hljs from 'highlight.js/lib/common';
 import DOMPurify from 'dompurify';
 import { abbr } from '@mdit/plugin-abbr';
 import { container } from '@mdit/plugin-container';
@@ -13,7 +10,10 @@ import { tasklist } from '@mdit/plugin-tasklist';
 import type { ReaderSettings } from '../shared/types';
 import type { HeadingItem } from '../shared/types';
 
-export type MarkdownRenderOptions = Pick<ReaderSettings, 'enableKatex' | 'enableMermaid' | 'enableHtml'>;
+export type MarkdownRenderOptions = Pick<
+  ReaderSettings,
+  'enableKatex' | 'enableMermaid' | 'enableHtml' | 'loadRemoteImages' | 'remoteImageReferrerPolicy'
+>;
 
 export interface RenderedDocument {
   html: string;
@@ -21,13 +21,25 @@ export interface RenderedDocument {
   estimatedReadMinutes: number;
 }
 
-const rendererCache = new Map<string, MarkdownIt>();
+export interface MarkdownFeatureRuntime {
+  highlight?: typeof import('highlight.js/lib/common').default;
+  katex?: typeof import('katex').default;
+  texmath?: typeof import('markdown-it-texmath').default;
+}
 
-function rendererKey(options: MarkdownRenderOptions): string {
+const rendererCache = new Map<string, MarkdownIt>();
+let loadedHighlight: MarkdownFeatureRuntime['highlight'];
+let loadedKatex: MarkdownFeatureRuntime['katex'];
+let loadedTexmath: MarkdownFeatureRuntime['texmath'];
+let highlightPromise: Promise<void> | undefined;
+let katexPromise: Promise<void> | undefined;
+
+function rendererKey(options: MarkdownRenderOptions, runtime: MarkdownFeatureRuntime): string {
   return [
     options.enableHtml ? 'html' : 'no-html',
-    options.enableKatex ? 'katex' : 'no-katex',
+    options.enableKatex && runtime.katex && runtime.texmath ? 'katex' : 'no-katex',
     options.enableMermaid ? 'mermaid' : 'no-mermaid',
+    runtime.highlight ? 'highlight' : 'no-highlight',
   ].join(':');
 }
 
@@ -72,18 +84,17 @@ function normalizeRawHtmlAttributes(value: string): string {
 }
 
 export function renderPlainText(source: string): string {
-  const escapeHtml = (value: string): string => value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;');
+  const escapeHtml = (value: string): string =>
+    value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
   const lines = source.replaceAll('\r\n', '\n').split('\n');
   const paragraphs: string[] = [];
   let start = 0;
   let current: string[] = [];
   const flush = (end: number) => {
     if (!current.length) return;
-    paragraphs.push(`<p data-source-line-start="${start + 1}" data-source-line-end="${end}">${current.map(escapeHtml).join('<br>')}</p>`);
+    paragraphs.push(
+      `<p data-source-line-start="${start + 1}" data-source-line-end="${end}">${current.map(escapeHtml).join('<br>')}</p>`,
+    );
     current = [];
   };
   lines.forEach((line, index) => {
@@ -102,20 +113,20 @@ export function renderPlainTextDocument(source: string): RenderedDocument {
   return { html: renderPlainText(source), headings: [], estimatedReadMinutes: estimateReadMinutes(source) };
 }
 
-export function createMarkdownRenderer(settings: MarkdownRenderOptions): MarkdownIt {
-  const escapeHtml = (value: string): string => value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;');
+export function createMarkdownRenderer(
+  settings: MarkdownRenderOptions,
+  runtime: MarkdownFeatureRuntime = {},
+): MarkdownIt {
+  const escapeHtml = (value: string): string =>
+    value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
   const markdown: MarkdownIt = new MarkdownIt({
     html: settings.enableHtml,
     linkify: true,
     typographer: true,
     breaks: false,
     highlight(code: string, language: string): string {
-      if (language && hljs.getLanguage(language)) {
-        return `<pre class="hljs"><code>${hljs.highlight(code, { language }).value}</code></pre>`;
+      if (runtime.highlight && language && runtime.highlight.getLanguage(language)) {
+        return `<pre class="hljs"><code>${runtime.highlight.highlight(code, { language }).value}</code></pre>`;
       }
       return `<pre class="hljs"><code>${escapeHtml(code)}</code></pre>`;
     },
@@ -162,8 +173,12 @@ export function createMarkdownRenderer(settings: MarkdownRenderOptions): Markdow
     return defaultImage?.(tokens, index, options, env, self) ?? self.renderToken(tokens, index, options);
   };
 
-  if (settings.enableKatex) {
-    markdown.use(texmath, { engine: katex, delimiters: 'dollars', katexOptions: { throwOnError: false } });
+  if (settings.enableKatex && runtime.katex && runtime.texmath) {
+    markdown.use(runtime.texmath, {
+      engine: runtime.katex,
+      delimiters: 'dollars',
+      katexOptions: { throwOnError: false },
+    });
   }
 
   if (settings.enableMermaid) {
@@ -181,21 +196,87 @@ export function createMarkdownRenderer(settings: MarkdownRenderOptions): Markdow
   return markdown;
 }
 
-export function getMarkdownRenderer(settings: MarkdownRenderOptions): MarkdownIt {
-  const key = rendererKey(settings);
+export function getMarkdownRenderer(settings: MarkdownRenderOptions, runtime: MarkdownFeatureRuntime = {}): MarkdownIt {
+  const key = rendererKey(settings, runtime);
   const cached = rendererCache.get(key);
   if (cached) return cached;
-  const renderer = createMarkdownRenderer(settings);
+  const renderer = createMarkdownRenderer(settings, runtime);
   rendererCache.set(key, renderer);
   return renderer;
 }
 
+function needsHighlight(source: string): boolean {
+  let openFence: { character: '`' | '~'; length: number } | undefined;
+  for (const line of source.replaceAll('\r\n', '\n').split('\n')) {
+    const match = /^\s*(`{3,}|~{3,})(.*)$/u.exec(line);
+    if (!match) continue;
+    const marker = match[1]!;
+    const character = marker[0] as '`' | '~';
+    if (openFence) {
+      if (character === openFence.character && marker.length >= openFence.length) openFence = undefined;
+      continue;
+    }
+    const language = match[2]?.trim().split(/\s+/u)[0]?.toLowerCase();
+    if (language !== 'mermaid') return true;
+    openFence = { character, length: marker.length };
+  }
+  return false;
+}
+
+function needsKatex(source: string): boolean {
+  return /(?:^|[^\\])\$(?:\$|[^$\n])/u.test(source);
+}
+
+export function currentMarkdownFeatureRuntime(): MarkdownFeatureRuntime {
+  return { highlight: loadedHighlight, katex: loadedKatex, texmath: loadedTexmath };
+}
+
+export async function loadMarkdownFeatureRuntime(
+  source: string,
+  settings: MarkdownRenderOptions,
+): Promise<MarkdownFeatureRuntime> {
+  const tasks: Promise<void>[] = [];
+  if (needsHighlight(source) && !loadedHighlight) {
+    highlightPromise ??= Promise.all([
+      import('highlight.js/lib/common'),
+      import('highlight.js/styles/github-dark-dimmed.css'),
+    ])
+      .then(([module]) => {
+        loadedHighlight = module.default;
+      })
+      .catch((error: unknown) => {
+        highlightPromise = undefined;
+        throw error;
+      });
+    tasks.push(highlightPromise);
+  }
+  if (settings.enableKatex && needsKatex(source) && (!loadedKatex || !loadedTexmath)) {
+    katexPromise ??= Promise.all([import('katex'), import('markdown-it-texmath'), import('katex/dist/katex.min.css')])
+      .then(([katexModule, texmathModule]) => {
+        loadedKatex = katexModule.default;
+        loadedTexmath = texmathModule.default;
+      })
+      .catch((error: unknown) => {
+        katexPromise = undefined;
+        throw error;
+      });
+    tasks.push(katexPromise);
+  }
+  await Promise.all(tasks);
+  return currentMarkdownFeatureRuntime();
+}
+
 function inlineText(token: { content: string; children?: Array<{ type: string; content: string }> | null }): string {
   if (!token.children) return token.content;
-  return token.children.map((child) => {
-    if (child.type === 'softbreak' || child.type === 'hardbreak') return ' ';
-    return child.content;
-  }).join('').replace(/\s+/g, ' ').trim().replace(/\s+#$/u, '');
+  return token.children
+    .map((child) => {
+      if (child.type === 'softbreak' || child.type === 'hardbreak') return ' ';
+      return child.content;
+    })
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\s+#$/u, '');
 }
 
 function collectHeadings(tokens: ReturnType<MarkdownIt['parse']>): HeadingItem[] {
@@ -215,25 +296,72 @@ function collectHeadings(tokens: ReturnType<MarkdownIt['parse']>): HeadingItem[]
 }
 
 function estimateReadMinutes(source: string): number {
-  const words = source.replace(/[`#>*_\-[\]]/g, ' ').trim().split(/\s+/).filter(Boolean).length;
+  const words = source
+    .replace(/[`#>*_\-[\]]/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
   return Math.max(1, Math.ceil(words / 220));
 }
 
-export function renderMarkdownDocument(source: string, settings: MarkdownRenderOptions): RenderedDocument {
-  const renderer = getMarkdownRenderer(settings);
+function prepareDocumentResources(html: string, settings: MarkdownRenderOptions): string {
+  const template = document.createElement('template');
+  template.innerHTML = html;
+  for (const image of template.content.querySelectorAll<HTMLImageElement>('img')) {
+    image.removeAttribute('srcset');
+    const source = image.getAttribute('src');
+    if (!source) continue;
+    image.removeAttribute('src');
+    image.dataset.resourceSrc = source;
+    image.loading = 'lazy';
+    image.decoding = 'async';
+    image.referrerPolicy = settings.remoteImageReferrerPolicy;
+    if (!settings.loadRemoteImages && /^(?:https?:)?\/\//i.test(source)) {
+      image.dataset.resourceState = 'blocked';
+    }
+  }
+  for (const element of template.content.querySelectorAll<HTMLElement>('[style]')) {
+    if (!settings.loadRemoteImages && /url\s*\(/iu.test(element.getAttribute('style') ?? '')) {
+      element.removeAttribute('style');
+    }
+  }
+  return template.innerHTML;
+}
+
+export function renderMarkdownDocument(
+  source: string,
+  settings: MarkdownRenderOptions,
+  runtime: MarkdownFeatureRuntime = currentMarkdownFeatureRuntime(),
+): RenderedDocument {
+  const renderer = getMarkdownRenderer(settings, runtime);
   const environment = {};
   const tokens = renderer.parse(source, environment);
   const rendered = renderer.renderer.render(tokens, renderer.options, environment);
+  const sanitized = DOMPurify.sanitize(rendered, {
+    ADD_ATTR: [
+      'target',
+      'rel',
+      'loading',
+      'decoding',
+      'data-mermaid-source',
+      'data-source-line-start',
+      'data-source-line-end',
+    ],
+    ADD_TAGS: settings.enableKatex ? ['math', 'semantics', 'annotation', 'mrow', 'mi', 'mo', 'mn'] : [],
+    FORBID_ATTR: ['srcset'],
+    FORBID_TAGS: ['audio', 'embed', 'iframe', 'image', 'object', 'source', 'track', 'video'],
+  });
   return {
-    html: DOMPurify.sanitize(rendered, {
-      ADD_ATTR: ['target', 'rel', 'loading', 'decoding', 'data-mermaid-source', 'data-source-line-start', 'data-source-line-end'],
-      ADD_TAGS: settings.enableKatex ? ['math', 'semantics', 'annotation', 'mrow', 'mi', 'mo', 'mn'] : [],
-    }),
+    html: prepareDocumentResources(sanitized, settings),
     headings: collectHeadings(tokens),
     estimatedReadMinutes: estimateReadMinutes(source),
   };
 }
 
-export function renderMarkdown(source: string, settings: MarkdownRenderOptions): string {
-  return renderMarkdownDocument(source, settings).html;
+export function renderMarkdown(
+  source: string,
+  settings: MarkdownRenderOptions,
+  runtime?: MarkdownFeatureRuntime,
+): string {
+  return renderMarkdownDocument(source, settings, runtime).html;
 }

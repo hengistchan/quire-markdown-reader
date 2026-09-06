@@ -7,6 +7,7 @@ Quire is an open-source, read-only Markdown reader and local document workspace 
 - Open `.md` and `.markdown` files with automatic refresh where file handles are supported
 - Preview `.mdx` safely as ordinary Markdown; JSX, imports, and expressions are shown as text and never executed
 - Render raw HTML through a sanitizer by default, with an explicit setting to disable it
+- Block remote images by default and load them only after the reader setting explicitly allows them
 - Preview a local Markdown absolute path entered as a `file://` URL without changing the address bar
 - Connect a local folder, browse its nested tree, and restore it after a browser restart
 - Resolve workspace-relative images and navigate relative Markdown links inside the reader
@@ -23,11 +24,11 @@ Local folder access uses the File System Access API. Browsers without that API k
 
 ## Browser support
 
-| Browser | Package | Single file | Address-bar path | Local folder | Remote URL |
-| --- | --- | --- | --- | --- | --- |
-| Chrome / Chromium | Manifest V3 | Yes | Yes, after enabling file-URL access | Yes | Yes, per-site permission |
-| Edge | Chrome MV3 | Yes | Yes, after enabling file-URL access | Yes | Yes, per-site permission |
-| Firefox | Manifest V2 | Yes | Browser-dependent | Browser-dependent | Yes, per-site permission |
+| Browser           | Package     | Single file | Address-bar path                    | Local folder      | Remote URL               |
+| ----------------- | ----------- | ----------- | ----------------------------------- | ----------------- | ------------------------ |
+| Chrome / Chromium | Manifest V3 | Yes         | Yes, after enabling file-URL access | Yes               | Yes, per-site permission |
+| Edge              | Chrome MV3  | Yes         | Yes, after enabling file-URL access | Yes               | Yes, per-site permission |
+| Firefox           | Manifest V2 | Yes         | Browser-dependent                   | Browser-dependent | Yes, per-site permission |
 
 For address-bar preview in Chrome or Edge, open Quire's extension details, enable **Allow access to file URLs**, then enter an absolute URL such as `file:///Users/name/docs/README.md`. Quire renders the document while keeping that local path in the address bar. It checks local pages for `.md`, `.markdown`, or `.mdx` only; other local file types are ignored.
 
@@ -53,8 +54,10 @@ npm run dev:firefox
 ## Verify
 
 ```bash
+npm run security:verify
+npm run lint
 npm run compile
-npm test
+npm run test:coverage
 npm run build
 npm run zip
 npm run bundle:verify
@@ -70,7 +73,7 @@ The native Firefox shortcut gate runs in a Linux display session with `xvfb-run 
 
 ## Permissions and privacy
 
-Quire stores reader settings, recent-document metadata, and a browser-managed local folder handle on the device. It has no account, analytics, advertising, or developer-operated backend. Website access is optional and requested for one origin when the user opens a remote document. Active-page content is read only after the user invokes an explicit import action. Local-file URL access is disabled by Chrome until the user enables it in Quire's extension details.
+Quire stores reader settings, recent-document metadata, and a browser-managed local folder handle on the device. It has no account, analytics, advertising, or developer-operated backend. Website access is optional and requested for one origin when the user opens a remote document. Images referenced by a document remain blocked unless the user enables remote images; enabled images are fetched directly from their own hosts. Active-page content is read only after the user invokes an explicit import action. Local-file URL access is disabled by Chrome until the user enables it in Quire's extension details.
 
 See [PRIVACY.md](PRIVACY.md) for the complete data and permission disclosure and [SECURITY.md](SECURITY.md) for vulnerability reporting.
 

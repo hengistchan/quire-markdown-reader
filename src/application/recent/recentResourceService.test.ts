@@ -19,13 +19,15 @@ describe('RecentResourceService', () => {
   });
 
   it('keeps the last good snapshot when optional persistence fails', async () => {
-    const resources = [{
-      id: 'local-file:file-a',
-      title: 'A.md',
-      kind: 'local-file' as const,
-      fileId: 'file-a',
-      openedAt: 1,
-    }];
+    const resources = [
+      {
+        id: 'local-file:file-a',
+        title: 'A.md',
+        kind: 'local-file' as const,
+        fileId: 'file-a',
+        openedAt: 1,
+      },
+    ];
     const port = repository();
     vi.mocked(port.list).mockResolvedValue(resources);
     vi.mocked(port.put).mockRejectedValue(new Error('storage unavailable'));
@@ -34,12 +36,14 @@ describe('RecentResourceService', () => {
     const service = new RecentResourceService(port);
 
     await expect(service.list()).resolves.toEqual(resources);
-    await expect(service.remember({
-      id: 'remote:https://example.com/a.md',
-      title: 'A',
-      kind: 'remote',
-      url: 'https://example.com/a.md',
-    })).resolves.toEqual(resources);
+    await expect(
+      service.remember({
+        id: 'remote:https://example.com/a.md',
+        title: 'A',
+        kind: 'remote',
+        url: 'https://example.com/a.md',
+      }),
+    ).resolves.toEqual(resources);
     await expect(service.remove(resources[0]!.id)).resolves.toEqual(resources);
     await expect(service.updateWorkspaceDocument('workspace-a', 'docs/a.md')).resolves.toEqual(resources);
   });

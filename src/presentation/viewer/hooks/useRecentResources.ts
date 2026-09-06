@@ -1,9 +1,7 @@
 import { useCallback, useState } from 'react';
 import type { NavigationIntent } from '../../../application/navigation/navigationController';
 import type { NavigationOperationController } from '../../../application/navigation/navigationOperationController';
-import type {
-  RecentResource, RecentResourceInput,
-} from '../../../application/ports/recentResourceRepository';
+import type { RecentResource, RecentResourceInput } from '../../../application/ports/recentResourceRepository';
 import type { RecentItem } from '../../../application/ports/recentRepository';
 import type { ReaderController } from '../../../application/reader/readerController';
 import { toReaderError, type ReaderError, type ReaderErrorCode } from '../../../shared/errors/readerError';
@@ -11,23 +9,28 @@ import { toReaderError, type ReaderError, type ReaderErrorCode } from '../../../
 export function useRecentResources(controller: ReaderController) {
   const [items, setItems] = useState<RecentResource[]>([]);
 
-  const remember = useCallback(async (resource: RecentResourceInput, signal?: AbortSignal) => {
-    const next = await controller.rememberRecentResource(resource);
-    if (!signal?.aborted) setItems(next);
-  }, [controller]);
+  const remember = useCallback(
+    async (resource: RecentResourceInput, signal?: AbortSignal) => {
+      const next = await controller.rememberRecentResource(resource);
+      if (!signal?.aborted) setItems(next);
+    },
+    [controller],
+  );
 
-  const updateWorkspaceDocument = useCallback(async (
-    workspaceId: string,
-    filePath: string,
-    signal?: AbortSignal,
-  ) => {
-    const next = await controller.updateRecentWorkspaceDocument(workspaceId, filePath);
-    if (!signal?.aborted) setItems(next);
-  }, [controller]);
+  const updateWorkspaceDocument = useCallback(
+    async (workspaceId: string, filePath: string, signal?: AbortSignal) => {
+      const next = await controller.updateRecentWorkspaceDocument(workspaceId, filePath);
+      if (!signal?.aborted) setItems(next);
+    },
+    [controller],
+  );
 
-  const remove = useCallback(async (id: string) => {
-    setItems(await controller.removeRecentResource(id));
-  }, [controller]);
+  const remove = useCallback(
+    async (id: string) => {
+      setItems(await controller.removeRecentResource(id));
+    },
+    [controller],
+  );
 
   return {
     items,
@@ -85,80 +88,98 @@ function readingHistoryId(resource: RecentResource): string | undefined {
 
 export function useRecentResourceActions(options: RecentResourceActionsOptions) {
   const {
-    controller, navigationOperation, readingHistory, clearResume, prepareResume,
-    openRemote, activateWorkspace, openLocalHandle, closeOverlay, showError,
+    controller,
+    navigationOperation,
+    readingHistory,
+    clearResume,
+    prepareResume,
+    openRemote,
+    activateWorkspace,
+    openLocalHandle,
+    closeOverlay,
+    showError,
   } = options;
-  const open = useCallback(async (resource: RecentResource) => {
-    const signal = navigationOperation.begin();
-    clearResume();
+  const open = useCallback(
+    async (resource: RecentResource) => {
+      const signal = navigationOperation.begin();
+      clearResume();
 
-    try {
-      if (resource.kind === 'remote') {
-        await openRemote(resource.url, true, 'push', undefined, signal, true);
-      } else if (resource.kind === 'workspace') {
-        const stored = await controller.getWorkspace(resource.workspaceId);
-        if (signal.aborted) return;
-        if (!stored) {
-          showError({ code: 'workspace-read-failed', retryable: true });
-          closeOverlay();
-          return;
+      try {
+        if (resource.kind === 'remote') {
+          await openRemote(resource.url, true, 'push', undefined, signal, true);
+        } else if (resource.kind === 'workspace') {
+          const stored = await controller.getWorkspace(resource.workspaceId);
+          if (signal.aborted) return;
+          if (!stored) {
+            showError({ code: 'workspace-read-failed', retryable: true });
+            closeOverlay();
+            return;
+          }
+          const permission = await controller.requestRead(stored.handle);
+          if (signal.aborted) return;
+          if (permission !== 'granted') {
+            showError({ code: 'permission-denied', retryable: true });
+            closeOverlay();
+            return;
+          }
+          await activateWorkspace(
+            stored.handle,
+            resource.lastFilePath,
+            stored.id,
+            'push',
+            false,
+            undefined,
+            signal,
+            true,
+          );
+        } else {
+          const stored = await controller.getFile(resource.fileId);
+          if (signal.aborted) return;
+          if (!stored) {
+            showError({ code: 'file-read-failed', retryable: true });
+            closeOverlay();
+            return;
+          }
+          const permission = await controller.requestRead(stored.handle);
+          if (signal.aborted) return;
+          if (permission !== 'granted') {
+            showError({ code: 'permission-denied', retryable: true });
+            closeOverlay();
+            return;
+          }
+          await openLocalHandle(stored.handle, stored.id, undefined, 'push', signal, true);
         }
-        const permission = await controller.requestRead(stored.handle);
+
         if (signal.aborted) return;
-        if (permission !== 'granted') {
-          showError({ code: 'permission-denied', retryable: true });
-          closeOverlay();
-          return;
-        }
-        await activateWorkspace(
-          stored.handle,
-          resource.lastFilePath,
-          stored.id,
-          'push',
-          false,
-          undefined,
-          signal,
-          true,
-        );
-      } else {
-        const stored = await controller.getFile(resource.fileId);
+        const historyId = readingHistoryId(resource);
+        const historyItem = historyId ? readingHistory.find((item) => item.id === historyId) : undefined;
+        if (historyItem) prepareResume(historyItem);
+        closeOverlay();
+      } catch (caught) {
         if (signal.aborted) return;
-        if (!stored) {
-          showError({ code: 'file-read-failed', retryable: true });
-          closeOverlay();
-          return;
-        }
-        const permission = await controller.requestRead(stored.handle);
-        if (signal.aborted) return;
-        if (permission !== 'granted') {
-          showError({ code: 'permission-denied', retryable: true });
-          closeOverlay();
-          return;
-        }
-        await openLocalHandle(stored.handle, stored.id, undefined, 'push', signal, true);
+        const fallback: ReaderErrorCode =
+          resource.kind === 'workspace'
+            ? 'workspace-read-failed'
+            : resource.kind === 'remote'
+              ? 'remote-network-error'
+              : 'file-read-failed';
+        showError(toReaderError(caught, fallback));
+        closeOverlay();
       }
-
-      if (signal.aborted) return;
-      const historyId = readingHistoryId(resource);
-      const historyItem = historyId
-        ? readingHistory.find((item) => item.id === historyId)
-        : undefined;
-      if (historyItem) prepareResume(historyItem);
-      closeOverlay();
-    } catch (caught) {
-      if (signal.aborted) return;
-      const fallback: ReaderErrorCode = resource.kind === 'workspace'
-        ? 'workspace-read-failed'
-        : resource.kind === 'remote'
-          ? 'remote-network-error'
-          : 'file-read-failed';
-      showError(toReaderError(caught, fallback));
-      closeOverlay();
-    }
-  }, [
-    activateWorkspace, clearResume, closeOverlay, controller, navigationOperation, openLocalHandle,
-    openRemote, prepareResume, readingHistory, showError,
-  ]);
+    },
+    [
+      activateWorkspace,
+      clearResume,
+      closeOverlay,
+      controller,
+      navigationOperation,
+      openLocalHandle,
+      openRemote,
+      prepareResume,
+      readingHistory,
+      showError,
+    ],
+  );
 
   return { open };
 }

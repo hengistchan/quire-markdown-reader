@@ -37,7 +37,9 @@ const server = createServer((request, response) => {
     return;
   }
   response.writeHead(200, { 'content-type': 'text/html' });
-  response.end('<title>Example Domain</title><main><h1>Example Domain</h1><p>Deterministic Quire browser-action fixture.</p></main>');
+  response.end(
+    '<title>Example Domain</title><main><h1>Example Domain</h1><p>Deterministic Quire browser-action fixture.</p></main>',
+  );
 });
 await new Promise((ready) => server.listen(41737, '0.0.0.0', ready));
 const exampleUrl = `http://${process.env.FIREFOX_TEST_HOST || '127.0.0.1'}:41737/`;
@@ -81,7 +83,9 @@ try {
     5_000,
   );
   await remoteInput.sendKeys(recentUrl);
-  await driver.findElement(By.xpath("//section[contains(@class, 'url-dialog')]//button[normalize-space()='Open']")).click();
+  await driver
+    .findElement(By.xpath("//section[contains(@class, 'url-dialog')]//button[normalize-space()='Open']"))
+    .click();
   await driver.wait(until.elementLocated(By.xpath("//*[contains(text(), 'Firefox recent resource body.')]")), 15_000);
 
   await driver.get(viewerUrl);
@@ -97,11 +101,11 @@ try {
   assert.equal(await driver.findElement(By.css('.document-identity strong')).getText(), 'recent');
 
   await driver.findElement(By.css('button[aria-label="Reader settings"]')).click();
-  const language = await driver.wait(
-    until.elementLocated(By.css('select[aria-label="Language"]')),
-    10_000,
+  const language = await driver.wait(until.elementLocated(By.css('select[aria-label="Language"]')), 10_000);
+  await driver.executeScript(
+    `arguments[0].value = 'zh-CN'; arguments[0].dispatchEvent(new Event('change', { bubbles: true }))`,
+    language,
   );
-  await driver.executeScript(`arguments[0].value = 'zh-CN'; arguments[0].dispatchEvent(new Event('change', { bubbles: true }))`, language);
   await driver.wait(until.elementLocated(By.xpath("//*[contains(text(), '修改后立即应用到当前文档')]")), 10_000);
 
   const openExample = async () => {
@@ -111,7 +115,10 @@ try {
   };
   const switchToNewViewer = async (handlesBefore) => {
     await driver.setContext(firefox.Context.CONTENT);
-    await driver.wait(async () => (await driver.getAllWindowHandles()).some((handle) => !handlesBefore.includes(handle)), 10_000);
+    await driver.wait(
+      async () => (await driver.getAllWindowHandles()).some((handle) => !handlesBefore.includes(handle)),
+      10_000,
+    );
     const handlesAfter = await driver.getAllWindowHandles();
     await driver.switchTo().window(handlesAfter.find((handle) => !handlesBefore.includes(handle)));
     await driver.wait(until.titleIs('Quire'), 10_000);
@@ -124,7 +131,11 @@ try {
   let handlesBefore = await driver.getAllWindowHandles();
   await driver.setContext(firefox.Context.CHROME);
   await driver.executeScript(`document.getElementById('unified-extensions-button')?.click()`);
-  await driver.wait(async () => driver.executeScript(`return Boolean(document.getElementById('_60628e87-7d17-444b-8862-499ed925bb7f_-BAP'))`), 5_000);
+  await driver.wait(
+    async () =>
+      driver.executeScript(`return Boolean(document.getElementById('_60628e87-7d17-444b-8862-499ed925bb7f_-BAP'))`),
+    5_000,
+  );
   await driver.findElement(By.id('_60628e87-7d17-444b-8862-499ed925bb7f_-BAP')).click();
   await switchToNewViewer(handlesBefore);
   console.log('Firefox native toolbar action passed.');
@@ -132,9 +143,18 @@ try {
   if (!process.env.FIREFOX_SKIP_CONTEXT) {
     await openExample();
     handlesBefore = await driver.getAllWindowHandles();
-    await driver.actions().contextClick(await driver.findElement(By.css('body'))).perform();
+    await driver
+      .actions()
+      .contextClick(await driver.findElement(By.css('body')))
+      .perform();
     await driver.setContext(firefox.Context.CHROME);
-    await driver.wait(async () => driver.executeScript(`return Boolean(document.querySelector('#contentAreaContextMenu menuitem[label="Open in Quire"]'))`), 5_000);
+    await driver.wait(
+      async () =>
+        driver.executeScript(
+          `return Boolean(document.querySelector('#contentAreaContextMenu menuitem[label="Open in Quire"]'))`,
+        ),
+      5_000,
+    );
     await driver.findElement(By.css('#contentAreaContextMenu menuitem[label="Open in Quire"]')).click();
     await switchToNewViewer(handlesBefore);
     console.log('Firefox native context menu passed.');
@@ -144,11 +164,26 @@ try {
     await openExample();
     handlesBefore = await driver.getAllWindowHandles();
     if (process.env.FIREFOX_NATIVE_INPUT_CONTAINER) {
-      execFileSync('docker', ['exec', '-e', `DISPLAY=${process.env.FIREFOX_NATIVE_DISPLAY || ':99'}`, process.env.FIREFOX_NATIVE_INPUT_CONTAINER, 'xdotool', 'key', 'alt+shift+m']);
+      execFileSync('docker', [
+        'exec',
+        '-e',
+        `DISPLAY=${process.env.FIREFOX_NATIVE_DISPLAY || ':99'}`,
+        process.env.FIREFOX_NATIVE_INPUT_CONTAINER,
+        'xdotool',
+        'key',
+        'alt+shift+m',
+      ]);
     } else if (process.env.FIREFOX_NATIVE_INPUT) {
       execFileSync('xdotool', ['key', 'alt+shift+m']);
     } else {
-      await driver.actions().keyDown(Key.ALT).keyDown(Key.SHIFT).sendKeys('m').keyUp(Key.SHIFT).keyUp(Key.ALT).perform();
+      await driver
+        .actions()
+        .keyDown(Key.ALT)
+        .keyDown(Key.SHIFT)
+        .sendKeys('m')
+        .keyUp(Key.SHIFT)
+        .keyUp(Key.ALT)
+        .perform();
     }
     await switchToNewViewer(handlesBefore);
     console.log('Firefox extension shortcut passed.');
@@ -158,7 +193,9 @@ try {
   const nativeFlows = ['toolbar action'];
   if (!process.env.FIREFOX_SKIP_CONTEXT) nativeFlows.push('context menu');
   if (!process.env.FIREFOX_SKIP_SHORTCUT) nativeFlows.push('shortcut');
-  console.log(`Firefox ${capabilities.get('browserVersion')}: installed add-on, local file, Recent Resource reopen, localization, and ${nativeFlows.join(', ')} flows passed.`);
+  console.log(
+    `Firefox ${capabilities.get('browserVersion')}: installed add-on, local file, Recent Resource reopen, localization, and ${nativeFlows.join(', ')} flows passed.`,
+  );
 } finally {
   await driver.quit();
   await new Promise((done) => server.close(done));

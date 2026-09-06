@@ -7,7 +7,8 @@ const diagrams = {
   state: 'stateDiagram-v2\n  [*] --> Reading\n  Reading --> Focused\n  Focused --> [*]',
   class: 'classDiagram\n  class Document\n  Document : +String title\n  Document : +render()',
   pie: 'pie showData\n  title Reading time\n  "Prose" : 72\n  "Code" : 18\n  "Diagrams" : 10',
-  xychart: 'xychart-beta\n  title "Reading sessions"\n  x-axis [Mon, Tue, Wed, Thu]\n  y-axis "Minutes" 0 --> 40\n  bar [12, 24, 19, 32]',
+  xychart:
+    'xychart-beta\n  title "Reading sessions"\n  x-axis [Mon, Tue, Wed, Thu]\n  y-axis "Minutes" 0 --> 40\n  bar [12, 24, 19, 32]',
 } as const;
 
 describe('supported Mermaid gallery diagrams', () => {

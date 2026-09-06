@@ -1,7 +1,9 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  cleanupExpiredDocumentHandoffs, createDocumentHandoff, DOCUMENT_HANDOFF_TTL_MS,
+  cleanupExpiredDocumentHandoffs,
+  createDocumentHandoff,
+  DOCUMENT_HANDOFF_TTL_MS,
   takeDocumentHandoff,
 } from './handoffStore';
 
@@ -24,19 +26,15 @@ describe('document handoff storage', () => {
       createDocumentHandoff(second, { id: 'handoff-b', now: 1 }),
     ]);
 
-    await expect(Promise.all([
-      takeDocumentHandoff('handoff-a', 2),
-      takeDocumentHandoff('handoff-b', 2),
-    ])).resolves.toEqual([first, second]);
+    await expect(
+      Promise.all([takeDocumentHandoff('handoff-a', 2), takeDocumentHandoff('handoff-b', 2)]),
+    ).resolves.toEqual([first, second]);
   });
 
   it('atomically returns a handoff only once', async () => {
     const document = { title: 'Once', markdown: '# Once' };
     await createDocumentHandoff(document, { id: 'single-use', now: 1 });
-    const results = await Promise.all([
-      takeDocumentHandoff('single-use', 2),
-      takeDocumentHandoff('single-use', 2),
-    ]);
+    const results = await Promise.all([takeDocumentHandoff('single-use', 2), takeDocumentHandoff('single-use', 2)]);
 
     expect(results.filter(Boolean)).toEqual([document]);
     await expect(takeDocumentHandoff('single-use', 2)).resolves.toBeUndefined();

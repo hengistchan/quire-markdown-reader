@@ -2,7 +2,13 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { inflateSync } from 'node:zlib';
 
-const names = ['01-open-markdown.png', '02-focused-reader.png', '03-local-workspace.png', '04-technical-markdown.png', '05-reading-settings.png'];
+const names = [
+  '01-open-markdown.png',
+  '02-focused-reader.png',
+  '03-local-workspace.png',
+  '04-technical-markdown.png',
+  '05-reading-settings.png',
+];
 const locales = ['global', 'zh-CN'];
 const paths = locales.flatMap((locale) => names.map((name) => resolve('store/assets/screenshots', locale, name)));
 
@@ -35,7 +41,7 @@ function classifyScreenshotTheme(png, path) {
   }
 
   const idatChunks = [];
-  for (let offset = 8; offset < png.length; ) {
+  for (let offset = 8; offset < png.length;) {
     const length = png.readUInt32BE(offset);
     const type = png.subarray(offset + 4, offset + 8).toString('ascii');
     if (type === 'IDAT') idatChunks.push(png.subarray(offset + 8, offset + 8 + length));
@@ -107,7 +113,9 @@ for (const path of paths) {
   const { width, height, bitDepth, colorType, interlaceMethod } = inspectPng(png, path);
   if (width !== 1280 || height !== 800) throw new Error(`${path} must be 1280x800, received ${width}x${height}.`);
   if (bitDepth !== 8 || colorType !== 2 || interlaceMethod !== 0) {
-    throw new Error(`${path} must be a non-interlaced 24-bit RGB PNG (bit depth ${bitDepth}, color type ${colorType}, interlace ${interlaceMethod}).`);
+    throw new Error(
+      `${path} must be a non-interlaced 24-bit RGB PNG (bit depth ${bitDepth}, color type ${colorType}, interlace ${interlaceMethod}).`,
+    );
   }
 }
 
@@ -120,7 +128,9 @@ for (const locale of locales) {
   const lightCount = [...themes.values()].filter((theme) => theme === 'light').length;
   const darkCount = [...themes.values()].filter((theme) => theme === 'dark').length;
   if (lightCount !== 4 || darkCount !== 1 || themes.get('02-focused-reader.png') !== 'dark') {
-    throw new Error(`${locale} screenshots must contain four light images and one dark 02-focused-reader.png image; received ${JSON.stringify(Object.fromEntries(themes))}.`);
+    throw new Error(
+      `${locale} screenshots must contain four light images and one dark 02-focused-reader.png image; received ${JSON.stringify(Object.fromEntries(themes))}.`,
+    );
   }
 }
 
@@ -143,7 +153,8 @@ for (const [path, shortHeading, disclosureHeading] of [
   ['store/zh-CN/listing.md', '简短说明', '数据处理醒目说明'],
 ]) {
   const description = await markdownSection(path, shortHeading);
-  if (description.length > 132) throw new Error(`${path} short description exceeds 132 characters (${description.length}).`);
+  if (description.length > 132)
+    throw new Error(`${path} short description exceeds 132 characters (${description.length}).`);
   await markdownSection(path, disclosureHeading);
 }
 
@@ -159,4 +170,6 @@ for (const heading of [
   if (value.length > 1000) throw new Error(`${privacyPath} “${heading}” exceeds 1,000 characters (${value.length}).`);
 }
 
-console.log('Verified 10 localized screenshots with four light and one dark per locale, store artwork, listing limits, data disclosures, and permission explanations.');
+console.log(
+  'Verified 10 localized screenshots with four light and one dark per locale, store artwork, listing limits, data disclosures, and permission explanations.',
+);

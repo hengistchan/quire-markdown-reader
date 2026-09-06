@@ -4,10 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 type Rgb = [number, number, number];
 
-const tokenCss = readFileSync(
-  resolve(process.cwd(), 'src/entrypoints/viewer/styles/tokens.css'),
-  'utf8',
-);
+const tokenCss = readFileSync(resolve(process.cwd(), 'src/entrypoints/viewer/styles/tokens.css'), 'utf8');
 
 function declarations(selector: string): Record<string, string> {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -32,14 +29,14 @@ function parseHex(value: string): Rgb {
 function relativeLuminance(value: string): number {
   const [red, green, blue] = parseHex(value).map((channel) => {
     const normalized = channel / 255;
-    return normalized <= .04045 ? normalized / 12.92 : ((normalized + .055) / 1.055) ** 2.4;
+    return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
   });
-  return red! * .2126 + green! * .7152 + blue! * .0722;
+  return red! * 0.2126 + green! * 0.7152 + blue! * 0.0722;
 }
 
 function contrast(foreground: string, background: string): number {
   const values = [relativeLuminance(foreground), relativeLuminance(background)].sort((a, b) => b - a);
-  return (values[0]! + .05) / (values[1]! + .05);
+  return (values[0]! + 0.05) / (values[1]! + 0.05);
 }
 
 function token(tokens: Record<string, string>, name: string): string {

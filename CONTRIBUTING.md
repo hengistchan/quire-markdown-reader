@@ -10,10 +10,10 @@ Thank you for helping make Markdown reading better across browsers.
 
 ## Local setup
 
-Requirements: Node.js 22 or newer and npm.
+Requirements: Node.js 22.17.0 (see `.node-version`) and npm 11.16.0.
 
 ```bash
-npm install
+npm ci
 npm run dev:chrome
 ```
 
@@ -24,13 +24,22 @@ Use `npm run dev:firefox` when testing Firefox-specific behavior.
 Run these before opening a pull request:
 
 ```bash
+npm run security:verify
+npm run lint
 npm run compile
-npm test
+npm run test:coverage
 npm run build
-npm run test:e2e
+npm run zip
+npm run bundle:verify
+npm run package:verify
+npm run source:verify
+npm run store:verify
+npm run test:e2e:chromium
+npm run test:visual
+npm run test:e2e:firefox:context
 ```
 
-The final command builds both Chrome/Chromium and Firefox variants. If your change affects layout or interaction, test the viewer at desktop and narrow viewport widths as well.
+The installed native Firefox shortcut check runs in Linux with `xvfb-run -a npm run test:e2e:firefox:native`. If your change affects layout or interaction, test the viewer at desktop and narrow viewport widths as well.
 
 ## Project boundaries
 

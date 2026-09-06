@@ -1,6 +1,6 @@
 # Quire privacy policy
 
-Effective date: 2026-08-02
+Effective date: 2026-09-06
 
 Quire is a read-only Markdown reader. It does not operate a backend service and does not send user data to the developer, sell it, or share it for advertising or unrelated purposes. Quire processes user-selected documents, website content, and URLs only to provide its reading features, including when that processing remains entirely on the user's device.
 
@@ -9,6 +9,7 @@ Quire is a read-only Markdown reader. It does not operate a backend service and 
 - **Local documents:** Files and folders selected by the user are read and rendered on the user's device. If the user enables file-URL access in browser extension settings, Quire also reads a local `.md`, `.markdown`, or `.mdx` document opened explicitly through a `file://` address. `.mdx` is treated as ordinary Markdown: embedded JSX, imports, and expressions are not executed. Quire ignores other local file types, never uploads local documents, and never modifies their source.
 - **Active-page content and URL:** When the user explicitly clicks the Quire toolbar action, invokes its shortcut, or chooses its page context-menu item, Quire reads that tab's title, URL, and visible text and opens the visible text as a literal plain-text snapshot in the local reader. It does not treat that snapshot as Markdown, use the Chrome history API, or perform background browsing-history collection.
 - **Remote documents:** When the user enters a web address, Quire requests access to that website and fetches the selected Markdown document directly from it. The selected server receives the ordinary network request. Quire does not proxy the request through a developer server.
+- **Remote images:** Images referenced by local or remote documents are blocked by default. If the user enables remote images, each image is fetched directly from the host in its URL, so that host receives the ordinary network request and the user's IP address. Quire applies the selected referrer policy before starting the request.
 - **On-device preferences, handles, and handoffs:** Reader settings, onboarding state, and up to six recent-document titles, source references, and reading positions are stored on the user's device. For local recent items, browser-managed file or folder handles are kept in local IndexedDB under random workspace or file IDs so the user can explicitly reopen each item; Quire still requests permission again whenever the browser requires it. A document imported from an active page or local address is placed in a separate local IndexedDB under a random, single-use handoff ID. The matching reader consumes and deletes only that handoff.
 
 Quire has no accounts, analytics, telemetry, advertising, tracking pixels, or developer-operated data store. No human associated with Quire can access a user's documents through the extension.
@@ -27,7 +28,7 @@ Settings, recent metadata, and browser-managed file or folder handles remain in 
 
 ## Limited Use
 
-Quire's use of information received through browser APIs is limited to providing its user-facing Markdown reading features. Quire does not transfer that information except as necessary to fetch a user-selected remote document, comply with law, or protect security; it does not use data for advertising, credit decisions, or unrelated purposes. This use complies with the Chrome Web Store User Data Policy, including the Limited Use requirements.
+Quire's use of information received through browser APIs is limited to providing its user-facing Markdown reading features. Quire does not transfer that information except as necessary to fetch a user-selected remote document or an image the user has chosen to allow, comply with law, or protect security; it does not use data for advertising, credit decisions, or unrelated purposes. This use complies with the Chrome Web Store User Data Policy, including the Limited Use requirements.
 
 ## Changes and contact
 

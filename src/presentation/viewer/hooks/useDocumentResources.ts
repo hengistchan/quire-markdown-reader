@@ -12,9 +12,10 @@ export function useDocumentResources(
     if (!articleRef.current) return;
     let cancelled = false;
     let observer: IntersectionObserver | undefined;
+    const controller = new AbortController();
     const resolveImage = async (image: HTMLImageElement) => {
-      if (image.dataset.resourceState) return;
-      const raw = image.getAttribute('src');
+      if (image.dataset.resourceState === 'ready' || image.dataset.resourceState === 'resolving') return;
+      const raw = image.dataset.resourceSrc;
       if (!raw) return;
       const remote = /^(?:https?:)?\/\//i.test(raw);
       if (remote && !options.loadRemoteImages) {
@@ -23,14 +24,15 @@ export function useDocumentResources(
         return;
       }
       image.dataset.resourceState = 'resolving';
-      const result = await resolver.resolveAsset(raw);
+      const result = await resolver.resolveAsset(raw, controller.signal);
       if (cancelled) return;
       if (result.type === 'unavailable') {
         if (result.reason === 'unsupported') {
-          delete image.dataset.resourceState;
+          image.referrerPolicy = options.referrerPolicy;
+          image.src = raw;
+          image.dataset.resourceState = 'ready';
           image.loading = 'lazy';
           image.decoding = 'async';
-          image.referrerPolicy = options.referrerPolicy;
           return;
         }
         image.dataset.resourceError = 'true';
@@ -43,27 +45,31 @@ export function useDocumentResources(
         image.dataset.resourceState = 'blocked';
         return;
       }
-      image.src = result.url;
       image.loading = 'lazy';
       image.decoding = 'async';
       image.referrerPolicy = options.referrerPolicy;
+      image.src = result.url;
       image.dataset.resourceState = 'ready';
     };
-    const images = [...articleRef.current.querySelectorAll<HTMLImageElement>('img[src]')];
+    const images = [...articleRef.current.querySelectorAll<HTMLImageElement>('img[data-resource-src]')];
     if ('IntersectionObserver' in window) {
-      observer = new IntersectionObserver((entries) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          observer?.unobserve(entry.target);
-          void resolveImage(entry.target as HTMLImageElement);
-        }
-      }, { rootMargin: '500px 0px' });
+      observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            observer?.unobserve(entry.target);
+            void resolveImage(entry.target as HTMLImageElement);
+          }
+        },
+        { rootMargin: '500px 0px' },
+      );
       for (const image of images) observer.observe(image);
     } else {
       for (const image of images) void resolveImage(image);
     }
     return () => {
       cancelled = true;
+      controller.abort();
       observer?.disconnect();
     };
   }, [articleRef, documentHtml, options.loadRemoteImages, options.referrerPolicy, resolver, unavailableMessage]);

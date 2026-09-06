@@ -94,13 +94,11 @@ function closeLightbox(): void {
   lightboxCleanup = undefined;
 }
 
-function openLightbox(
-  sourceShell: HTMLElement,
-  sourceViewport: HTMLElement,
-  labels: DocumentEnhancementLabels,
-): void {
+function openLightbox(sourceShell: HTMLElement, sourceViewport: HTMLElement, labels: DocumentEnhancementLabels): void {
   const doc = sourceShell.ownerDocument;
   closeLightbox();
+  const previousFocus = doc.activeElement instanceof HTMLElement ? doc.activeElement : undefined;
+  const previousOverflow = doc.body.style.overflow;
   doc.body.style.overflow = 'hidden';
 
   const backdrop = doc.createElement('div');
@@ -148,6 +146,10 @@ function openLightbox(
   container.append(toolbar, viewport);
   backdrop.append(container);
   doc.body.append(backdrop);
+  const inertSiblings = [...doc.body.children]
+    .filter((element): element is HTMLElement => element instanceof HTMLElement && element !== backdrop)
+    .map((element) => ({ element, inert: element.inert }));
+  for (const sibling of inertSiblings) sibling.element.inert = true;
 
   /* ── interactions ─────────────────────────────── */
 
@@ -155,13 +157,30 @@ function openLightbox(
     onClose: closeLightbox,
   });
 
-  closeBtn.addEventListener('click', () => closeLightbox());
+  const onCloseClick = () => closeLightbox();
+  closeBtn.addEventListener('click', onCloseClick);
   const onBackdrop = (event: MouseEvent) => {
     if (event.target === backdrop) closeLightbox();
   };
   backdrop.addEventListener('mousedown', onBackdrop);
   const onKey = (event: KeyboardEvent) => {
-    if (event.key === 'Escape') { event.preventDefault(); closeLightbox(); }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeLightbox();
+    }
+    if (event.key === 'Tab') {
+      const controls = [...backdrop.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
+      if (!controls.length) return;
+      const first = controls[0]!;
+      const last = controls.at(-1)!;
+      if (event.shiftKey && doc.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && doc.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
   };
   doc.addEventListener('keydown', onKey);
 
@@ -172,11 +191,14 @@ function openLightbox(
 
   lightboxCleanup = () => {
     cleanup();
-    closeBtn.removeEventListener('click', closeLightbox);
+    closeBtn.removeEventListener('click', onCloseClick);
     backdrop.removeEventListener('mousedown', onBackdrop);
     doc.removeEventListener('keydown', onKey);
     backdrop.remove();
-    doc.body.style.overflow = '';
+    for (const sibling of inertSiblings) sibling.element.inert = sibling.inert;
+    doc.body.style.overflow = previousOverflow;
+    pinch = undefined;
+    previousFocus?.focus();
   };
 }
 
@@ -247,7 +269,13 @@ function bindDiagramInteractions(
     if (dragStart) return;
     viewport.setPointerCapture?.(event.pointerId);
     const state = readDiagramState(viewport);
-    dragStart = { clientX: event.clientX, clientY: event.clientY, panX: state.panX, panY: state.panY, pointerId: event.pointerId };
+    dragStart = {
+      clientX: event.clientX,
+      clientY: event.clientY,
+      panX: state.panX,
+      panY: state.panY,
+      pointerId: event.pointerId,
+    };
     viewport.classList.add('is-dragging');
     event.preventDefault();
   };
@@ -353,8 +381,11 @@ function bindDiagramInteractions(
     if (event.key === '+' || event.key === '=') zoomBy(DIAGRAM_SCALE_STEP);
     else if (event.key === '-') zoomBy(-DIAGRAM_SCALE_STEP);
     else if (event.key === '0') resetView();
-    else if (event.key === 'Escape' && callbacks.onClose) { event.preventDefault(); callbacks.onClose(); return; }
-    else if (viewport.querySelector('svg') && event.key.startsWith('Arrow')) {
+    else if (event.key === 'Escape' && callbacks.onClose) {
+      event.preventDefault();
+      callbacks.onClose();
+      return;
+    } else if (viewport.querySelector('svg') && event.key.startsWith('Arrow')) {
       const amount = event.shiftKey ? 40 : 16;
       update(
         state.scale,
@@ -499,5 +530,8 @@ export function enhanceDocument(
     cleanups.push(cleanup);
   }
 
-  return () => cleanups.forEach((fn) => fn());
+  return () => {
+    closeLightbox();
+    cleanups.forEach((fn) => fn());
+  };
 }

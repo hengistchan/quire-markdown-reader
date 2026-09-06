@@ -21,6 +21,11 @@ export class BrowserRefreshEnvironment implements RefreshEnvironment {
   onOnlineChange(listener: () => void): Disposable {
     const online = listen(window, 'online', listener);
     const offline = listen(window, 'offline', listener);
-    return { dispose: () => { online.dispose(); offline.dispose(); } };
+    return {
+      dispose: () => {
+        online.dispose();
+        offline.dispose();
+      },
+    };
   }
 }
